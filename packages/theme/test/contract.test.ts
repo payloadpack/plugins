@@ -190,7 +190,7 @@ const HARD_CODED_BY_PAYLOAD = [
     selector: '.btn--withPopup',
     declaration: '.popup-button { height: var(--spacer-4, 1.5rem); }'
   },
-  { file: 'css/theme.css', selector: ':root', declaration: '--popup-radius: var(--radius-large);' },
+  { file: 'css/theme.css', selector: ':root, :host', declaration: '--popup-radius: var(--radius-large);' },
   { file: 'elements/Dialog/index.css', selector: '.dialog--small', declaration: '--dialog-width: 280px;' },
   {
     file: 'elements/Dialog/index.css',
@@ -389,7 +389,7 @@ const flattenRules = (css: string, parent = ''): { declarations: string; propert
   })
 
 const findRuleBody = (css: string, selector: string) => {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/,\s*/g, ',\\s*')
   const start = css.search(new RegExp(`(?:^|\\n)[ \\t]*${escaped} \\{`))
   if (start === -1) {
     return null
@@ -645,8 +645,8 @@ describe('theme contract with Payload', () => {
     const colors = readUtf8(path.join(uiDist, 'css/colors.css'))
     const palette = themeCss['palettes/palette.css']
     const blocks = [
-      { payload: ':root', theme: "&:not([data-theme='dark'])" },
-      { payload: "[data-theme='dark']", theme: "&[data-theme='dark']" }
+      { payload: ":root, :host, [data-theme='light']", theme: "&:not([data-theme='dark'])" },
+      { payload: ":host([data-theme='dark']), [data-theme='dark']", theme: "&[data-theme='dark']" }
     ]
     const mappings = blocks.flatMap(({ payload, theme }) => {
       const block = collapseWhitespaceAndParenthesisPadding(findRuleBody(palette, theme) ?? '')
@@ -737,7 +737,7 @@ describe('theme contract with Payload', () => {
   })
 
   it("falls back to Payload's own blue steps for a palette without an accent", () => {
-    const tokens = readUtf8(path.join(uiDist, 'css/design-tokens.css'))
+    const tokens = readUtf8(path.join(uiDist, 'css/color-ramps.css'))
     const fallbacks = [...themeCss['palettes/accent.css'].matchAll(/(--ramp-[\w-]+):\s*var\(--[\w-]+,\s*(#[\da-f]+)\)/g)]
 
     expect(fallbacks).toHaveLength(12)
@@ -756,10 +756,10 @@ describe('theme contract with Payload', () => {
     const paletteTokens = new Set(
       Object.keys(themeCss)
         .filter((file) => file.startsWith('palettes/'))
-        .flatMap((file) => declaredProperties(themeCss[file]))
+        .flatMap((file) => declaredProperties(themeCss[file].replace(/--[\w-]+\s*:\s*inherit\s*;/g, '')))
     )
     const colorTokens = new Set([
-      ...['css/colors.css', 'css/design-tokens.css'].flatMap((file) => declaredProperties(readUtf8(path.join(uiDist, file)))),
+      ...['css/colors.css', 'css/color-ramps.css'].flatMap((file) => declaredProperties(readUtf8(path.join(uiDist, file)))),
       ...paletteTokens
     ])
     const literal =

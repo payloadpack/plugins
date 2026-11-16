@@ -328,7 +328,7 @@ html[data-theme='dark'] @media (max-width: 768px) .rich-text-lexical &.error > .
 .column-selector__search { display: flex; flex-shrink: 0; align-items: center; height: calc(var(--spacer-5) + var(--spacer-2) + var(--stroke-width-small)); padding-inline: var(--spacer-2-5); border-bottom: var(--stroke-width-small) solid var(--color-border); }
 .column-selector__search-bar { display: flex; align-items: center; flex: 1; height: var(--spacer-4); padding-inline-end: var(--spacer-2); background: var(--color-bg-secondary); border-radius: var(--button-radius); }
 .column-selector__search-bar svg { display: block; flex-shrink: 0; color: var(--color-icon-secondary); }
-html[data-enhanced-contrast] .column-selector__search-bar { outline: var(--stroke-width-small) solid var(--color-border-control); }
+html[data-enhanced-contrast] .column-selector__search-bar, :host([data-enhanced-contrast]) .column-selector__search-bar { outline: var(--stroke-width-small) solid var(--color-border-control); }
 
 == @payloadcms/ui/elements/Combobox/index.css
 .popup.combobox > .popup__content { min-width: 0; }
@@ -577,9 +577,9 @@ a.nav__link:focus-visible &::before { outline: var(--accessibility-outline); out
 .nav__link--selected &::before { background: var(--color-bg-selected); }
 @media (max-width: 1024px) .nav__scroll { --nav-padding-inline-start: var(--spacer-2); --nav-padding-inline-end: var(--spacer-2); }
 @media (max-width: 768px) .nav__scroll { --nav-padding-inline-start: var(--gutter-h); --nav-padding-inline-end: var(--gutter-h); }
-html[data-enhanced-contrast] .nav__header + .nav__scroll .nav__wrap > .nav-group:first-child { padding-block-start: 0; }
-html[data-enhanced-contrast] .nav__header + .nav__scroll .nav__wrap > .nav-group:first-child > .nav-group__toggle { border-block-start: 0; }
-html[data-enhanced-contrast] .nav__link--selected::before { background: var(--color-bg-secondary); border: var(--stroke-width-small) solid var(--color-border-selected); }
+html[data-enhanced-contrast] .nav__header + .nav__scroll .nav__wrap > .nav-group:first-child, :host([data-enhanced-contrast]) .nav__header + .nav__scroll .nav__wrap > .nav-group:first-child { padding-block-start: 0; }
+html[data-enhanced-contrast] .nav__header + .nav__scroll .nav__wrap > .nav-group:first-child > .nav-group__toggle, :host([data-enhanced-contrast]) .nav__header + .nav__scroll .nav__wrap > .nav-group:first-child > .nav-group__toggle { border-block-start: 0; }
+html[data-enhanced-contrast] .nav__link--selected::before, :host([data-enhanced-contrast]) .nav__link--selected::before { background: var(--color-bg-secondary); border: var(--stroke-width-small) solid var(--color-border-selected); }
 
 == @payloadcms/ui/elements/NavGroup/index.css
 .nav-group { width: 100%; padding-block: var(--spacer-2); border-block-start: var(--stroke-width-small) solid var(--color-border); }
@@ -593,11 +593,11 @@ html[data-enhanced-contrast] .nav__link--selected::before { background: var(--co
 .nav-group__indicator { position: absolute; inset-inline-start: var(--spacer-2); transform: translate(-50%, 0%); display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: var(--spacer-3); height: var(--spacer-3); color: var(--color-icon-tertiary); opacity: 0; }
 .nav-group--collapsed .collapsible__toggle { border-bottom-right-radius: var(--button-radius); border-bottom-left-radius: var(--button-radius); }
 .nav-group--collapsed .nav-group__content { padding-bottom: 0; }
-html[data-enhanced-contrast] .nav-group { padding-block: 0; border-block-start: 0; }
-html[data-enhanced-contrast] .nav-group &:first-child { padding-block-start: var(--spacer-2-5); }
-html[data-enhanced-contrast] .nav-group &.nav-group--collapsed:has(~ .nav-group) > .nav-group__toggle { border-block-end: 0; }
-html[data-enhanced-contrast] .nav-group__toggle { color: var(--color-text); font-weight: var(--text-body-medium-bold-font-weight); border-block: var(--stroke-width-small) solid var(--color-border-control); }
-html[data-enhanced-contrast] .nav-group__toggle .nav-group__indicator { opacity: 1; color: var(--color-icon-primary); }
+html[data-enhanced-contrast] .nav-group, :host([data-enhanced-contrast]) .nav-group { padding-block: 0; border-block-start: 0; }
+html[data-enhanced-contrast] .nav-group:first-child, :host([data-enhanced-contrast]) .nav-group:first-child { padding-block-start: var(--spacer-2-5); }
+html[data-enhanced-contrast] .nav-group.nav-group--collapsed:has(~ .nav-group) > .nav-group__toggle, :host([data-enhanced-contrast]) .nav-group.nav-group--collapsed:has(~ .nav-group) > .nav-group__toggle { border-block-end: 0; }
+html[data-enhanced-contrast] .nav-group__toggle, :host([data-enhanced-contrast]) .nav-group__toggle { color: var(--color-text); font-weight: var(--text-body-medium-bold-font-weight); border-block: var(--stroke-width-small) solid var(--color-border-control); }
+html[data-enhanced-contrast] .nav-group__toggle .nav-group__indicator, :host([data-enhanced-contrast]) .nav-group__toggle .nav-group__indicator { opacity: 1; color: var(--color-icon-primary); }
 
 == @payloadcms/ui/elements/PageControls/index.css
 @media (max-width: 768px) .page-controls > .collection-list__list-selection &:not(:has(.list-selection)) { display: none; }
@@ -712,7 +712,7 @@ html[data-enhanced-contrast] .nav-group__toggle .nav-group__indicator { opacity:
 .react-select--error div.rs__control & > div.rs__indicator > button.dropdown-indicator[type='button'] { border: none; }
 .react-select--error .rs__control:hover { border-color: var(--field-color-border-error); }
 .react-select--error:focus-within div.rs__control { border-color: var(--field-color-border-focus); }
-html[data-enhanced-contrast] :is(.rs__option--is-focused, .rs__option--is-selected) { --color-text-secondary: var(--color-text); }
+html[data-enhanced-contrast] :is(.rs__option--is-focused, .rs__option--is-selected), :host([data-enhanced-contrast]) :is(.rs__option--is-focused, .rs__option--is-selected) { --color-text-secondary: var(--color-text); }
 
 == @payloadcms/ui/elements/RelationshipTable/cells/DrawerLink/index.css
 .drawer-link { display: flex; align-items: center; gap: var(--spacer-1); }

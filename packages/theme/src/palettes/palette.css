@@ -125,10 +125,13 @@
 
     /* 5. Nested themes */
     [data-theme]:not([data-palette]) {
+      --accessibility-focus-color: inherit;
+      --accessibility-outline: inherit;
       --color-bg: inherit;
       --color-bg-brand: inherit;
       --color-bg-brand-hover: inherit;
       --color-bg-brand-pressed: inherit;
+      --color-bg-brand-secondary: inherit;
       --color-bg-brand-tertiary: inherit;
       --color-bg-brand-tertiary-hover: inherit;
       --color-bg-danger: inherit;
@@ -141,6 +144,7 @@
       --color-bg-elevated: inherit;
       --color-bg-hover: inherit;
       --color-bg-inverse: inherit;
+      --color-bg-menu: inherit;
       --color-bg-pressed: inherit;
       --color-bg-secondary: inherit;
       --color-bg-secondary-hover: inherit;
@@ -150,11 +154,16 @@
       --color-bg-selected-pressed: inherit;
       --color-bg-selected-strong: inherit;
       --color-bg-selected-strong-hover: inherit;
+      --color-bg-selected-strong-pressed: inherit;
+      --color-bg-success: inherit;
+      --color-bg-success-pressed: inherit;
       --color-bg-success-tertiary: inherit;
       --color-bg-success-tertiary-hover: inherit;
       --color-bg-tertiary: inherit;
+      --color-bg-tooltip: inherit;
       --color-bg-transparent-hover: inherit;
       --color-bg-transparent-pressed: inherit;
+      --color-bg-warning: inherit;
       --color-bg-warning-tertiary: inherit;
       --color-bg-warning-tertiary-hover: inherit;
       --color-border: inherit;
@@ -172,23 +181,36 @@
       --color-border-success: inherit;
       --color-border-success-strong: inherit;
       --color-border-warning: inherit;
+      --color-drawer-backdrop: inherit;
+      --color-focal-point-backdrop: inherit;
       --color-icon: inherit;
       --color-icon-brand: inherit;
       --color-icon-danger: inherit;
       --color-icon-disabled: inherit;
       --color-icon-favorite: inherit;
+      --color-icon-onbrand: inherit;
+      --color-icon-onbrand-secondary: inherit;
       --color-icon-ondisabled: inherit;
       --color-icon-secondary: inherit;
       --color-icon-secondary-hover: inherit;
       --color-icon-selected: inherit;
       --color-icon-tertiary: inherit;
       --color-icon-warning: inherit;
+      --color-modalbackdrop: inherit;
       --color-text: inherit;
       --color-text-brand: inherit;
       --color-text-danger: inherit;
       --color-text-disabled: inherit;
+      --color-text-onbrand: inherit;
+      --color-text-onbrand-secondary: inherit;
+      --color-text-oncomponent: inherit;
+      --color-text-ondanger: inherit;
       --color-text-ondisabled: inherit;
       --color-text-oninverse: inherit;
+      --color-text-onselected-strong: inherit;
+      --color-text-onsuccess: inherit;
+      --color-text-ontooltip: inherit;
+      --color-text-onwarning: inherit;
       --color-text-secondary: inherit;
       --color-text-selected: inherit;
       --color-text-tertiary: inherit;
@@ -225,8 +247,16 @@
       --field-color-toggle-icon: inherit;
       --field-color-upload-bg: inherit;
       --field-color-upload-border: inherit;
+      --scrollbar-color: inherit;
       --special-border-translucent: inherit;
       --special-border-translucent-strong: inherit;
+      --special-multiplayer-blue: inherit;
+      --special-multiplayer-green: inherit;
+      --special-multiplayer-grey: inherit;
+      --special-multiplayer-pink: inherit;
+      --special-multiplayer-purple: inherit;
+      --special-multiplayer-red: inherit;
+      --special-multiplayer-yellow: inherit;
     }
 
     /* 6. Canvas */
