@@ -333,7 +333,7 @@ const declaredProperties = (css: string) => uniqueFirstCaptureGroups(css, /(?<![
 const referencedProperties = (css: string) => uniqueFirstCaptureGroups(css, /var\(\s*(--[\w-]+)/g)
 const optionalProperties = (css: string) => uniqueFirstCaptureGroups(css, /var\(\s*(--payloadpack-[\w-]+)\s*,/g)
 const documentedTokens = uniqueFirstCaptureGroups(
-  readUtf8(path.join(root, '../../apps/docs/src/content/docs/customize.md')),
+  readUtf8(path.join(root, '../../apps/docs/src/content/docs/theme/customize.md')),
   /^\| `(--payloadpack-[\w-]+)`/gm
 )
 const collapseWhitespaceAndParenthesisPadding = (css: string) =>

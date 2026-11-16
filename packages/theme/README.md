@@ -17,8 +17,8 @@
 </p>
 
 <p align="center">
-  <a href="https://theme.payloadpack.com/"><b>Documentation</b></a> ·
-  <a href="https://theme.payloadpack.com/installation/">Installation</a> ·
+  <a href="https://docs.payloadpack.com/theme/"><b>Documentation</b></a> ·
+  <a href="https://docs.payloadpack.com/theme/installation/">Installation</a> ·
   <a href="https://github.com/payloadpack/plugins/blob/main/packages/theme/CHANGELOG.md">Changelog</a> ·
   <a href="https://github.com/payloadpack/plugins/blob/main/CONTRIBUTING.md">Contributing</a>
 </p>
@@ -86,7 +86,7 @@ Give a field one of these as its `admin.className`. Each works under every style
 
 <table>
   <tr>
-    <td width="30%"><a href="https://theme.payloadpack.com/fields/vertical-tabs/"><b>Vertical tabs</b></a><br><code>VERTICAL_TABS</code></td>
+    <td width="30%"><a href="https://docs.payloadpack.com/theme/fields/vertical-tabs/"><b>Vertical tabs</b></a><br><code>VERTICAL_TABS</code></td>
     <td>
       <picture>
         <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/payloadpack/plugins/main/.github/assets/vertical-tabs-light.png">
@@ -95,7 +95,7 @@ Give a field one of these as its `admin.className`. Each works under every style
     </td>
   </tr>
   <tr>
-    <td width="30%"><a href="https://theme.payloadpack.com/fields/radio-cards/"><b>Radio cards</b></a><br><code>RADIO_CARDS</code></td>
+    <td width="30%"><a href="https://docs.payloadpack.com/theme/fields/radio-cards/"><b>Radio cards</b></a><br><code>RADIO_CARDS</code></td>
     <td>
       <picture>
         <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/payloadpack/plugins/main/.github/assets/radio-cards-light.png">
@@ -104,7 +104,7 @@ Give a field one of these as its `admin.className`. Each works under every style
     </td>
   </tr>
   <tr>
-    <td width="30%"><a href="https://theme.payloadpack.com/fields/switch/"><b>Switch</b></a><br><code>SWITCH</code> or <code>SWITCH_END</code></td>
+    <td width="30%"><a href="https://docs.payloadpack.com/theme/fields/switch/"><b>Switch</b></a><br><code>SWITCH</code> or <code>SWITCH_END</code></td>
     <td>
       <picture>
         <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/payloadpack/plugins/main/.github/assets/switch-light.png">
@@ -147,7 +147,7 @@ themePlugin({
 | `panel`              | Who gets the Appearance panel                |
 | `codeEditorFontSize` | Code editor font size in Comfortable density |
 
-Defaults and details are in the [configuration docs](https://theme.payloadpack.com/configuration/).
+Defaults and details are in the [configuration docs](https://docs.payloadpack.com/theme/configuration/).
 
 ## Customize
 
@@ -160,7 +160,7 @@ html {
 }
 ```
 
-Every token, and how to ship your own palette, is in the [customize docs](https://theme.payloadpack.com/customize/).
+Every token, and how to ship your own palette, is in the [customize docs](https://docs.payloadpack.com/theme/customize/).
 
 ## Requirements
 

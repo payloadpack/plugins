@@ -1,13 +1,44 @@
 ---
+import chevronDownIcon from 'lucide-static/icons/chevron-down.svg?raw'
+
 import DarkLogo from '../../../../.github/assets/icons/logo-dark.svg'
 import LightLogo from '../../../../.github/assets/icons/logo-light.svg'
 
+const PACKAGE_MENU_ID = 'docs-package-menu'
+
 const { siteTitle, siteTitleHref } = Astro.locals.starlightRoute
-const [packageScope, packageName] = siteTitle.split('/')
+const { topics } = Astro.locals.starlightSidebarTopics
+const currentPackage = topics.find((topic) => topic.isCurrent)
+const canSwitchPackage = currentPackage && topics.length > 1
 ---
 
-<a class="site-title sl-flex" href={siteTitleHref} translate="no">
-  <DarkLogo aria-hidden="true" class="light:sl-hidden" />
-  <LightLogo aria-hidden="true" class="dark:sl-hidden" />
-  <span>{packageScope}/<span class="docs-brand-gradient-text">{packageName}</span></span>
-</a>
+<div class="docs-site-title sl-flex" translate="no">
+  <a class="site-title sl-flex" href={siteTitleHref}>
+    <DarkLogo aria-hidden="true" class="light:sl-hidden" />
+    <LightLogo aria-hidden="true" class="dark:sl-hidden" />
+    <span>
+      {siteTitle}{currentPackage && '/'}{
+        currentPackage && !canSwitchPackage && <span class="docs-brand-gradient-text">{currentPackage.label}</span>
+      }
+    </span>
+  </a>
+  {
+    canSwitchPackage && (
+      <>
+        <button aria-label={`${currentPackage.label}, switch package`} class="docs-package-switcher sl-flex" popovertarget={PACKAGE_MENU_ID} type="button">
+          <span class="docs-brand-gradient-text">{currentPackage.label}</span>
+          <Fragment set:html={chevronDownIcon} />
+        </button>
+        <ul class="docs-package-menu" id={PACKAGE_MENU_ID} popover>
+          {topics.map((topic) => (
+            <li>
+              <a aria-current={topic.isCurrent ? 'true' : undefined} href={topic.link}>
+                {siteTitle}/{topic.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+</div>

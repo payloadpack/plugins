@@ -20,7 +20,7 @@
 
 A custom admin UI theme with three styles and four palettes, in light and dark. Each editor picks their own look from the Appearance panel.
 
-<a href="https://theme.payloadpack.com/">
+<a href="https://docs.payloadpack.com/theme/">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset=".github/assets/panel-tour-light.gif">
     <img alt="The Appearance panel switching between the Warm, Soft and Neutral palettes and the Studio, Payload and Enhanced styles" src=".github/assets/panel-tour-dark.gif">
@@ -31,7 +31,7 @@ A custom admin UI theme with three styles and four palettes, in light and dark. 
 bun add @payloadpack/theme
 ```
 
-<a href="https://theme.payloadpack.com/"><b>Documentation</b></a> · <a href="packages/theme#readme">README</a> · <a href="packages/theme/CHANGELOG.md">Changelog</a>
+<a href="https://docs.payloadpack.com/theme/"><b>Documentation</b></a> · <a href="packages/theme#readme">README</a> · <a href="packages/theme/CHANGELOG.md">Changelog</a>
 
 ## Contributing
 

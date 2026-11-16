@@ -4,13 +4,13 @@ This repository holds the open-source `@payloadpack` packages for Payload. Each 
 
 ## Repository
 
-| Path                | What                                                                                                        |
-| ------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `packages/theme`    | `@payloadpack/theme`, the admin theme                                                                       |
-| `apps/theme-demo`   | A Payload 4 app that runs the theme, with its e2e, visual and screenshot tests                              |
-| `apps/docs`         | The theme's docs site at [theme.payloadpack.com](https://theme.payloadpack.com), built with Astro Starlight |
-| `.claude`           | Conventions, naming and design notes                                                                        |
-| `.github/workflows` | CI, releases, the docs deploy, screenshots and visual baselines                                             |
+| Path                | What                                                                                                                |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `packages/theme`    | `@payloadpack/theme`, the admin theme                                                                               |
+| `apps/theme-demo`   | A Payload 4 app that runs the theme, with its e2e, visual and screenshot tests                                      |
+| `apps/docs`         | The docs site for every package at [docs.payloadpack.com](https://docs.payloadpack.com), built with Astro Starlight |
+| `.claude`           | Conventions, naming and design notes                                                                                |
+| `.github/workflows` | CI, releases, the docs deploy, screenshots and visual baselines                                                     |
 
 Every package and app reads the same config from the root:
 
@@ -105,7 +105,9 @@ The release, screenshots and visual baseline workflows need the repository secre
 
 ## Docs
 
-`apps/docs` is the theme's docs site, deployed to this repository's GitHub Pages on the custom domain theme.payloadpack.com. A repository has one Pages site with one custom domain, so a second package's docs either join this site or deploy from somewhere else.
+`apps/docs` is one docs site for every package, deployed to this repository's GitHub Pages on docs.payloadpack.com. Each package has its own path, such as `/theme/`, with its own sidebar, and the switcher in the top left moves between packages. A package's pages live in `apps/docs/src/content/docs/<name>/` and its sidebar is its topic in `apps/docs/astro.config.mjs`.
+
+The theme's docs used to live on theme.payloadpack.com. A redirect rule in Cloudflare sends every path there to the same path under docs.payloadpack.com/theme.
 
 ## Adding a package
 
@@ -116,7 +118,7 @@ The release, screenshots and visual baseline workflows need the repository secre
    {
      "name": "@payloadpack/<name>",
      "version": "0.1.0",
-     "homepage": "<its docs page>",
+     "homepage": "https://docs.payloadpack.com/<name>/",
      "bugs": { "url": "https://github.com/payloadpack/plugins/issues" },
      "repository": {
        "type": "git",
@@ -137,7 +139,8 @@ The release, screenshots and visual baseline workflows need the repository secre
 
    npm checks `repository.url` against the repository that publishes, so keep it exactly as above.
 
-3. **Release Please.** Add the package to both files, with the version from its `package.json`:
+3. **Docs.** Put its pages in `apps/docs/src/content/docs/<name>/`, with an `index` page. Add a topic for it to the `starlightSidebarTopics` list in `apps/docs/astro.config.mjs`, with `label: '<name>'`, `link: '/<name>/'` and its sidebar under `items`, and a card for it on the landing page, `apps/docs/src/content/docs/index.mdx`.
+4. **Release Please.** Add the package to both files, with the version from its `package.json`:
 
    ```jsonc
    // release-please-config.json, under "packages"
@@ -149,6 +152,6 @@ The release, screenshots and visual baseline workflows need the repository secre
 
    Then tag the commit that brings the package in as `<name>-v<version>`, such as `path-v0.1.0`. Release Please counts the next release from that tag.
 
-4. **npm.** npm can't publish a package's first version through trusted publishing, so publish that version by hand from the tagged commit. Then add a trusted publisher on the package's Settings page on npmjs.com: GitHub Actions, organization `payloadpack`, repository `plugins`, workflow `release.yml`. A new trusted publisher expires unless a release uses it within 2 days.
+5. **npm.** npm can't publish a package's first version through trusted publishing, so publish that version by hand from the tagged commit. Then add a trusted publisher on the package's Settings page on npmjs.com: GitHub Actions, organization `payloadpack`, repository `plugins`, workflow `release.yml`. A new trusted publisher expires unless a release uses it within 2 days.
 
 A package never reaches into another package's internals. It imports another package by name, through the exports that package publishes, and never through a path into its folder.
