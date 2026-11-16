@@ -16,7 +16,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      visual: ${{ steps.demo.outputs.visual }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies (frozen lockfile)
+        run: bun install --frozen-lockfile
+
+      - name: Check whether the change can alter the screenshots
+        id: demo
+        env:
+          BASE: ${{ github.event.before }}
+        run: scripts/demo-tests.sh @apps/theme-demo "$BASE" >> "$GITHUB_OUTPUT"
+
   screenshots:
+    needs: changes
+    if: needs.changes.outputs.visual == 'true'
     runs-on: macos-latest
     steps:
       - name: Checkout
