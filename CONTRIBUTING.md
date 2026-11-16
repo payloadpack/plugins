@@ -95,7 +95,7 @@ The theme demo's e2e and visual suites run only when a change can alter what the
 
 ## Release
 
-Each package has its own version, changelog and tags. Merge pull requests with a [Conventional Commits](https://www.conventionalcommits.org) title. A commit counts toward a package when it changes a file in that package's folder.
+Each package has its own version, changelog and tags. Merge pull requests with a [Conventional Commits](https://www.conventionalcommits.org) title. A commit releases a package when it changes a file in that package's folder outside its `test` folder, since tests are the one part that never ships to npm. The README and `package.json` ship with the package, so a change to them releases it too.
 
 Release Please keeps one release pull request open with the next version of every package that has changes. Merging it tags each released package as `<name>-v<version>`, such as `theme-v0.3.5`, publishes it to npm with provenance and deploys the docs site to GitHub Pages. To deploy the docs by hand, run the Docs workflow from the Actions tab.
 
@@ -144,7 +144,11 @@ The theme's docs used to live on theme.payloadpack.com. A redirect rule in Cloud
 
    ```jsonc
    // release-please-config.json, under "packages"
-   "packages/<name>": { "package-name": "@payloadpack/<name>", "changelog-path": "CHANGELOG.md" }
+   "packages/<name>": {
+     "package-name": "@payloadpack/<name>",
+     "changelog-path": "CHANGELOG.md",
+     "exclude-paths": ["packages/<name>/test"]
+   }
 
    // .release-please-manifest.json
    "packages/<name>": "0.1.0"
