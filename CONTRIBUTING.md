@@ -95,7 +95,7 @@ The theme demo's e2e and visual suites run only when a change can alter what the
 
 ## Release
 
-Each package has its own version, changelog and tags. Merge pull requests with a [Conventional Commits](https://www.conventionalcommits.org) title. A commit counts toward a package when it changes a file in that package's folder.
+Each package has its own version, changelog and tags. Merge pull requests with a [Conventional Commits](https://www.conventionalcommits.org) title. A commit counts toward a package when it changes a file in that package's folder, and only a `feat`, `fix`, `perf` or `revert` commit, or a breaking change, releases it. A `docs`, `test`, `refactor`, `ci` or `chore` commit changes nothing the package's users get, so it gets no changelog line and ships with the next release.
 
 Release Please keeps one release pull request open with the next version of every package that has changes. Merging it tags each released package as `<name>-v<version>`, such as `theme-v0.3.5`, publishes it to npm with provenance and deploys the docs site to GitHub Pages. To deploy the docs by hand, run the Docs workflow from the Actions tab.
 
