@@ -26,6 +26,7 @@
     .nav__link[id*='coupon' i],
     .nav__link[id*='discount' i],
     .nav__link[id*='promo' i] { --payloadpack-icon: url('lucide-static/icons/badge-percent.svg'); }
+    .nav__link[id*='gift' i] { --payloadpack-icon: url('lucide-static/icons/gift.svg'); }
     .nav__link[id*='brand' i] { --payloadpack-icon: url('lucide-static/icons/gem.svg'); }
     .nav__link[id*='inventor' i] { --payloadpack-icon: url('lucide-static/icons/warehouse.svg'); }
     .nav__link[id*='shipping' i],
