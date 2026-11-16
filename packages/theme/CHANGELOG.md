@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.5](https://github.com/payloadpack/plugins/compare/theme-v0.3.4...theme-v0.3.5) (2026-11-16)
+
+
+### Bug Fixes
+
+* match a gift icon to gift card slugs ([#66](https://github.com/payloadpack/plugins/issues/66)) ([4311b6d](https://github.com/payloadpack/plugins/commit/4311b6d23ea626f7cb33932f956e0339de71e918))
+
+
+### Chores
+
+* turn the repo into the plugins monorepo ([#65](https://github.com/payloadpack/plugins/issues/65)) ([c3ffbc6](https://github.com/payloadpack/plugins/commit/c3ffbc69bb47b12b7ac9ceb16694e63e1dbd7333))
+
 ## [0.3.4](https://github.com/payloadpack/theme/compare/v0.3.3...v0.3.4) (2026-11-16)
 
 
