@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.6](https://github.com/payloadpack/plugins/compare/theme-v0.3.5...theme-v0.3.6) (2026-11-16)
+
+
+### Documentation
+
+* move the docs to docs.payloadpack.com ([#68](https://github.com/payloadpack/plugins/issues/68)) ([74af846](https://github.com/payloadpack/plugins/commit/74af8468098532665884ac137c8331da49b06c87))
+
 ## [0.3.5](https://github.com/payloadpack/plugins/compare/theme-v0.3.4...theme-v0.3.5) (2026-11-16)
 
 
