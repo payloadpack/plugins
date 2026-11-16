@@ -322,7 +322,7 @@ export async function seed(payload: Payload) {
         defaultTitle: 'Payloadpack demo',
         logo: media[0]?.id,
         siteName: 'Payloadpack',
-        social: [{ platform: 'github', url: 'https://github.com/payloadpack/theme' }],
+        social: [{ platform: 'github', url: 'https://github.com/payloadpack/plugins' }],
         tagline: 'A theme for the Payload admin'
       },
       overrideAccess: true

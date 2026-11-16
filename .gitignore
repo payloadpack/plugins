@@ -14,9 +14,8 @@ coverage/
 .DS_Store
 .auth/
 next-env.d.ts
-apps/demo/AGENTS.md
-packages/theme/README.md
-apps/demo/media/
-apps/demo/e2e-media/
+apps/theme-demo/AGENTS.md
+apps/theme-demo/media/
+apps/theme-demo/e2e-media/
 .claude/worktrees/
 .astro/

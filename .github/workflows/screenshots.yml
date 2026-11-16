@@ -4,9 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'apps/demo/**'
+      - 'apps/theme-demo/**'
       - 'packages/theme/**'
-      - 'bun.lock'
       - '.github/workflows/screenshots.yml'
 
 permissions:
@@ -36,17 +35,16 @@ jobs:
       - name: Install dependencies (frozen lockfile)
         run: bun install --frozen-lockfile
 
-      - name: Build package
-        run: bun run build
-        working-directory: packages/theme
+      - name: Build the packages the demo uses
+        run: bun run build --filter=@apps/theme-demo^...
 
       - name: Install Playwright browser
         run: bunx playwright install chromium
-        working-directory: apps/demo
+        working-directory: apps/theme-demo
 
       - name: Take screenshots
         run: bun run screenshots
-        working-directory: apps/demo
+        working-directory: apps/theme-demo
         env:
           PAYLOAD_SECRET: ci-only-secret
 

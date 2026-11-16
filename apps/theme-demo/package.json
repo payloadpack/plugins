@@ -1,5 +1,5 @@
 {
-  "name": "@apps/demo",
+  "name": "@apps/theme-demo",
   "private": true,
   "type": "module",
   "scripts": {

@@ -12,11 +12,11 @@ export default defineConfig({
           tag: 'meta',
           attrs: {
             property: 'og:image',
-            content: 'https://raw.githubusercontent.com/payloadpack/theme/main/.github/assets/social-preview.png'
+            content: 'https://raw.githubusercontent.com/payloadpack/plugins/main/.github/assets/social-preview.png'
           }
         }
       ],
-      social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/payloadpack/theme' }],
+      social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/payloadpack/plugins' }],
       customCss: ['@fontsource-variable/inter', './src/styles/docs.css'],
       components: {
         PageTitle: './src/components/PageTitle.astro',

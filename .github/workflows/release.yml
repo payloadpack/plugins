@@ -18,7 +18,8 @@ jobs:
   release:
     runs-on: ubuntu-latest
     outputs:
-      theme_release_created: ${{ steps.rp.outputs['packages/theme--release_created'] }}
+      releases_created: ${{ steps.rp.outputs.releases_created }}
+      paths_released: ${{ steps.rp.outputs.paths_released }}
 
     steps:
       - name: Run Release Please (manifest)
@@ -30,9 +31,14 @@ jobs:
           manifest-file: .release-please-manifest.json
 
   publish:
+    name: publish (${{ matrix.path }})
     needs: release
-    if: ${{ needs.release.outputs.theme_release_created == 'true' }}
+    if: ${{ needs.release.outputs.releases_created == 'true' }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        path: ${{ fromJSON(needs.release.outputs.paths_released) }}
     steps:
       - name: Checkout monorepo
         uses: actions/checkout@v4
@@ -53,11 +59,11 @@ jobs:
 
       - name: Publish to npm
         run: npm publish
-        working-directory: packages/theme
+        working-directory: ${{ matrix.path }}
 
   docs:
     needs: release
-    if: ${{ needs.release.outputs.theme_release_created == 'true' }}
+    if: ${{ needs.release.outputs.releases_created == 'true' }}
     permissions:
       contents: read
       id-token: write

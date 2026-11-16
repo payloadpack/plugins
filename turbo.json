@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["tsconfig.base.json"],
   "globalEnv": ["NODE_ENV", "PAYLOAD_SECRET", "DATABASE_URI", "CI"],
   "tasks": {
     "build": {
@@ -22,6 +23,9 @@
     "test:e2e": {
       "dependsOn": ["^build"],
       "cache": false
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
     },
     "generate:importmap": {
       "dependsOn": ["^build"],
