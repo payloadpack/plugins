@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.4](https://github.com/payloadpack/theme/compare/v0.3.3...v0.3.4) (2026-11-16)
+
+
+### Bug Fixes
+
+* mark the chosen select option with a check ([#62](https://github.com/payloadpack/theme/issues/62)) ([37da6c9](https://github.com/payloadpack/theme/commit/37da6c947e36d108d525ae09488e364a8272939c))
+* support Payload 4.0.0-beta.9 ([#64](https://github.com/payloadpack/theme/issues/64)) ([696c0e7](https://github.com/payloadpack/theme/commit/696c0e7eda5c54983a8909303eba792cf82769d6))
+
 ## [0.3.3](https://github.com/payloadpack/theme/compare/v0.3.2...v0.3.3) (2026-11-12)
 
 
