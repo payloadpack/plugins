@@ -16,7 +16,7 @@ Every package and app reads the same config from the root:
 
 | File                  | What it sets                                                 |
 | --------------------- | ------------------------------------------------------------ |
-| `tsconfig.base.json`  | The TypeScript options every package and app extends         |
+| `tsconfig.base.json`  | The TypeScript options every package and demo extends        |
 | `prettier.config.mjs` | Formatting, run over the whole repository                    |
 | `package.json`        | The Bun version, in `packageManager`, used locally and in CI |
 | `.nvmrc`              | The Node version CI runs on                                  |

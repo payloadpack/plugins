@@ -76,13 +76,13 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build
-        run: bun run build $AFFECTED_FILTER
+        run: bun run build ${AFFECTED_FILTER:+"$AFFECTED_FILTER"}
 
       - name: Unit tests
-        run: bun run test $AFFECTED_FILTER
+        run: bun run test ${AFFECTED_FILTER:+"$AFFECTED_FILTER"}
 
       - name: Type-check
-        run: bun run typecheck $AFFECTED_FILTER
+        run: bun run typecheck ${AFFECTED_FILTER:+"$AFFECTED_FILTER"}
 
   e2e:
     name: e2e (${{ matrix.shard }}/${{ strategy.job-total }})
