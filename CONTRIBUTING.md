@@ -109,7 +109,7 @@ The release, screenshots and visual baseline workflows need the repository secre
 
 ## Adding a package
 
-1. **Folder.** Create `packages/<name>` with `src`, `test`, a `README.md` and a `LICENSE`, and a `tsconfig.json` that extends `../../tsconfig.base.json`. If it needs a Payload app to run in, add `apps/<name>-demo` with `"@payloadpack/<name>": "workspace:*"` as a dependency.
+1. **Folder.** Create `packages/<name>` with `src`, `test`, a `README.md` and a `LICENSE`, and a `tsconfig.json` that extends `../../tsconfig.base.json`. If it needs a Payload app to run in, add `apps/<name>-demo` with `"@payloadpack/<name>": "workspace:*"` as a dependency. Give it a section in the root `README.md`, like the theme's.
 2. **`package.json`.** Give it these fields, with the same Payload version the other packages use:
 
    ```json

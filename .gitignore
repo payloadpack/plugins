@@ -15,7 +15,6 @@ coverage/
 .auth/
 next-env.d.ts
 apps/theme-demo/AGENTS.md
-packages/theme/README.md
 apps/theme-demo/media/
 apps/theme-demo/e2e-media/
 .claude/worktrees/

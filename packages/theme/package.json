@@ -57,7 +57,7 @@
     "build:swc": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths --ignore \"**/*.d.ts\"",
     "build:types": "tsc -p tsconfig.json",
     "clean": "rimraf {dist,*.tsbuildinfo}",
-    "copyfiles": "copyfiles -u 1 \"src/**/*.css\" \"src/fonts/*\" dist/ && cp ../../README.md README.md",
+    "copyfiles": "copyfiles -u 1 \"src/**/*.css\" \"src/fonts/*\" dist/",
     "prepublishOnly": "bun run build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit --emitDeclarationOnly false"
