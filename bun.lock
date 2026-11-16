@@ -18,6 +18,7 @@
         "astro": "7.4.7",
         "lucide-static": "1.61.0",
         "sharp": "0.35.5",
+        "starlight-sidebar-topics": "0.9.0",
       },
     },
     "apps/theme-demo": {
@@ -43,7 +44,7 @@
     },
     "packages/theme": {
       "name": "@payloadpack/theme",
-      "version": "0.3.4",
+      "version": "0.3.5",
       "devDependencies": {
         "@payloadcms/richtext-lexical": "4.0.0-beta.9",
         "@payloadcms/ui": "4.0.0-beta.9",
@@ -1963,6 +1964,8 @@
     "split2": ["split2@4.2.0", "", {}, "sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg=="],
 
     "stackback": ["stackback@0.0.2", "", {}, "sha512-1XMJE5fQo1jGH6Y/7ebnwPOBEkIEnT4QF32d5R1+VXdXveM0IBMJt8zfaxX1P3QhVwrYe+576+jkANtSS2mBbw=="],
+
+    "starlight-sidebar-topics": ["starlight-sidebar-topics@0.9.0", "", { "dependencies": { "picomatch": "^4.0.3" }, "peerDependencies": { "@astrojs/starlight": ">=0.42.0", "astro": "^7.2.10" } }, "sha512-xFwMAAtTVyqsO5DZ8Ldk0vN+2QoPdtjtDi8fbrzvQATIJvIvfaBLL9JzfXAjNHI9vMkj35VMWMd8tTICeO6RIA=="],
 
     "state-local": ["state-local@1.0.7", "", {}, "sha512-HTEHMNieakEnoe33shBYcZ7NX83ACUjCu8c40iOGEZsngj9zRnkqS9j1pqQPXwobB0ZcVTk27REb7COQ0UR59w=="],
 

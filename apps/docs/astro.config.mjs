@@ -1,12 +1,13 @@
 import starlight from '@astrojs/starlight'
 import { defineConfig } from 'astro/config'
+import starlightSidebarTopics from 'starlight-sidebar-topics'
 
 export default defineConfig({
-  site: 'https://theme.payloadpack.com',
+  site: 'https://docs.payloadpack.com',
   integrations: [
     starlight({
-      title: '@payloadpack/theme',
-      description: 'Custom admin UI theme for Payload v4. Three styles and four palettes, in light and dark.',
+      title: '@payloadpack',
+      description: 'Docs for the open-source @payloadpack plugins for Payload v4.',
       head: [
         {
           tag: 'meta',
@@ -23,6 +24,7 @@ export default defineConfig({
         Sidebar: './src/components/Sidebar.astro',
         SiteTitle: './src/components/SiteTitle.astro'
       },
+      routeMiddleware: './src/routeData.ts',
       expressiveCode: {
         defaultProps: { frame: 'code' },
         themes: ['github-dark', 'github-light'],
@@ -44,15 +46,29 @@ export default defineConfig({
           }
         }
       },
-      sidebar: [
-        { slug: 'index', attrs: { 'data-icon': 'book-open' } },
-        { slug: 'installation', attrs: { 'data-icon': 'download' } },
-        { slug: 'configuration', attrs: { 'data-icon': 'settings-2' } },
-        {
-          label: 'Guides',
-          items: ['styles-and-palettes', 'add-a-palette', 'customize', 'nav-icons', 'translations']
-        },
-        { label: 'Fields', items: ['fields/vertical-tabs', 'fields/radio-cards', 'fields/switch'] }
+      plugins: [
+        starlightSidebarTopics([
+          {
+            label: 'theme',
+            link: '/theme/',
+            items: [
+              { slug: 'theme', attrs: { 'data-icon': 'book-open' } },
+              { slug: 'theme/installation', attrs: { 'data-icon': 'download' } },
+              { slug: 'theme/configuration', attrs: { 'data-icon': 'settings-2' } },
+              {
+                label: 'Guides',
+                items: [
+                  'theme/styles-and-palettes',
+                  'theme/add-a-palette',
+                  'theme/customize',
+                  'theme/nav-icons',
+                  'theme/translations'
+                ]
+              },
+              { label: 'Fields', items: ['theme/fields/vertical-tabs', 'theme/fields/radio-cards', 'theme/fields/switch'] }
+            ]
+          }
+        ])
       ]
     })
   ]
