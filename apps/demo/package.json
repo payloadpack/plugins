@@ -16,13 +16,13 @@
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
-    "@payloadcms/db-sqlite": "4.0.0-beta.8",
-    "@payloadcms/next": "4.0.0-beta.8",
-    "@payloadcms/richtext-lexical": "4.0.0-beta.8",
-    "@payloadcms/ui": "4.0.0-beta.8",
+    "@payloadcms/db-sqlite": "4.0.0-beta.9",
+    "@payloadcms/next": "4.0.0-beta.9",
+    "@payloadcms/richtext-lexical": "4.0.0-beta.9",
+    "@payloadcms/ui": "4.0.0-beta.9",
     "@payloadpack/theme": "workspace:*",
     "next": "16.4.2",
-    "payload": "4.0.0-beta.8",
+    "payload": "4.0.0-beta.9",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
