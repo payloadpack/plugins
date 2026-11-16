@@ -40,5 +40,12 @@ jobs:
       - name: Install dependencies (frozen lockfile)
         run: bun install --frozen-lockfile
 
+      - name: Check whether the change reaches the demo's code
+        id: demo
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && 'origin/main' || github.event.before }}
+        run: scripts/demo-tests.sh @apps/theme-demo "$BASE" >> "$GITHUB_OUTPUT"
+
       - name: React Doctor
+        if: steps.demo.outputs.e2e == 'true'
         uses: millionco/react-doctor@695e46eee203a5d1855020191aa7e9c010a1250e # v2.4.0

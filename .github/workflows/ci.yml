@@ -38,18 +38,8 @@ jobs:
         id: affected
         if: github.event_name == 'pull_request'
         run: |
-          filter='--filter=...[origin/main]'
-          echo "filter=$filter" >> "$GITHUB_OUTPUT"
-
-          theme_demo=$(bunx turbo ls "$filter" --output=json | jq '.packages.items | any(.name == "@apps/theme-demo")')
-          e2e=false
-          visual=false
-          if [ "$theme_demo" = true ]; then
-            git diff --quiet --no-renames HEAD^1 HEAD -- ':!*.md' ':!*.png' || e2e=true
-            git diff --quiet --no-renames HEAD^1 HEAD -- ':!*.md' || visual=true
-          fi
-          echo "e2e=$e2e" >> "$GITHUB_OUTPUT"
-          echo "visual=$visual" >> "$GITHUB_OUTPUT"
+          echo "filter=--filter=...[origin/main]" >> "$GITHUB_OUTPUT"
+          scripts/demo-tests.sh @apps/theme-demo >> "$GITHUB_OUTPUT"
 
   build-and-test:
     needs: changes

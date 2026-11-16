@@ -91,7 +91,7 @@ The approved screenshots are Linux images rendered in CI's Playwright container.
 
 On a pull request, CI builds, tests and type-checks the packages and apps the change touches, plus everything that depends on them (`--filter=...[origin/main]`). On `main` it runs everything. A change to `tsconfig.base.json` or `turbo.json` counts as touching every package.
 
-The theme demo's e2e and visual suites run when a change reaches `@apps/theme-demo`, and the visual suite still runs for a screenshot-only change. The Screenshots and React Doctor workflows run only on changes under `packages/theme` or `apps/theme-demo`. The `validate` job is the check a pull request needs to merge.
+The theme demo's e2e and visual suites run only when a change can alter what the demo runs: a file in the demo or in a package it builds from, a `package.json` change beyond metadata such as `version` or `homepage`, a lockfile change to their dependencies, or `tsconfig.base.json`. Docs, Markdown, unit tests and licenses never count, and a screenshot-only change runs the visual suite alone. `scripts/demo-tests.sh` makes that call. The Screenshots and React Doctor workflows start only for changes under `packages/theme` or `apps/theme-demo`, and then make the same call. The `validate` job is the check a pull request needs to merge.
 
 ## Release
 
