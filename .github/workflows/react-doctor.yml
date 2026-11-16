@@ -3,8 +3,16 @@ name: React Doctor
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'apps/theme-demo/**'
+      - 'packages/theme/**'
+      - '.github/workflows/react-doctor.yml'
   push:
     branches: [main]
+    paths:
+      - 'apps/theme-demo/**'
+      - 'packages/theme/**'
+      - '.github/workflows/react-doctor.yml'
 
 permissions:
   contents: read

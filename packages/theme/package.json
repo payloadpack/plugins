@@ -13,11 +13,14 @@
     "lucide"
   ],
   "homepage": "https://theme.payloadpack.com/",
+  "bugs": {
+    "url": "https://github.com/payloadpack/plugins/issues"
+  },
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/payloadpack/theme.git",
+    "url": "git+https://github.com/payloadpack/plugins.git",
     "directory": "packages/theme"
   },
   "exports": {
@@ -56,7 +59,8 @@
     "clean": "rimraf {dist,*.tsbuildinfo}",
     "copyfiles": "copyfiles -u 1 \"src/**/*.css\" \"src/fonts/*\" dist/ && cp ../../README.md README.md",
     "prepublishOnly": "bun run build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit --emitDeclarationOnly false"
   },
   "peerDependencies": {
     "@payloadcms/ui": "^4.0.0-beta.9",

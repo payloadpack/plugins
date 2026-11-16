@@ -39,13 +39,12 @@ jobs:
       - name: Install dependencies (frozen lockfile)
         run: bun install --frozen-lockfile
 
-      - name: Build package
-        run: bun run build
-        working-directory: packages/theme
+      - name: Build the packages the demo uses
+        run: bun run build --filter=@apps/theme-demo^...
 
       - name: Record the screenshots
         run: rm -rf tests/__visual__ && bun run test:visual --update-snapshots=all --shard=${{ matrix.shard }}/${{ strategy.job-total }}
-        working-directory: apps/demo
+        working-directory: apps/theme-demo
         env:
           PAYLOAD_SECRET: ci-only-secret
 
@@ -53,7 +52,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: visual-baselines-${{ matrix.shard }}
-          path: apps/demo/tests/__visual__/*-linux.png
+          path: apps/theme-demo/tests/__visual__/*-linux.png
           if-no-files-found: error
 
   commit:
@@ -68,18 +67,18 @@ jobs:
           persist-credentials: false
 
       - name: Replace the baselines with the recorded screenshots
-        run: rm -rf apps/demo/tests/__visual__
+        run: rm -rf apps/theme-demo/tests/__visual__
 
       - name: Download the screenshots
         uses: actions/download-artifact@v4
         with:
           pattern: visual-baselines-*
           merge-multiple: true
-          path: apps/demo/tests/__visual__
+          path: apps/theme-demo/tests/__visual__
 
       - name: Check that the artifact holds only screenshots
         run: |
-          unexpected="$(find apps/demo/tests/__visual__ -mindepth 1 ! \( -type f -name '*-linux.png' \))"
+          unexpected="$(find apps/theme-demo/tests/__visual__ -mindepth 1 ! \( -type f -name '*-linux.png' \))"
           if [ -n "$unexpected" ]; then
             echo "Unexpected files in the artifact:" "$unexpected"
             exit 1
@@ -92,7 +91,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add --all apps/demo/tests/__visual__
+          git add --all apps/theme-demo/tests/__visual__
           if git diff --cached --quiet; then
             echo "The baselines already match."
           else

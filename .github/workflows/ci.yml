@@ -14,27 +14,53 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      e2e: ${{ steps.diff.outputs.e2e }}
-      visual: ${{ steps.diff.outputs.visual }}
+      filter: ${{ steps.affected.outputs.filter }}
+      e2e: ${{ steps.affected.outputs.e2e }}
+      visual: ${{ steps.affected.outputs.visual }}
     steps:
       - name: Checkout
         if: github.event_name == 'pull_request'
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
-      - name: Check which test suites the change can affect
-        id: diff
+      - name: Setup Bun
+        if: github.event_name == 'pull_request'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies (frozen lockfile)
+        if: github.event_name == 'pull_request'
+        run: bun install --frozen-lockfile
+
+      - name: Find the packages and test suites the change affects
+        id: affected
         if: github.event_name == 'pull_request'
         run: |
-          echo "e2e=$(git diff --quiet --no-renames HEAD^1 HEAD -- ':!*.md' ':!*.png' && echo false || echo true)" >> "$GITHUB_OUTPUT"
-          echo "visual=$(git diff --quiet --no-renames HEAD^1 HEAD -- ':!*.md' && echo false || echo true)" >> "$GITHUB_OUTPUT"
+          filter='--filter=...[origin/main]'
+          echo "filter=$filter" >> "$GITHUB_OUTPUT"
 
-  unit-tests-and-typecheck:
+          theme_demo=$(bunx turbo ls "$filter" --output=json | jq '.packages.items | any(.name == "@apps/theme-demo")')
+          e2e=false
+          visual=false
+          if [ "$theme_demo" = true ]; then
+            git diff --quiet --no-renames HEAD^1 HEAD -- ':!*.md' ':!*.png' || e2e=true
+            git diff --quiet --no-renames HEAD^1 HEAD -- ':!*.md' || visual=true
+          fi
+          echo "e2e=$e2e" >> "$GITHUB_OUTPUT"
+          echo "visual=$visual" >> "$GITHUB_OUTPUT"
+
+  build-and-test:
+    needs: changes
     runs-on: ubuntu-latest
+    env:
+      AFFECTED_FILTER: ${{ needs.changes.outputs.filter }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -49,21 +75,14 @@ jobs:
       - name: Install dependencies (frozen lockfile)
         run: bun install --frozen-lockfile
 
-      - name: Build package
-        run: bun run build
-        working-directory: packages/theme
+      - name: Build
+        run: bun run build $AFFECTED_FILTER
 
       - name: Unit tests
-        run: bun run test
-        working-directory: packages/theme
+        run: bun run test $AFFECTED_FILTER
 
-      - name: Build docs
-        run: bun run build
-        working-directory: apps/docs
-
-      - name: Type-check demo
-        run: bun run typecheck
-        working-directory: apps/demo
+      - name: Type-check
+        run: bun run typecheck $AFFECTED_FILTER
 
   e2e:
     name: e2e (${{ matrix.shard }}/${{ strategy.job-total }})
@@ -92,13 +111,12 @@ jobs:
       - name: Install dependencies (frozen lockfile)
         run: bun install --frozen-lockfile
 
-      - name: Build package
-        run: bun run build
-        working-directory: packages/theme
+      - name: Build the packages the demo uses
+        run: bun run build --filter=@apps/theme-demo^...
 
       - name: End-to-end tests
         run: bun run test:e2e --shard=${{ matrix.shard }}/${{ strategy.job-total }}
-        working-directory: apps/demo
+        working-directory: apps/theme-demo
         env:
           PAYLOAD_SECRET: ci-only-secret
 
@@ -107,7 +125,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-traces-${{ matrix.shard }}
-          path: apps/demo/test-results
+          path: apps/theme-demo/test-results
 
   visual:
     name: visual (${{ matrix.shard }}/${{ strategy.job-total }})
@@ -136,13 +154,12 @@ jobs:
       - name: Install dependencies (frozen lockfile)
         run: bun install --frozen-lockfile
 
-      - name: Build package
-        run: bun run build
-        working-directory: packages/theme
+      - name: Build the packages the demo uses
+        run: bun run build --filter=@apps/theme-demo^...
 
       - name: Visual regression tests
         run: bun run test:visual --shard=${{ matrix.shard }}/${{ strategy.job-total }}
-        working-directory: apps/demo
+        working-directory: apps/theme-demo
         env:
           PAYLOAD_SECRET: ci-only-secret
 
@@ -151,11 +168,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: visual-differences-${{ matrix.shard }}
-          path: apps/demo/test-results
+          path: apps/theme-demo/test-results
 
   validate:
     if: always()
-    needs: [changes, unit-tests-and-typecheck, e2e, visual]
+    needs: [changes, build-and-test, e2e, visual]
     runs-on: ubuntu-latest
     steps:
       - name: Fail when a job did not pass
