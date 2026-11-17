@@ -24,9 +24,9 @@ function withPath(
     ...(hasParent ? [ancestorsField(collection.slug)] : [])
   ]
   // A collection can't have a field of its own under the name of one the plugin adds to it.
-  const fieldNames = fields.map(({ name }) => name)
+  const fieldNames = new Set(fields.map(({ name }) => name))
   const takenFieldNames = collection.fields.flatMap((field) =>
-    'name' in field && fieldNames.includes(field.name) ? [field.name] : []
+    'name' in field && fieldNames.has(field.name) ? [field.name] : []
   )
   if (takenFieldNames.length > 0) throw new Error(takenFieldNamesError(takenFieldNames, collection.slug))
   return {

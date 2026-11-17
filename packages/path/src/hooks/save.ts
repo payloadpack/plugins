@@ -128,14 +128,15 @@ export const planPathBeforeSave: CollectionBeforeChangeHook = async ({ collectio
   // A path the document itself is at already was checked when it got there. A document in the trash
   // takes no path, so one that a save takes out of it takes the paths it stores again.
   const leavesTrash = document !== undefined && isInTrash(document) && data.deletedAt === null
-  const newPaths = findNewPaths(plan, before).filter(([pathLocale]) => savedLocales.includes(pathLocale))
+  const savedIn = new Set(savedLocales)
+  const newPaths = findNewPaths(plan, before).filter(([pathLocale]) => savedIn.has(pathLocale))
   const takenAgain = leavesTrash && before ? findNewPaths(before) : []
   await checkNewPaths(collection, id, [...takenAgain, ...newPaths], req, leavesTrash ? undefined : THIS_PATH)
   if (id !== undefined && before) {
     // A save moves the document now where it publishes, and where a site doesn't find the document,
     // so that the document's own slug doesn't count there.
-    const ownSlugLocales = getOwnSlugLocales(before.shownLocales, slug, payload)
-    const movedPaths = newPaths.filter(([pathLocale]) => publishes || !ownSlugLocales.includes(pathLocale))
+    const ownSlugLocales = new Set(getOwnSlugLocales(before.shownLocales, slug, payload))
+    const movedPaths = newPaths.filter(([pathLocale]) => publishes || !ownSlugLocales.has(pathLocale))
     if (movedPaths.length > 0) {
       await planBranchMove({
         collection,
@@ -166,19 +167,20 @@ function findChangedPaths(
   // A save publishes in the locales it holds a status of, and in a collection without drafts, which
   // has none, in the ones it holds a slug of.
   const publishesPerLocale = hasDrafts(collection) ? hasLocalizeStatusEnabled(collection) : isLocalized(collection.slug, payload)
-  const { savedLocales } = readSaved(req, publishesPerLocale)
-  const publishedLocales = getPublishedLocales(stored.version?.version ?? stored.document, collection, payload)
-  const shownLocales = getShownLocales(stored.document, collection, payload)
-  const shownBefore = (locale: string) => (before?.shownLocales.includes(locale) ? before.paths[locale] : null) ?? null
-  const shownNow = (locale: string) => (shownLocales.includes(locale) ? place.paths[locale] : null) ?? null
+  const savedLocales = new Set(readSaved(req, publishesPerLocale).savedLocales)
+  const publishedLocales = new Set(getPublishedLocales(stored.version?.version ?? stored.document, collection, payload))
+  const shownLocales = new Set(getShownLocales(stored.document, collection, payload))
+  const shownLocalesBefore = new Set(before?.shownLocales)
+  const shownBefore = (locale: string) => (shownLocalesBefore.has(locale) ? before?.paths[locale] : null) ?? null
+  const shownNow = (locale: string) => (shownLocales.has(locale) ? place.paths[locale] : null) ?? null
   const changedPaths: ChangedPath[] = []
   for (const locale of shownLocales) {
     const path = shownNow(locale)
     // The save published the document in a locale it publishes in when it left no draft there.
-    const published = savedLocales.includes(locale) && publishedLocales.includes(locale)
+    const published = savedLocales.has(locale) && publishedLocales.has(locale)
     if (path && (published || shownBefore(locale) !== path)) changedPaths.push(changedPath(locale, path))
   }
-  for (const locale of before?.shownLocales ?? []) {
+  for (const locale of shownLocalesBefore) {
     const path = shownBefore(locale)
     if (path && path !== shownNow(locale)) changedPaths.push(changedPath(locale, path))
   }

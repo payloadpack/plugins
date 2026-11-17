@@ -95,14 +95,14 @@ export function readRecord(
 ): PlaceRecord {
   const latest = version?.version ?? document
   const publishedLocales = kind === 'plan' ? [] : getPublishedLocales(document, collection, payload)
-  const ownSlugLocales = getOwnSlugLocales(publishedLocales, collection.slug, payload)
+  const ownSlugLocales = new Set(getOwnSlugLocales(publishedLocales, collection.slug, payload))
   const localized = isLocalized(collection.slug, payload)
   const slugs = getLocales(payload).map((locale): [string, unknown] => [
     locale,
-    valueInLocale((ownSlugLocales.includes(locale) ? document : latest).slug, locale, localized)
+    valueInLocale((ownSlugLocales.has(locale) ? document : latest).slug, locale, localized)
   ])
   const parentField = getParentFieldName(collection.slug, payload)
-  const parentId = parentField === undefined ? null : idOf((ownSlugLocales.length > 0 ? document : latest)[parentField])
+  const parentId = parentField === undefined ? null : idOf((ownSlugLocales.size > 0 ? document : latest)[parentField])
   return { parentId, slugs: Object.fromEntries(slugs) }
 }
 

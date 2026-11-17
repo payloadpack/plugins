@@ -160,7 +160,8 @@ export function getPathConfig(payload: Payload): PathConfig {
 // The collections a call narrows the plugin's to, or every one of them.
 export function pickCollections(collections: CollectionSlug[] | undefined, pathConfig: PathConfig) {
   const given = pathConfig.collections.map(({ slug }) => slug)
-  const notGiven = (collections ?? []).filter((slug) => !given.includes(slug))
+  const givenSlugs = new Set<string>(given)
+  const notGiven = (collections ?? []).filter((slug) => !givenSlugs.has(slug))
   if (notGiven.length > 0) throw new Error(notGivenCollectionsError(notGiven))
   return collections ?? given
 }
