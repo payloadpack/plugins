@@ -4,13 +4,25 @@
     {
       "name": "theme-demo",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": ["run", "dev:theme"],
       "port": 3020
+    },
+    {
+      "name": "path-demo",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "dev:path"],
+      "port": 3030
+    },
+    {
+      "name": "path-demo-localized",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "dev:path:localized"],
+      "port": 3030
     },
     {
       "name": "docs",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "--cwd", "apps/docs", "dev"],
+      "runtimeArgs": ["run", "dev:docs"],
       "port": 4321
     }
   ]

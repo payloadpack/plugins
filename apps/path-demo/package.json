@@ -1,0 +1,34 @@
+{
+  "name": "@apps/path-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "next build",
+    "dev": "node --experimental-strip-types scripts/with-database.ts next dev --port ${DEMO_PORT:-3030}",
+    "dev:localized": "DEMO_LOCALIZED=true bun run dev",
+    "generate": "bun run generate:importmap && bun run generate:types",
+    "generate:importmap": "payload generate:importmap",
+    "generate:types": "DEMO_LOCALIZED=true payload generate:types",
+    "start": "node --experimental-strip-types scripts/with-database.ts next start --port ${DEMO_PORT:-3030}",
+    "test:e2e": "playwright test",
+    "typecheck": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "@payloadcms/db-mongodb": "4.0.0-beta.9",
+    "@payloadcms/next": "4.0.0-beta.9",
+    "@payloadcms/ui": "4.0.0-beta.9",
+    "@payloadpack/path": "workspace:*",
+    "next": "16.4.2",
+    "payload": "4.0.0-beta.9",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "mongodb-memory-server": "11.3.0",
+    "typescript": "6.0.3"
+  }
+}

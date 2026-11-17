@@ -2,6 +2,7 @@
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": ["tsconfig.base.json"],
   "globalEnv": ["NODE_ENV", "PAYLOAD_SECRET", "DATABASE_URI", "CI"],
+  "globalPassThroughEnv": ["MONGOMS_DOWNLOAD_DIR"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -13,6 +14,11 @@
       "outputs": ["dist/**"]
     },
     "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "dev:localized": {
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true

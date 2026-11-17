@@ -1,0 +1,133 @@
+import type { MongooseAdapter } from '@payloadcms/db-mongodb'
+import type { PostgresAdapter } from '@payloadcms/db-postgres'
+import { sql as postgresSql } from '@payloadcms/db-postgres/drizzle'
+import type { SQLiteAdapter } from '@payloadcms/db-sqlite'
+import { sql as sqliteSql } from '@payloadcms/db-sqlite/drizzle'
+import type { Payload } from 'payload'
+
+import type { Query } from './adapters.js'
+import type { TestPayload } from './boot-payload.js'
+import type { Setup } from './setups.js'
+
+// Payload types payload.db as the adapter of any database, and each test's setup says which one it is.
+const mongodbOf = (payload: Payload) => (payload.db as unknown as MongooseAdapter).connection.getClient().db()
+const postgresOf = (payload: Payload) => payload.db as unknown as PostgresAdapter
+const sqliteOf = (payload: Payload) => payload.db as unknown as SQLiteAdapter
+
+type IndexRow = { definition: string; table: string }
+
+function listSqlIndexes(payload: Payload, { database }: Setup): Promise<IndexRow[]> {
+  if (database === 'postgres') {
+    const { drizzle, schemaName } = postgresOf(payload)
+    return drizzle
+      .execute<IndexRow>(
+        postgresSql`SELECT tablename AS "table", indexdef AS "definition" FROM pg_indexes WHERE schemaname = ${schemaName}`
+      )
+      .then(({ rows }) => rows)
+  }
+  return sqliteOf(payload).drizzle.all<IndexRow>(
+    sqliteSql`SELECT tbl_name AS "table", sql AS "definition" FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL`
+  )
+}
+
+/**
+ * The indexes the database holds for a collection's tables, each as its table and columns, such as
+ * pages_locales(path,_locale), or for MongoDB its collection and keys, such as pages(path.en).
+ */
+export async function listIndexes({ payload }: TestPayload, setup: Setup, collection: string) {
+  if (setup.database === 'mongodb') {
+    const indexes = await mongodbOf(payload).collection(collection).indexes()
+    return indexes.map(({ key }) => `${collection}(${Object.keys(key).join(',')})`)
+  }
+  const rows = await listSqlIndexes(payload, setup)
+  return rows
+    .filter(({ table }) => table === collection || table.startsWith(`${collection}_`))
+    .map(({ definition, table }) => `${table}(${/\(([^()]*)\)\s*$/.exec(definition)![1]!.replace(/["`\s]/g, '')})`)
+}
+
+type SqliteStatement = Exclude<Parameters<SQLiteAdapter['client']['execute']>[0], string>
+
+/**
+ * The plan SQLite makes for a statement it ran, as the steps EXPLAIN QUERY PLAN lists. SQLite keeps
+ * no statistics unless a site runs ANALYZE, so the plan depends on the statement alone, whatever the
+ * tables hold.
+ */
+export async function readSqlitePlan({ payload }: TestPayload, { sql }: Query) {
+  if (!sql) throw new Error('Only a SQL statement has a plan.')
+  const { rows } = await sqliteOf(payload).client.execute({
+    args: sql.params as SqliteStatement['args'],
+    sql: `EXPLAIN QUERY PLAN ${sql.text}`
+  })
+  return rows.map(({ detail }) => String(detail))
+}
+
+// A write the database refuses: of one path, in a collection or its versions, or of one document.
+type RefusedWrite = { collection: string; path: string; versions: boolean } | { collection: string; id: number | string }
+
+/**
+ * Makes the database itself refuse a write while the work runs, so an operation fails at that write
+ * the way it would on a real database error. A refused document fails at the first statement of its
+ * write, so without a transaction it keeps every value it had. A statement that changes a table
+ * takes no bound value, so the value is written into it, escaped by drizzle.
+ */
+export async function refuseWritesOf(
+  { payload }: TestPayload,
+  setup: Setup,
+  refused: RefusedWrite,
+  work: () => Promise<unknown>
+) {
+  const { collection } = refused
+  const versions = 'path' in refused && refused.versions
+  if (setup.database === 'mongodb') {
+    const db = mongodbOf(payload)
+    const name = versions ? `_${collection}_versions` : collection
+    const validator =
+      'path' in refused
+        ? { [`${versions ? 'version.' : ''}path${setup.localized ? '.en' : ''}`]: { $ne: refused.path } }
+        : { $expr: { $ne: [{ $toString: '$_id' }, String(refused.id)] } }
+    await db.command({ collMod: name, validator })
+    try {
+      return await work()
+    } finally {
+      await db.command({ collMod: name, validator: {} })
+    }
+  }
+  const [tableName, columnName, value] =
+    'path' in refused
+      ? [
+          `${versions ? `_${collection}_v` : collection}${setup.localized ? '_locales' : ''}`,
+          versions ? 'version_path' : 'path',
+          refused.path
+        ]
+      : [collection, 'id', refused.id]
+  if (setup.database === 'postgres') {
+    const { drizzle, tables } = postgresOf(payload)
+    const table = tables[tableName]!
+    const constraint = postgresSql.identifier('refuse_write')
+    // Not valid, so the row that is there already stays, and only a write of it is refused.
+    await drizzle.execute(
+      postgresSql`ALTER TABLE ${table} ADD CONSTRAINT ${constraint} CHECK (${postgresSql.identifier(columnName)} IS DISTINCT FROM ${value}) NOT VALID`.inlineParams()
+    )
+    try {
+      return await work()
+    } finally {
+      await drizzle.execute(postgresSql`ALTER TABLE ${table} DROP CONSTRAINT ${constraint}`)
+    }
+  }
+  const { drizzle, tables } = sqliteOf(payload)
+  const table = tables[tableName]!
+  const triggers = ['INSERT', 'UPDATE'].map((event) => ({
+    event: sqliteSql.raw(event),
+    name: sqliteSql.identifier(`refuse_write_${event.toLowerCase()}`)
+  }))
+  for (const { event, name } of triggers) {
+    await drizzle.run(
+      sqliteSql`CREATE TRIGGER ${name} BEFORE ${event} ON ${table} WHEN NEW.${sqliteSql.identifier(columnName)} = ${value} BEGIN SELECT RAISE(ABORT, 'refused'); END`.inlineParams()
+    )
+  }
+  try {
+    return await work()
+  } finally {
+    for (const { name } of triggers) await drizzle.run(sqliteSql`DROP TRIGGER ${name}`)
+  }
+}

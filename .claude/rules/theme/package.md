@@ -1,6 +1,8 @@
 ---
 paths:
   - 'packages/theme/**'
+  - 'apps/theme-demo/**'
+  - 'apps/docs/src/content/docs/theme/**'
 ---
 
 # The theme package
@@ -13,3 +15,7 @@ paths:
 - When Payload hard-codes a `--spacer-*` size, fix it in `src/options/density.css` and add the stock declaration to `HARD_CODED_BY_PAYLOAD` in `test/contract.test.ts`.
 - `test/__snapshots__/payload-rules.txt` records every Payload rule on an element the theme styles. When a Payload update changes it, the contract test fails: review the diff, adjust the theme, then update it with `bun run test -u`.
 - The design decisions behind characters, palettes and the Appearance panel are in `appearance-design.md`.
+- Before calling a change done, also run `bun run test:visual` in `apps/theme-demo`, after its e2e tests: they share the e2e database. It runs CI's Playwright container in Docker and compares against the committed Linux images, so a local pass means CI's visual job passes.
+- The visual baselines in `apps/theme-demo/tests/__visual__` are Linux images from CI. Accept an intended visual change with the `update-visuals` pull request label, never by committing images by hand.
+- The theme's README, `packages/theme/README.md`, is its npm page and a short pitch: what the theme brings, install, a config overview and screenshots, linking to the docs site. Everything else goes in the docs pages.
+- The theme's README marks its features with emojis, not drawn icons.

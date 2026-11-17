@@ -15,8 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       filter: ${{ steps.affected.outputs.filter }}
-      e2e: ${{ steps.affected.outputs.e2e }}
-      visual: ${{ steps.affected.outputs.visual }}
+      theme_demo_e2e: ${{ steps.affected.outputs.theme_demo_e2e }}
+      theme_demo_visual: ${{ steps.affected.outputs.theme_demo_visual }}
+      path_demo_e2e: ${{ steps.affected.outputs.path_demo_e2e }}
     steps:
       - name: Checkout
         if: github.event_name == 'pull_request'
@@ -24,15 +25,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Bun
+      - name: Setup
         if: github.event_name == 'pull_request'
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-
-      - name: Install dependencies (frozen lockfile)
-        if: github.event_name == 'pull_request'
-        run: bun install --frozen-lockfile
+        uses: ./.github/actions/setup
 
       - name: Find the packages and test suites the change affects
         id: affected
@@ -40,6 +35,7 @@ jobs:
         run: |
           echo "filter=--filter=...[origin/main]" >> "$GITHUB_OUTPUT"
           scripts/demo-tests.sh @apps/theme-demo >> "$GITHUB_OUTPUT"
+          scripts/demo-tests.sh @apps/path-demo >> "$GITHUB_OUTPUT"
 
   build-and-test:
     needs: changes
@@ -52,32 +48,45 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
+      - name: Setup
+        uses: ./.github/actions/setup
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
+      - name: Check the formatting
+        run: bun run format:check
 
-      - name: Install dependencies (frozen lockfile)
-        run: bun install --frozen-lockfile
+      - name: Check that the Playwright image matches the demos' Playwright
+        run: |
+          expected=$(jq -r '.devDependencies["@playwright/test"] // empty' apps/*/package.json | sort -u)
+          found=$(grep -rhoE 'mcr\.microsoft\.com/playwright:v[^-[:space:]]+' .github/workflows | sed 's/.*:v//' | sort -u)
+          if [[ "$expected" != "$found" ]]; then
+            echo "::error::The demos use @playwright/test ${expected//$'\n'/, } and the workflows the Playwright image ${found//$'\n'/, }. Use one version in both."
+            exit 1
+          fi
+
+      # The path package's tests start a MongoDB replica set, which downloads its binary once.
+      - name: Keep the MongoDB binary in the workspace
+        run: echo "MONGOMS_DOWNLOAD_DIR=$GITHUB_WORKSPACE/.cache/mongodb-binaries" >> "$GITHUB_ENV"
+
+      - name: Cache the MongoDB binary
+        uses: actions/cache@v4
+        with:
+          path: .cache/mongodb-binaries
+          key: mongodb-binaries-${{ hashFiles('bun.lock') }}
+          restore-keys: mongodb-binaries-
 
       - name: Build
         run: bun run build ${AFFECTED_FILTER:+"$AFFECTED_FILTER"}
 
-      - name: Unit tests
+      - name: Tests
         run: bun run test ${AFFECTED_FILTER:+"$AFFECTED_FILTER"}
 
       - name: Type-check
         run: bun run typecheck ${AFFECTED_FILTER:+"$AFFECTED_FILTER"}
 
-  e2e:
-    name: e2e (${{ matrix.shard }}/${{ strategy.job-total }})
+  theme-e2e:
+    name: theme-e2e (${{ matrix.shard }}/${{ strategy.job-total }})
     needs: changes
-    if: needs.changes.outputs.e2e != 'false'
+    if: needs.changes.outputs.theme_demo_e2e != 'false'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -90,16 +99,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-
-      - name: Install Bun
-        run: npm install --global "$(node -p "require('./package.json').packageManager")"
-
-      - name: Install dependencies (frozen lockfile)
-        run: bun install --frozen-lockfile
+      - name: Setup
+        uses: ./.github/actions/setup
 
       - name: Build the packages the demo uses
         run: bun run build --filter=@apps/theme-demo^...
@@ -114,13 +115,13 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-traces-${{ matrix.shard }}
+          name: theme-e2e-traces-${{ matrix.shard }}
           path: apps/theme-demo/test-results
 
-  visual:
-    name: visual (${{ matrix.shard }}/${{ strategy.job-total }})
+  theme-visual:
+    name: theme-visual (${{ matrix.shard }}/${{ strategy.job-total }})
     needs: changes
-    if: needs.changes.outputs.visual != 'false'
+    if: needs.changes.outputs.theme_demo_visual != 'false'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -133,16 +134,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-
-      - name: Install Bun
-        run: npm install --global "$(node -p "require('./package.json').packageManager")"
-
-      - name: Install dependencies (frozen lockfile)
-        run: bun install --frozen-lockfile
+      - name: Setup
+        uses: ./.github/actions/setup
 
       - name: Build the packages the demo uses
         run: bun run build --filter=@apps/theme-demo^...
@@ -157,12 +150,57 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: visual-differences-${{ matrix.shard }}
+          name: theme-visual-differences-${{ matrix.shard }}
           path: apps/theme-demo/test-results
+
+  path-e2e:
+    needs: changes
+    if: needs.changes.outputs.path_demo_e2e != 'false'
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      # The demo starts a MongoDB replica set, which downloads its binary once.
+      - name: Keep the MongoDB binary in the workspace
+        run: echo "MONGOMS_DOWNLOAD_DIR=$GITHUB_WORKSPACE/.cache/mongodb-binaries" >> "$GITHUB_ENV"
+
+      - name: Cache the MongoDB binary
+        uses: actions/cache@v4
+        with:
+          path: .cache/mongodb-binaries
+          key: mongodb-binaries-${{ hashFiles('bun.lock') }}
+          restore-keys: mongodb-binaries-
+
+      - name: Build the packages the demo uses
+        run: bun run build --filter=@apps/path-demo^...
+
+      - name: End-to-end tests
+        run: bun run test:e2e
+        working-directory: apps/path-demo
+
+      - name: Check that the generated types and import map are current
+        run: |
+          bun run generate
+          git diff --exit-code -- src/payload-types.ts "src/app/(payload)/admin/importMap.js"
+        working-directory: apps/path-demo
+
+      - name: Upload traces of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: path-e2e-traces
+          path: apps/path-demo/test-results
 
   validate:
     if: always()
-    needs: [changes, build-and-test, e2e, visual]
+    needs: [changes, build-and-test, theme-e2e, theme-visual, path-e2e]
     runs-on: ubuntu-latest
     steps:
       - name: Fail when a job did not pass

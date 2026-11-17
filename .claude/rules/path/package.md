@@ -1,0 +1,23 @@
+---
+paths:
+  - 'packages/path/**'
+  - 'apps/path-demo/**'
+  - 'apps/docs/src/content/docs/path/**'
+  - 'apps/docs/src/components/path/**'
+  - 'apps/docs/src/data/path-*'
+---
+
+# The path package
+
+- Every read and write goes through Payload's own database API (`payload.db`, always with `req`). The package holds no SQL, no aggregation pipeline, no code per database and no entry per database: one import for the server, `@payloadpack/path`, and one for the admin panel's components, `@payloadpack/path/client`, which the server entry never imports.
+- The root of `src` holds only the package's entries, `index.ts` and `client.ts`, and everything else sits in a folder named for its role, where an import names the file, never a barrel. One file per field in `src/fields`; one file per React component in `src/components`, each a client component; one file per event in `src/hooks` (a save and a delete), next to the request context; the one rule of a place, and every read and write of the database, in `src/paths`; every message the package shows in `src/plugin/messages.ts`.
+- The rule of where a document is lives in `src/paths/place.ts` only. A hook never works out a path itself, and never predicts what Payload will write: it looks at what the database holds after the write.
+- Where a collection's parent comes from is known in `src/plugin/options.ts` only: `getParentFieldName` names the plugin's own `parent`, the parent field of Payload's hierarchy, or none for a collection given with `parent: false`. No other code names a parent field, a collection without one is never asked for `ancestors`, and there is no code per way beyond that. The plugin sets nothing on a site's `hierarchy`.
+- Whether a collection is localized is known in `src/plugin/options.ts` only: `resolveCollection` decides it, from the site's localization and the collection's `localized: false`, and `isLocalized` answers it. In memory a place holds a path per locale of the site in every collection, and in one that isn't localized every locale holds the same path. Only what reads a slug or a path off a row, writes one to a row or names one in a query asks `isLocalized`. No other code checks the site's localization for it, and nothing reads it off the shape of a value.
+- Whether a row holds a status per locale is Payload's own answer per collection, not the site's: one per locale where the collection has a localized field, and one for every locale where it has none. `getPublishedLocales` in `src/paths/status.ts` asks the running config.
+- A row's parent agrees with its ancestors. `storePlace` in `src/paths/stored.ts` is the one function that turns a place into what a row stores, and it writes the parent the place hangs from where the row holds another one.
+- Tests never mock Payload, the database or the package's own modules. Each test runs on MongoDB, Postgres and SQLite, without and with localization, against databases the tests start themselves.
+- The speed tests hold one promise: `findByPath` runs one query per collection on the path index, and none for a path with a reserved segment. What a save or a move costs is not pinned.
+- After a change to what a lookup, save or move costs, run `bun run bench` in `packages/path` (about an hour, mostly seeding). Only that full run writes its numbers, with what they ran on, to `apps/docs/src/data/path-speed.json`, which the speed page renders, and to the table between the `speed-table` markers in `packages/path/README.md`; a run with fewer documents or databases, or with `BENCH_COMPARISON=off`, only prints them. Never edit either by hand.
+- A message on a docs page under `apps/docs/src/content/docs/path` is copied word for word from `packages/path/src/plugin/messages.ts`. A change to a message changes its page in the same commit.
+- The demo shows the three ways a collection gets its parent: pages by the plugin's own parent, posts without one, and topics by Payload's hierarchy. Topics are also its collection that isn't localized, so its seed gives them no Swedish slugs. It seeds a fresh MongoDB replica set in memory on each start. Its e2e tests run on one production build, without and with localization in the same run, and pass `?locale=en` explicitly, because the admin remembers an editor's last locale.

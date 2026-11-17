@@ -4,12 +4,14 @@
   "packageManager": "bun@1.4.4",
   "scripts": {
     "build": "turbo build",
-    "dev": "turbo dev --filter=@apps/theme-demo",
-    "generate": "turbo generate:importmap generate:types --filter=@apps/theme-demo",
+    "dev:theme": "turbo dev --filter=@apps/theme-demo",
+    "dev:path": "turbo dev --filter=@apps/path-demo",
+    "dev:path:localized": "turbo dev:localized --filter=@apps/path-demo",
+    "dev:docs": "turbo dev --filter=@apps/docs",
+    "generate": "turbo generate:importmap generate:types",
     "test": "turbo test",
     "test:e2e": "turbo test:e2e",
     "typecheck": "turbo typecheck",
-    "check:duplicates": "./scripts/check-duplicates.sh",
     "doctor": "react-doctor -y",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
@@ -22,5 +24,15 @@
   "workspaces": [
     "apps/*",
     "packages/*"
+  ],
+  "trustedDependencies": [
+    "@embedded-postgres/darwin-arm64",
+    "@embedded-postgres/darwin-x64",
+    "@embedded-postgres/linux-arm",
+    "@embedded-postgres/linux-arm64",
+    "@embedded-postgres/linux-ia32",
+    "@embedded-postgres/linux-ppc64",
+    "@embedded-postgres/linux-x64",
+    "@embedded-postgres/windows-x64"
   ]
 }

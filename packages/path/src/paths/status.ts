@@ -1,0 +1,30 @@
+import type { CollectionConfig, Payload } from 'payload'
+import { hasLocalizeStatusEnabled } from 'payload/shared'
+
+import { getLocales, valueInLocale } from './locales.js'
+import type { StoredDocument } from './place.js'
+
+export function hasDrafts(collection: Pick<CollectionConfig, 'versions'>) {
+  return typeof collection.versions === 'object' && Boolean(collection.versions.drafts)
+}
+
+/**
+ * The locales a stored document, or a latest version, is published in. A collection without drafts
+ * has no status, and everything in it counts as published. Payload decides per collection how a row
+ * holds its status: one per locale where the collection has a localized field, and one for every
+ * locale where it has none, which a collection given with localized: false can be.
+ */
+export function getPublishedLocales(row: Pick<StoredDocument, '_status'>, collection: CollectionConfig, payload: Payload) {
+  if (!hasDrafts(collection)) return getLocales(payload)
+  const perLocale = hasLocalizeStatusEnabled(collection)
+  return getLocales(payload).filter((locale) => valueInLocale(row._status, locale, perLocale) === 'published')
+}
+
+// Whether a stored document is in the trash, where a collection that has one keeps a deleted document
+// until it is deleted for good. There it takes no path, and keeps the place it stores.
+export const isInTrash = (document: StoredDocument) => Boolean(document.deletedAt)
+
+// The locales a site finds a stored document in: the ones it is published in, and none from the trash.
+export function getShownLocales(document: StoredDocument, collection: CollectionConfig, payload: Payload) {
+  return isInTrash(document) ? [] : getPublishedLocales(document, collection, payload)
+}

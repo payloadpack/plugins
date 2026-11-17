@@ -1,6 +1,12 @@
 name: Docs
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/docs/**'
+      - '.github/assets/**'
+      - '.github/workflows/docs.yml'
   workflow_call:
   workflow_dispatch:
 
@@ -18,18 +24,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-
-      - name: Install dependencies (frozen lockfile)
-        run: bun install --frozen-lockfile
+      - name: Setup
+        uses: ./.github/actions/setup
 
       - name: Build docs
         run: bun run build

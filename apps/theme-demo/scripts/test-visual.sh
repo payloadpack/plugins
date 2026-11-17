@@ -5,8 +5,9 @@ if [[ -n "${CI:-}" ]]; then
   exec playwright test --project=visual "$@"
 fi
 
-repo_dir=$(cd "$(dirname "$0")/.." && pwd)
-playwright_version=$(node -p "require('$repo_dir/apps/theme-demo/package.json').devDependencies['@playwright/test']")
+demo_dir=$(cd "$(dirname "$0")/.." && pwd)
+repo_dir=$(cd "$demo_dir/../.." && pwd)
+playwright_version=$(node -p "require('$demo_dir/package.json').devDependencies['@playwright/test']")
 bun_version=$(node -p "require('$repo_dir/package.json').packageManager.split('@')[1]")
 
 linux_only_mounts=(-v payloadpack-visual-node-modules:/work/node_modules -v payloadpack-visual-theme-demo-next:/work/apps/theme-demo/.next)

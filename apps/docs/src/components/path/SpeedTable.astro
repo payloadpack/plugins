@@ -1,0 +1,49 @@
+---
+import { DATABASE_LABELS, formatTiming, report } from './speed'
+
+// The benchmark's own table, once without and once with localization.
+const groups = [false, true]
+  .map((localized) => ({ localized, setups: report.setups.filter((setup) => setup.localized === localized) }))
+  .filter(({ setups }) => setups.length > 0)
+const { date, documents, memoryGigabytes, node, processor } = report.ranOn
+---
+
+<p>
+  The median and 95th percentile of each, on {documents.toLocaleString('en')} documents. Run on {date}, on {processor} with{' '}
+  {memoryGigabytes} GB of memory and Node {node.replace(/^v/, '')}.
+</p>
+{
+  groups.map(({ localized, setups }) => (
+    <table>
+      <caption>{localized ? 'With localization (two locales)' : 'Without localization'}</caption>
+      <thead>
+        <tr>
+          <th>Operation</th>
+          {setups.map(({ database }) => (
+            <th>{DATABASE_LABELS[database]}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {setups[0]!.operations.map(({ name }) => (
+          <tr>
+            <td>{name}</td>
+            {setups.map(({ operations }) => (
+              <td>{formatTiming(operations.find((operation) => operation.name === name)!)}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  ))
+}
+
+<style>
+  caption {
+    caption-side: top;
+    text-align: start;
+    font-weight: 600;
+    color: var(--docs-foreground);
+    padding-block-end: 0.5rem;
+  }
+</style>
