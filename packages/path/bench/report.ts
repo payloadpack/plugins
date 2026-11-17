@@ -178,6 +178,9 @@ export async function checkReadme(run: Run, setups: number, files: typeof REPORT
   if (findShortfalls(run, setups).length === 0) await readAroundTable(files.readme)
 }
 
+// Joins what a run fell short in, as in "a, b and c".
+const SHORTFALL_LIST = new Intl.ListFormat('en', { type: 'conjunction' })
+
 /**
  * Writes the full run's numbers, with what they ran on, to the JSON and to the README's table. Any
  * other run writes nothing and says why, so neither file ever holds a small run's numbers or mixes
@@ -186,7 +189,7 @@ export async function checkReadme(run: Run, setups: number, files: typeof REPORT
 export async function writeReport(allResults: SetupResults[], run: Run, files: typeof REPORT_FILES) {
   const shortfalls = findShortfalls(run, allResults.length)
   if (shortfalls.length > 0) {
-    const list = new Intl.ListFormat('en', { type: 'conjunction' }).format(shortfalls)
+    const list = SHORTFALL_LIST.format(shortfalls)
     console.log(`\nNothing written, because only the full run writes its numbers: this one ${list}.`)
     return
   }
