@@ -188,6 +188,9 @@ jobs:
       - name: Check that the generated types and import map are current
         run: |
           bun run generate
+          # The container runs as another user than the one that checked out, and git then takes the
+          # workspace for no repository and compares the two files with each other.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git diff --exit-code -- src/payload-types.ts "src/app/(payload)/admin/importMap.js"
         working-directory: apps/path-demo
 
