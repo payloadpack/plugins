@@ -10,7 +10,7 @@ import { reportPathsAfterDelete } from '../hooks/after-delete.js'
 import { checkPathBeforeChange } from '../hooks/before-change.js'
 import { liftBranchBeforeDelete } from '../hooks/before-delete.js'
 import { missingCollectionsError, repeatedCollectionsError, takenFieldNamesError } from './messages.js'
-import { hasPayloadHierarchy, resolvePathConfig, storePathConfig, type PathPluginOptions } from './options.js'
+import { getCollection, hasPayloadHierarchy, resolvePathConfig, storePathConfig, type PathPluginOptions } from './options.js'
 
 // A collection whose documents have a parent stores their ancestors, and gets the plugin's parent
 // field unless Payload's own hierarchy brings one. The plugin's hooks go ahead of the collection's
@@ -60,7 +60,7 @@ export function pathPlugin(options: PathPluginOptions): Plugin {
     return {
       ...config,
       collections: config.collections?.map((collection) => {
-        const given = pathConfig.collections.find(({ slug }) => slug === collection.slug)
+        const given = getCollection(collection.slug, pathConfig)
         return given ? withPath(collection, { ...given, slugify: pathConfig.slugify }) : collection
       }),
       custom: storePathConfig(config.custom, pathConfig)

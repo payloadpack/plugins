@@ -134,9 +134,14 @@ export function pickCollections(collections: CollectionSlug[] | undefined, pathC
   return collections ?? given
 }
 
+// A collection as the plugin was given it, with every default filled in, or nothing for a
+// collection it wasn't given.
+export const getCollection = (collectionSlug: string, { collections }: PathConfig) =>
+  collections.find(({ slug }) => slug === collectionSlug)
+
 // What the paths of a collection's top-level documents start with: its base path, or nothing.
-export const getBasePath = (collectionSlug: string, { collections }: PathConfig) =>
-  collections.find(({ slug }) => slug === collectionSlug)?.basePath ?? NO_BASE_PATH
+export const getBasePath = (collectionSlug: string, payload: Payload) =>
+  getCollection(collectionSlug, getPathConfig(payload))?.basePath ?? NO_BASE_PATH
 
 // The name of the plugin's own parent field.
 export const PARENT_FIELD_NAME = 'parent'
@@ -152,8 +157,7 @@ export const hasPayloadHierarchy = (collection: CollectionConfig) =>
  * with parent: false has none: every document of it is top-level, and it stores no ancestors.
  */
 export function getParentFieldName(collectionSlug: string, payload: Payload) {
-  const { collections } = getPathConfig(payload)
-  if (!collections.find(({ slug }) => slug === collectionSlug)?.hasParent) return undefined
+  if (!getCollection(collectionSlug, getPathConfig(payload))?.hasParent) return undefined
   const { hierarchy } = payload.collections[collectionSlug as CollectionSlug].config
   return hierarchy ? hierarchy.parentFieldName : PARENT_FIELD_NAME
 }
@@ -166,7 +170,7 @@ export function getParentFieldName(collectionSlug: string, payload: Payload) {
  * query asks here, and nothing else knows the difference.
  */
 export const isLocalized = (collectionSlug: string, payload: Payload) =>
-  Boolean(getPathConfig(payload).collections.find(({ slug }) => slug === collectionSlug)?.localized)
+  Boolean(getCollection(collectionSlug, getPathConfig(payload))?.localized)
 
 // The field a refused parent is shown on: the plugin's own parent field. Payload's hierarchy moves a
 // document with a button and has no field for the parent in the form, so there the slug shows it.

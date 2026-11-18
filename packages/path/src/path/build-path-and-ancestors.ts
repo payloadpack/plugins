@@ -102,7 +102,7 @@ export function buildPathAndAncestors(
   payload: Payload
 ): PathAndAncestors {
   const pathConfig = getPathConfig(payload)
-  const basePath = getBasePath(collection.slug, pathConfig)
+  const basePath = getBasePath(collection.slug, payload)
   const paths = getLocales(payload).map((locale) => {
     const slug = (hasDraftsEnabled(collection) ? getFallbackLocales(payload, locale) : [locale])
       .map((slugLocale) => slugs[slugLocale])
