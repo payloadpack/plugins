@@ -21,7 +21,7 @@ export type DocumentAndLatestVersion = { document: StoredDocument; version?: Sto
 const LATEST: Where = { latest: { equals: true } }
 
 // The latest versions among a collection's versions, newest first, as Payload itself finds one.
-export async function findLatestVersions(collection: string, where: Where, req: PayloadRequest) {
+async function findLatestVersions(collection: string, where: Where, req: PayloadRequest) {
   const { docs } = await req.payload.db.findVersions<StoredVersion['version']>({
     collection,
     pagination: false,
@@ -43,9 +43,9 @@ function keepNewest(versions: Map<string, StoredVersion>, found: StoredVersion[]
   return versions
 }
 
-// Each document's latest version among a collection's versions, by the document's id.
-export async function findLatestVersionByDocument(collection: string, where: Where, req: PayloadRequest) {
-  return keepNewest(new Map(), await findLatestVersions(collection, where, req))
+// The latest version of each document of a collection, by the document's id.
+export async function findLatestVersionByDocument(collection: string, req: PayloadRequest) {
+  return keepNewest(new Map(), await findLatestVersions(collection, {}, req))
 }
 
 /**
@@ -91,7 +91,7 @@ export async function findParentAndBuildPathAndAncestors(
 ) {
   const slugsAndParent = getSlugsAndParent(stored, kind, collection, req.payload)
   const parent = await findParentPathAndAncestors(collection.slug, slugsAndParent.parentId, req)
-  return buildPathAndAncestors(slugsAndParent, parent, collection, req.payload)
+  return buildPathAndAncestors(slugsAndParent.slugs, parent, collection, req.payload)
 }
 
 // MongoDB changes the object it is given, so the row it is made from is not read again afterwards.

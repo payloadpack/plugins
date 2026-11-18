@@ -53,7 +53,7 @@ async function findParentAndBuildCheckedPathAndAncestors(
   checkSlugs(collection.slug, Object.values(slugsAndParent.slugs), req)
   const parent = await findParentPathAndAncestors(collection.slug, slugsAndParent.parentId, req)
   checkParent(collection.slug, { id: stored.document.id, parent, parentId: slugsAndParent.parentId }, req)
-  return buildPathAndAncestors(slugsAndParent, parent, collection, req.payload)
+  return buildPathAndAncestors(slugsAndParent.slugs, parent, collection, req.payload)
 }
 
 // Stores a document's path and ancestors, and the ones its latest draft would give it, where its rows
@@ -66,7 +66,7 @@ async function backfillDocument(stored: DocumentAndLatestVersion, collection: Co
   const storedInDocument = getStoredPathAndAncestors(document, collection.slug, req.payload)
   const storedInVersion = version && getStoredPathAndAncestors(version.version, collection.slug, req.payload)
   const newPaths = [...getNewPaths(built, storedInDocument), ...(storedInVersion ? getNewPaths(builtDraft, storedInVersion) : [])]
-  await checkNewPaths(collection, document.id, newPaths, req)
+  await checkNewPaths(collection.slug, document.id, newPaths, req)
   // A path the document stores already was checked when it got there, but two saves of the same path
   // in the same instant can both pass. A document in the trash takes no path, so it shares none.
   const keptPaths = getNewPaths(built).filter(([locale, path]) => storedInDocument.paths[locale] === path)
@@ -82,7 +82,7 @@ async function backfillDocument(stored: DocumentAndLatestVersion, collection: Co
 // A collection's documents as the database holds them, parents before the documents below them.
 async function findStoredTopDown(collection: CollectionConfig, req: PayloadRequest) {
   const documents = await findDocuments(collection.slug, {}, req)
-  const versions = hasDraftsEnabled(collection) ? await findLatestVersionByDocument(collection.slug, {}, req) : undefined
+  const versions = hasDraftsEnabled(collection) ? await findLatestVersionByDocument(collection.slug, req) : undefined
   const stored = documents.map((document): DocumentAndLatestVersion => ({
     document,
     version: versions?.get(String(document.id))

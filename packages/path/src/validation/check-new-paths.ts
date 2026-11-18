@@ -1,12 +1,10 @@
-import type { CollectionConfig, PayloadRequest } from 'payload'
+import type { PayloadRequest } from 'payload'
 
 import { countBelow } from '../database/documents.js'
-import { HOME_PAGE_PATH, type Id, type PathAndAncestors } from '../path/build-path-and-ancestors.js'
+import { HOME_PAGE_PATH, type Id, type LocalePath, type PathAndAncestors } from '../path/build-path-and-ancestors.js'
 import { buildFieldError, homePageBranchRefusal, REFUSAL_FIELD } from '../plugin/messages.js'
 import { checkTakenPaths } from './check-taken-paths.js'
 import { getReservedPathRefusal } from './get-reserved-path-refusal.js'
-
-export type LocalePath = [locale: string, path: string]
 
 // A document's paths that are other ones than each of those given holds in that locale.
 export const getNewPaths = (pathAndAncestors: PathAndAncestors, ...known: (PathAndAncestors | undefined)[]) =>
@@ -19,14 +17,7 @@ export const getNewPaths = (pathAndAncestors: PathAndAncestors, ...known: (PathA
  * document with others below it, and one another document is at, which the refusal names with where
  * it is: the path, or what an editor who is saving at that path reads instead.
  */
-export async function checkNewPaths(
-  collection: CollectionConfig,
-  id: Id | undefined,
-  paths: LocalePath[],
-  req: PayloadRequest,
-  here?: string
-) {
-  const { slug } = collection
+export async function checkNewPaths(slug: string, id: Id | undefined, paths: LocalePath[], req: PayloadRequest, here?: string) {
   for (const [locale, path] of paths) {
     const refusal = getReservedPathRefusal(path, req.payload)
     if (refusal) throw buildFieldError(slug, REFUSAL_FIELD, refusal, req, locale)

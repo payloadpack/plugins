@@ -74,7 +74,7 @@ export async function findBranchMove({ collection, document: moved, parent, req 
     )
     const above = getParent(slugsAndParent.parentId)
     if (above === undefined) continue
-    const pathAndAncestors = buildPathAndAncestors(slugsAndParent, above, collection, payload)
+    const pathAndAncestors = buildPathAndAncestors(slugsAndParent.slugs, above, collection, payload)
     parents.set(String(document.id), { ...pathAndAncestors, id: document.id })
     const stored = getStoredPathAndAncestors(document, slug, payload)
     if (!hasSamePathAndAncestors(pathAndAncestors, stored)) {
@@ -90,7 +90,7 @@ export async function findBranchMove({ collection, document: moved, parent, req 
     )
     const above = getParent(slugsAndParent.parentId)
     if (above === undefined) continue
-    const pathAndAncestors = buildPathAndAncestors(slugsAndParent, above, collection, payload)
+    const pathAndAncestors = buildPathAndAncestors(slugsAndParent.slugs, above, collection, payload)
     if (!hasSamePathAndAncestors(pathAndAncestors, getStoredPathAndAncestors(version.version, slug, payload))) {
       move.versions.push({ pathAndAncestors, version })
     }

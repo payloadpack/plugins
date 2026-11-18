@@ -13,6 +13,9 @@ export type Id = number | string
 // has no path there. In a collection that isn't localized every locale holds the same path.
 export type Paths = Record<string, null | string>
 
+// One path, with the locale it is a document's path in.
+export type LocalePath = [locale: string, path: string]
+
 // Where a document hangs, and so what the paths and ancestors of everything below it start with. In
 // a collection without parents it is the paths alone, and the ancestors are always empty.
 export type PathAndAncestors = { ancestors: Id[]; paths: Paths }
@@ -21,7 +24,7 @@ export type PathAndAncestors = { ancestors: Id[]; paths: Paths }
 export type ParentPathAndAncestors = PathAndAncestors & { id: Id }
 
 // What a path and ancestors are made from: the parent, and each locale's own slug.
-export type SlugsAndParent = { parentId: Id | null; slugs: Record<string, unknown> }
+type SlugsAndParent = { parentId: Id | null; slugs: Record<string, unknown> }
 
 export const HOME_PAGE_PATH = '/'
 
@@ -107,7 +110,7 @@ export function getParentPaths(parent: PathAndAncestors | null, collectionSlug: 
  * one the parent has no path in.
  */
 export function buildPathAndAncestors(
-  { slugs }: SlugsAndParent,
+  slugs: SlugsAndParent['slugs'],
   parent: ParentPathAndAncestors | null,
   collection: CollectionConfig,
   payload: Payload

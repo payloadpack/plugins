@@ -1,13 +1,14 @@
-import type { CollectionBeforeChangeHook, CollectionConfig, PayloadRequest } from 'payload'
+import type { CollectionBeforeChangeHook, Payload } from 'payload'
 import { hasDraftsEnabled } from 'payload/shared'
 
-import { findDocumentById, findParentPathAndAncestors, type StoredDocument } from '../database/documents.js'
+import { findDocumentById, findParentPathAndAncestors } from '../database/documents.js'
 import {
   buildPathAndAncestors,
   getOwnSlugLocales,
   getStoredPathAndAncestors,
   idOf,
   type Id,
+  type LocalePath,
   type PathAndAncestors
 } from '../path/build-path-and-ancestors.js'
 import { findSlugs } from '../path/find-slugs.js'
@@ -17,7 +18,7 @@ import { getParentFieldName, isLocalized } from '../plugin/options.js'
 import { getSaved } from '../utils/locales.js'
 import { getShownLocales, isInTrash } from '../utils/published-locales.js'
 import { checkBranchMove } from '../validation/check-branch-move.js'
-import { checkNewPaths, getNewPaths, type LocalePath } from '../validation/check-new-paths.js'
+import { checkNewPaths, getNewPaths } from '../validation/check-new-paths.js'
 import { checkParent } from '../validation/check-parent.js'
 import { checkSlugs } from '../validation/check-slugs.js'
 import { freePaths, takePaths } from '../validation/take-paths.js'
@@ -48,24 +49,23 @@ type SavedPaths = {
 
 function getSavedPaths(
   built: PathAndAncestors,
-  { before, document }: { before: PathAndAncestorsBefore | undefined; document: StoredDocument | undefined },
+  before: PathAndAncestorsBefore | undefined,
   {
     collection,
-    data,
+    leavesTrash,
+    payload,
     publishes,
-    req
-  }: { collection: CollectionConfig; data: Record<string, unknown>; publishes: boolean; req: PayloadRequest }
+    savedLocales
+  }: { collection: string; leavesTrash: boolean; payload: Payload; publishes: boolean; savedLocales: string[] }
 ): SavedPaths {
-  const { slug } = collection
   // A path the document itself is at already was checked when it got there. A document in the trash
   // takes no path, so one that a save takes out of it takes the paths it stores again.
-  const savedIn = new Set(getSaved(req, isLocalized(slug, req.payload)).savedLocales)
+  const savedIn = new Set(savedLocales)
   const newPaths = getNewPaths(built, before).filter(([pathLocale]) => savedIn.has(pathLocale))
-  const leavesTrash = document !== undefined && isInTrash(document) && data.deletedAt === null
   const takenAgain = leavesTrash && before ? getNewPaths(before) : []
   // A save moves the document now where it publishes, and where a site doesn't find the document,
   // so that the document's own slug doesn't count there. A pending move takes nothing.
-  const ownSlugLocales = new Set(before ? getOwnSlugLocales(before.shownLocales, slug, req.payload) : [])
+  const ownSlugLocales = new Set(before ? getOwnSlugLocales(before.shownLocales, collection, payload) : [])
   const moved = newPaths.filter(([pathLocale]) => publishes || !ownSlugLocales.has(pathLocale))
   return {
     checked: [...takenAgain, ...newPaths],
@@ -114,7 +114,7 @@ export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collec
   const parentId = getParentId(parentField, data, originalDoc)
   const parent = await findParentPathAndAncestors(slug, parentId, req)
   checkParent(slug, { id, parent, parentId }, req)
-  const built = buildPathAndAncestors({ parentId, slugs }, parent, collection, payload)
+  const built = buildPathAndAncestors(slugs, parent, collection, payload)
 
   // Where the document is now, and which of the built paths it isn't at yet.
   const document = id === undefined ? undefined : await findDocumentById(slug, id, req)
@@ -122,7 +122,8 @@ export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collec
     ...getStoredPathAndAncestors(document, slug, payload),
     shownLocales: getShownLocales(document, collection, payload)
   }
-  const paths = getSavedPaths(built, { before, document }, { collection, data, publishes, req })
+  const leavesTrash = document !== undefined && isInTrash(document) && data.deletedAt === null
+  const paths = getSavedPaths(built, before, { collection: slug, leavesTrash, payload, publishes, savedLocales })
 
   // The paths, and then where the documents below land: each taken on the request first, and then
   // checked against the database. Only a save of a stored document takes: a dry run writes nothing,
@@ -134,7 +135,7 @@ export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collec
       const taken = paths.taken.map(([locale, path]) => ({ collection: slug, document: taker, locale, path }))
       takePaths(by, taken, req, paths.here)
     }
-    await checkNewPaths(collection, id, paths.checked, req, paths.here)
+    await checkNewPaths(slug, id, paths.checked, req, paths.here)
     if (id !== undefined && before && paths.moved.length > 0) {
       const branchMove = await findBranchMove({
         collection,

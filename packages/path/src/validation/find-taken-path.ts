@@ -1,7 +1,7 @@
 import type { PayloadRequest, Where } from 'payload'
 
 import { findDocument, type StoredDocument } from '../database/documents.js'
-import { getPaths, type Id } from '../path/build-path-and-ancestors.js'
+import { getPaths, type Id, type LocalePath } from '../path/build-path-and-ancestors.js'
 import { getPathConfig, isLocalized } from '../plugin/options.js'
 import { inChunks } from '../utils/in-chunks.js'
 import { fieldKey } from '../utils/locales.js'
@@ -30,11 +30,7 @@ export const pathKey = (locale: string, path: string) => `${locale} ${path}`
  * refuses parallel operations. Of the documents below, a query leaves out the ones that store one of
  * its paths, the only ones it could find, so it never names a whole branch.
  */
-export async function findTakenPath(
-  paths: [locale: string, path: string][],
-  self: Self,
-  req: PayloadRequest
-): Promise<TakenPath | undefined> {
+export async function findTakenPath(paths: LocalePath[], self: Self, req: PayloadRequest): Promise<TakenPath | undefined> {
   if (paths.length === 0) return
   const { payload } = req
   const idsBelow = new Map<string, Id[]>()
@@ -48,7 +44,8 @@ export async function findTakenPath(
   for (const { slug: collection } of getPathConfig(payload).collections) {
     // What the collection's rows hold a locale's path under, which is the one path for every locale
     // in a collection that isn't localized, so there the query names each path once.
-    const keyOf = (locale: string) => fieldKey('path', locale, isLocalized(collection, payload))
+    const localized = isLocalized(collection, payload)
+    const keyOf = (locale: string) => fieldKey('path', locale, localized)
     const inTrash = Boolean(payload.collections[collection].config.trash)
     for (const chunk of inChunks(paths)) {
       const atPath: Where = {

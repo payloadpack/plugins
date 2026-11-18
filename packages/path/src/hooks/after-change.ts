@@ -58,7 +58,7 @@ export const setPathAfterChange: CollectionAfterChangeHook = async ({ collection
       ...getNewPaths(built, before, storedInDocument),
       ...(storedInVersion ? getNewPaths(builtDraft, storedInVersion) : [])
     ]
-    await checkNewPaths(collection, doc.id, newPaths, req, THIS_PATH)
+    await checkNewPaths(slug, doc.id, newPaths, req, THIS_PATH)
     // The document is elsewhere when its path or ancestors are other ones than before the write,
     // whoever wrote them.
     const isElsewhere = operation === 'update' && !(before && hasSamePathAndAncestors(before, built))

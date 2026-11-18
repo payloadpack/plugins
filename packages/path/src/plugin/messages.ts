@@ -40,7 +40,7 @@ function getTitleFieldName(collectionSlug: string, req: PayloadRequest) {
   return req.payload.collections[collectionSlug as CollectionSlug].config.admin.useAsTitle ?? 'id'
 }
 
-export function describeDocument(collectionSlug: string, stored: StoredDocument, locale: string, req: PayloadRequest) {
+function describeDocument(collectionSlug: string, stored: StoredDocument, locale: string, req: PayloadRequest) {
   // A document read through Payload holds the title of one locale, one read from the database every
   // locale, where a locale without its own title takes the one it falls back to.
   const title = stored[getTitleFieldName(collectionSlug, req)]
