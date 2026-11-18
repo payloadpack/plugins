@@ -55,6 +55,6 @@ What the package does, as its owner confirmed it. Build to this list, and ask hi
 - `onPathsChanged` hears every published path that changed, and where a branch moved from and to.
 - `backfillPaths` gives the documents a site already has their paths.
 - It reads and writes through Payload's own database API, with no SQL or database code of its own.
-- It runs on Payload 4.0.0-beta.9 or later, with MongoDB, Postgres or SQLite.
+- It runs on Payload 4.0.0-beta.10 or later, with MongoDB, Postgres or SQLite.
   - With drafts and without, with localization and without.
 - Not in it: a parent in another collection, a base path per locale, refusals in other languages than English, paths per tenant.

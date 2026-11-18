@@ -85,7 +85,7 @@ Your site gets Payload's tree in the admin, and an editor moves a document with 
 
 A few things are good to know before you start:
 
-- Give `hierarchy` as `true`, or as an object with `parentFieldName`. In Payload 4.0.0-beta.9 an object without it breaks every delete in the collection, with or without the plugin.
+- Give `hierarchy` as `true`, or as an object with `parentFieldName`. In Payload 4.0.0-beta.10 an object without it breaks every delete in the collection, with or without the plugin.
 - A [delete](/path/moves-and-deletes/#deletes) lifts the documents right below one level, as in any collection. On its own, Payload deletes them.
 - Where the collection already has documents with parents, run [`backfillPaths`](/path/api/backfill-paths/) once after you add the plugin, before anything in the collection is deleted. Until then a delete also deletes the documents right below, as Payload does on its own.
 - Payload's hierarchy has no parent field in the form, so a refused parent, such as a document below itself, shows on the slug field.

@@ -91,7 +91,7 @@ describeEachSetup(
       expect(await readPath(payload, 'pages', show.id)).toBe('/show')
     })
 
-    // Payload 4.0.0-beta.9 keeps the documents of a bulk update in the operation's transaction until
+    // Payload 4.0.0-beta.10 keeps the documents of a bulk update in the operation's transaction until
     // one fails, which rolls back the ones saved before it, so the refused page is sorted first.
     it('refuses only the refused page of a bulk update, and saves the pages after it', async () => {
       const { payload } = test
