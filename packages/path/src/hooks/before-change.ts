@@ -1,7 +1,7 @@
 import type { CollectionBeforeChangeHook, CollectionConfig, PayloadRequest } from 'payload'
 import { hasDraftsEnabled } from 'payload/shared'
 
-import { findDocuments, findParentPathAndAncestors, type StoredDocument } from '../database/documents.js'
+import { findDocumentById, findParentPathAndAncestors, type StoredDocument } from '../database/documents.js'
 import {
   buildPathAndAncestors,
   getOwnSlugLocales,
@@ -117,7 +117,7 @@ export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collec
   const built = buildPathAndAncestors({ parentId, slugs }, parent, collection, payload)
 
   // Where the document is now, and which of the built paths it isn't at yet.
-  const [document] = id === undefined ? [] : await findDocuments(slug, { id: { equals: id } }, req)
+  const document = id === undefined ? undefined : await findDocumentById(slug, id, req)
   const before: PathAndAncestorsBefore | undefined = document && {
     ...getStoredPathAndAncestors(document, slug, payload),
     shownLocales: getShownLocales(document, collection, payload)

@@ -33,6 +33,12 @@ export async function findDocuments(collection: string, where: Where, req: Paylo
   return docs
 }
 
+// One document of a collection by its id, as the database holds it, with every locale.
+export async function findDocumentById(collection: string, id: Id, req: PayloadRequest): Promise<StoredDocument | undefined> {
+  const [document] = await findDocuments(collection, { id: { equals: id } }, req)
+  return document
+}
+
 // One document of a collection that a where finds, as the database holds it, with every locale.
 export const findDocument = (collection: string, where: Where, req: PayloadRequest) =>
   req.payload.db.findOne<StoredDocument>({ collection, joins: false, req, where })
@@ -75,7 +81,7 @@ export async function findParentPathAndAncestors(
   req: PayloadRequest
 ): Promise<ParentPathAndAncestors | null> {
   if (id === null) return null
-  const [parent] = await findDocuments(collection, { id: { equals: id } }, req)
+  const parent = await findDocumentById(collection, id, req)
   return parent ? { ...getStoredPathAndAncestors(parent, collection, req.payload), id: parent.id } : null
 }
 

@@ -5,7 +5,7 @@ import { buildPathAndAncestors, getSlugsAndParent, type Id, type PathAndAncestor
 import { inChunks } from '../utils/in-chunks.js'
 import {
   buildRowWithPathAndAncestors,
-  findDocuments,
+  findDocumentById,
   findInChunks,
   findParentPathAndAncestors,
   type StoredDocument
@@ -74,7 +74,7 @@ export async function findDocumentAndLatestVersion(
   id: Id,
   req: PayloadRequest
 ): Promise<DocumentAndLatestVersion | undefined> {
-  const [document] = await findDocuments(collection.slug, { id: { equals: id } }, req)
+  const document = await findDocumentById(collection.slug, id, req)
   if (!document) return
   if (!hasDraftsEnabled(collection)) return { document }
   const [version] = await findLatestVersions(collection.slug, { parent: { equals: id } }, req)
