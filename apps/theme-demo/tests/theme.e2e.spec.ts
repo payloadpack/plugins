@@ -2975,6 +2975,18 @@ test.describe('Studio character', () => {
     expect(Math.abs(metricFallback / geist - 1)).toBeLessThan(0.03)
   })
 
+  test('rounds toast buttons and sets their label in bold, like Enhanced', async ({ page }) => {
+    await saveAppearancePreference(page.request, studio())
+    await page.goto('/admin/toasts')
+    await page.getByRole('button', { name: 'With action' }).click()
+    const button = page.locator('.payload-toast-item [data-button]')
+
+    await expect(button).toHaveCSS('height', '24px')
+    await expect(button).toHaveCSS('border-radius', '8px')
+    await expect(button).toHaveCSS('font-weight', '550')
+    await expect(button).toHaveCSS('cursor', 'pointer')
+  })
+
   test('leaves Payload and Enhanced in their own layout and font', async ({ page }) => {
     for (const character of ['enhanced', 'payload']) {
       await saveAppearancePreference(page.request, { character })
