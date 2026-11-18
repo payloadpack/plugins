@@ -1,13 +1,22 @@
 import type { CollectionConfig, PayloadRequest, Where } from 'payload'
+
 import { hasDraftsEnabled } from 'payload/shared'
 
-import { buildPathAndAncestors, getSlugsAndParent, type Id, type PathAndAncestors } from '../path/build-path-and-ancestors.js'
+import {
+  buildPathAndAncestors,
+  getSlugsAndParent,
+  getStoredPathAndAncestors,
+  hasSamePathAndAncestors,
+  type Id,
+  type PathAndAncestors
+} from '../path/build-path-and-ancestors.js'
 import { inChunks } from '../utils/in-chunks.js'
 import {
   buildRowWithPathAndAncestors,
   findDocumentById,
   findInChunks,
   findParentPathAndAncestors,
+  setPathAndAncestors,
   type StoredDocument
 } from './documents.js'
 
@@ -103,4 +112,25 @@ export async function setDraftPathAndAncestors(
 ) {
   const versionData = { ...version, version: buildRowWithPathAndAncestors(version.version, pathAndAncestors, collection, req) }
   await req.payload.db.updateVersion({ collection, id: version.id, req, returning: false, versionData })
+}
+
+/**
+ * Stores a document's path and ancestors, and the ones its latest draft would give it, in each of
+ * the two rows that stores other ones, and says which of them it wrote.
+ */
+export async function setDocumentAndDraftPathAndAncestors(
+  collection: string,
+  { document, version }: DocumentAndLatestVersion,
+  built: { document: PathAndAncestors; draft: PathAndAncestors },
+  req: PayloadRequest
+) {
+  const isOther = (row: Omit<StoredDocument, 'id'>, pathAndAncestors: PathAndAncestors) =>
+    !hasSamePathAndAncestors(pathAndAncestors, getStoredPathAndAncestors(row, collection, req.payload))
+  const wrote = {
+    document: isOther(document, built.document),
+    draft: version !== undefined && isOther(version.version, built.draft)
+  }
+  if (wrote.document) await setPathAndAncestors(collection, document, built.document, req)
+  if (version && wrote.draft) await setDraftPathAndAncestors(collection, version, built.draft, req)
+  return wrote
 }

@@ -1,10 +1,9 @@
 import type { CollectionAfterChangeHook } from 'payload'
 
-import { setPathAndAncestors } from '../database/documents.js'
 import {
   findDocumentAndLatestVersion,
   findParentAndBuildPathAndAncestors,
-  setDraftPathAndAncestors
+  setDocumentAndDraftPathAndAncestors
 } from '../database/versions.js'
 import { getStoredPathAndAncestors, hasSamePathAndAncestors } from '../path/build-path-and-ancestors.js'
 import { findBranchMove, moveBranch } from '../path/move-branch.js'
@@ -70,10 +69,7 @@ export const setPathAfterChange: CollectionAfterChangeHook = async ({ collection
     // The writes: the document and its latest version, where the row stores another path or other
     // ancestors than the ones built, and then the documents below.
     const changedPaths = getChangedPaths({ collection, pathAndAncestors: built, req, stored }, before)
-    const setsDocument = !hasSamePathAndAncestors(built, storedInDocument)
-    const setsDraft = version && storedInVersion && !hasSamePathAndAncestors(builtDraft, storedInVersion)
-    if (setsDocument) await setPathAndAncestors(slug, document, built, req)
-    if (setsDraft) await setDraftPathAndAncestors(slug, version, builtDraft, req)
+    const wrote = await setDocumentAndDraftPathAndAncestors(slug, stored, { document: built, draft: builtDraft }, req)
     if (branchMove) await moveBranch(branchMove, req)
 
     // The site hears what changed.
@@ -84,7 +80,7 @@ export const setPathAfterChange: CollectionAfterChangeHook = async ({ collection
 
     // Payload made the saved document before this hook wrote, so it gets the path the hook built.
     const { inData } = getSaved(req, isLocalized(slug, payload))
-    const written = setsDraft || (!version && setsDocument)
+    const written = wrote.draft || (!version && wrote.document)
     return written ? { ...doc, path: inData(builtDraft.paths) ?? null } : doc
   } finally {
     // The database shows what the save took from here on, or the save was refused.

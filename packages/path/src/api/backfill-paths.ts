@@ -8,15 +8,13 @@ import {
 } from 'payload'
 import { hasDraftsEnabled } from 'payload/shared'
 
-import { findDocuments, findParentPathAndAncestors, setPathAndAncestors } from '../database/documents.js'
-import { findLatestVersionByDocument, setDraftPathAndAncestors, type DocumentAndLatestVersion } from '../database/versions.js'
+import { findDocuments, findParentPathAndAncestors } from '../database/documents.js'
 import {
-  buildPathAndAncestors,
-  getSlugsAndParent,
-  getStoredPathAndAncestors,
-  hasSamePathAndAncestors,
-  type Id
-} from '../path/build-path-and-ancestors.js'
+  findLatestVersionByDocument,
+  setDocumentAndDraftPathAndAncestors,
+  type DocumentAndLatestVersion
+} from '../database/versions.js'
+import { buildPathAndAncestors, getSlugsAndParent, getStoredPathAndAncestors, type Id } from '../path/build-path-and-ancestors.js'
 import { getPathConfig, pickCollections } from '../plugin/options.js'
 import { isInTrash } from '../utils/published-locales.js'
 import { checkNewPaths, getNewPaths } from '../validation/check-new-paths.js'
@@ -71,12 +69,8 @@ async function backfillDocument(stored: DocumentAndLatestVersion, collection: Co
   // in the same instant can both pass. A document in the trash takes no path, so it shares none.
   const keptPaths = getNewPaths(built).filter(([locale, path]) => storedInDocument.paths[locale] === path)
   if (!isInTrash(document)) await checkTakenPaths(collection.slug, document.id, keptPaths, req)
-  const setsDocument = !hasSamePathAndAncestors(built, storedInDocument)
-  const setsDraft =
-    version !== undefined && storedInVersion !== undefined && !hasSamePathAndAncestors(builtDraft, storedInVersion)
-  if (setsDocument) await setPathAndAncestors(collection.slug, document, built, req)
-  if (setsDraft) await setDraftPathAndAncestors(collection.slug, version, builtDraft, req)
-  return setsDocument || setsDraft
+  const wrote = await setDocumentAndDraftPathAndAncestors(collection.slug, stored, { document: built, draft: builtDraft }, req)
+  return wrote.document || wrote.draft
 }
 
 // A collection's documents as the database holds them, parents before the documents below them.
