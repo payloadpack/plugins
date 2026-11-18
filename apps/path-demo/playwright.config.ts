@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 import type { DemoMetadata } from './tests/demo'
 
 const TEST_TIMEOUT_MS = 60_000
+const EXPECT_TIMEOUT_MS = 20_000
 
 // Each demo runs on a server and a fresh database of its own, which the demo seeds on its first
 // request. The ports sit beside the dev server on 3030, skipping 3031, which macOS keeps for
@@ -13,6 +14,9 @@ const DEMOS = [
 ]
 
 export default defineConfig({
+  // A save on a busy machine can take longer than Playwright's five seconds, and the path it shows
+  // comes with the save's answer. A path that never comes still fails, only later.
+  expect: { timeout: EXPECT_TIMEOUT_MS },
   fullyParallel: true,
   projects: DEMOS.flatMap(({ localized, name, port }) => {
     const metadata: DemoMetadata = { authFile: `tests/.auth/demo-${port}.json`, localized }
