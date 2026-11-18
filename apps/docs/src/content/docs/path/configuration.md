@@ -126,6 +126,20 @@ pathPlugin({
 - Each also takes a list, such as `root: ['admin', 'api', 'shop']`, and the [refusal](/path/refusals/#reserved-slugs) then gives no reason.
 - A move or a delete that would put a document on a reserved slug is refused too, and `findByPath` answers a path with one with `null`, without asking the database.
 
+## Slugify
+
+```ts title="payload.config.ts"
+import { defaultSlugify, pathPlugin } from '@payloadpack/path'
+
+pathPlugin({
+  collections: ['pages', 'posts'],
+  // toLatin is yours.
+  slugify: (args) => defaultSlugify({ ...args, valueToSlugify: toLatin(args.valueToSlugify) })
+})
+```
+
+`defaultSlugify` is what the plugin uses without a `slugify` of your own, so a rule of yours can run before or after it, as above.
+
 ## The fields it adds
 
 Each collection in `collections` gets these fields, after its own:

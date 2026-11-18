@@ -50,6 +50,6 @@ import PathTree from '../../../components/path/PathTree.astro'
 | `Vår historia`                     | `var-historia`  |
 | `Новости`                          | `новости`       |
 
-- A slug is cleaned on every save, by your own [`slugify`](/path/configuration/) when you give one. A typed slug with nothing left after cleaning, such as `!!!`, counts as no slug.
+- A slug is cleaned on every save, by your own [`slugify`](/path/configuration/#slugify) when you give one. A typed slug with nothing left after cleaning, such as `!!!`, counts as no slug.
 - A save that clears the slug keeps the one it had, and a new title never changes it, so a published URL never moves on its own.
 - The field is Payload's own slug field: locked until the editor unlocks it, with a button that makes the slug from the title. A collection without `admin.useAsTitle` has nothing to make one from.
