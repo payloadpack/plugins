@@ -114,7 +114,7 @@ A setup is what an editor picked: a character, that character's options, their p
 
 ## Theme
 
-Theme is Payload's own light/dark preference: the panel calls `useTheme().setTheme('light' | 'dark' | 'auto')`, which switches without a reload and writes Payload's `<cookiePrefix>-theme` cookie. When `admin.theme` is fixed, Payload hides its own switch and the panel hides its Theme section. Reset does not touch it.
+Theme is Payload's own light/dark preference: the panel calls `useRootTheme().setTheme('light' | 'dark' | 'auto')`, which switches without a reload and writes Payload's `<cookiePrefix>-theme` cookie. When `admin.theme` is fixed, Payload hides its own switch and the panel hides its Theme section. Reset does not touch it.
 
 ## The Appearance panel
 
@@ -211,7 +211,7 @@ The Warm palette mixes its field, nav and card surfaces from the accent into Pay
 
 ## What each setting drives
 
-From Payload 4.0.0-beta.9's CSS:
+From Payload 4.0.0-beta.10's CSS:
 
 - `primary`: `--color-bg-brand`, its hover and pressed shades, the `onbrand` text and icon colors, `--color-bg-selected-strong*` and the focus ring, in `palette.css`.
 - `accent`: every other brand token (`--color-bg-brand-secondary`, `--color-bg-brand-tertiary*`, `--color-border-brand`, `--color-text-brand`) reads one of Payload's 11 `--ramp-blue-*` and `--ramp-pale-blue-*` steps, declared once on `:root`. `palette.css` points the selection borders (`--color-border-selected*`, `--color-border-brand-strong`) and the marks drawn with `--color-icon-brand`, such as the active tab's underline, at the primary instead.

@@ -13,7 +13,6 @@
     .payload-toast-item [data-button] {
       flex-shrink: 0;
       height: var(--spacer-4);
-      padding-inline: var(--spacer-2);
       border-radius: var(--radius-medium);
       font-family: inherit;
       font-size: var(--text-body-medium-bold-font-size);
