@@ -65,6 +65,52 @@ describeEachSetup('', {}, (test) => {
     expect(await findByPath({ path: '/studio', payload })).toBeNull()
     expect(await readPath(payload, 'pages', podcast.id)).toBe('/podcast')
   })
+
+  // Payload runs the documents of a bulk operation at once, so each checks before another has written.
+  it('saves one of two pages that a bulk update would put at the same path, and refuses the other', async () => {
+    const { payload } = test
+    const east = await create(payload, 'pages', { slug: 'east', title: 'East' })
+    const west = await create(payload, 'pages', { slug: 'west', title: 'West' })
+    const shelf = await create(payload, 'pages', { slug: 'shelf', title: 'Shelf' })
+    const eastIntro = await create(payload, 'pages', { parent: east.id, slug: 'intro', title: 'East intro' })
+    const westIntro = await create(payload, 'pages', { parent: west.id, slug: 'intro', title: 'West intro' })
+
+    const { docs, errors } = await payload.update({
+      collection: 'pages',
+      data: { _status: 'published', parent: shelf.id },
+      overrideAccess: true,
+      where: { id: { in: [eastIntro.id, westIntro.id] } }
+    })
+
+    const [refused, saved] = errors[0]?.id === eastIntro.id ? [eastIntro, westIntro] : [westIntro, eastIntro]
+    expect(errors).toMatchObject([{ id: refused.id }])
+    expect(docs.map(({ id }) => id)).toEqual([saved.id])
+    expect(await readPath(payload, 'pages', saved.id)).toBe('/shelf/intro')
+    expect(await readPath(payload, 'pages', refused.id)).toBe(refused.path)
+  })
+
+  it('deletes one of two pages that a bulk delete would lift pages from to the same path, and refuses the other', async () => {
+    const { payload } = test
+    const north = await create(payload, 'pages', { slug: 'north', title: 'North' })
+    const south = await create(payload, 'pages', { slug: 'south', title: 'South' })
+    const northGuide = await create(payload, 'pages', { parent: north.id, slug: 'guide', title: 'North guide' })
+    const southGuide = await create(payload, 'pages', { parent: south.id, slug: 'guide', title: 'South guide' })
+
+    const { errors } = await payload.delete({
+      collection: 'pages',
+      overrideAccess: true,
+      where: { id: { in: [north.id, south.id] } }
+    })
+
+    const [refused, deleted] =
+      errors[0]?.id === north.id
+        ? [{ below: northGuide, page: north }, { below: southGuide }]
+        : [{ below: southGuide, page: south }, { below: northGuide }]
+    expect(errors).toMatchObject([{ id: refused.page.id }])
+    expect(await readPath(payload, 'pages', deleted.below.id)).toBe('/guide')
+    expect(await readPath(payload, 'pages', refused.below.id)).toBe(refused.below.path)
+    expect(await findByPath({ path: String(refused.page.path), payload })).toMatchObject({ document: { id: refused.page.id } })
+  })
 })
 
 describeEachSetup(

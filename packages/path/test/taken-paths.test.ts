@@ -102,6 +102,36 @@ describeEachSetup('', {}, (test) => {
       takenBy('Page "Yard"')
     )
   })
+
+  // Payload uses the context object a site passes as the request's own, and a site may pass one to
+  // many operations.
+  it('gives a document a path that a failed save with the same context object was about to take', async () => {
+    const { payload } = test
+    const shared = {}
+    const attic = await create(payload, 'notices', { slug: 'attic', title: 'Attic' })
+    const loft = await create(payload, 'notices', { slug: 'loft', title: 'Loft' })
+    const saved = { collection: 'notices', context: shared, overrideAccess: true } as const
+
+    // The path is free, and Payload then refuses the empty title.
+    await expect(payload.update({ ...saved, data: { slug: 'roof', title: '' }, id: attic.id })).rejects.toThrow()
+    const moved = await payload.update({ ...saved, data: { slug: 'roof' }, id: loft.id })
+
+    expect(moved.path).toBe('/roof')
+  })
+
+  it('gives a document a path that an earlier save on the same request took and left', async () => {
+    const { payload } = test
+    const req = await createPayloadRequest({ payload })
+    const porch = await create(payload, 'notices', { slug: 'porch', title: 'Porch' })
+    const stoop = await create(payload, 'notices', { slug: 'stoop', title: 'Stoop' })
+    const saved = { collection: 'notices', overrideAccess: true, req } as const
+
+    await payload.update({ ...saved, data: { slug: 'veranda' }, id: porch.id })
+    await payload.update({ ...saved, data: { slug: 'porch' }, id: porch.id })
+    const moved = await payload.update({ ...saved, data: { slug: 'veranda' }, id: stoop.id })
+
+    expect(moved.path).toBe('/veranda')
+  })
 })
 
 // A save in progress: a request whose transaction stays open until the test commits it.

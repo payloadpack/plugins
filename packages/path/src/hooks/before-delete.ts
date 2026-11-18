@@ -3,11 +3,12 @@ import type { CollectionBeforeDeleteHook } from 'payload'
 import { findParentPathAndAncestors } from '../database/documents.js'
 import { findDocumentAndLatestVersion } from '../database/versions.js'
 import { getStoredPathAndAncestors } from '../path/build-path-and-ancestors.js'
-import { findBranchMove, moveBranch } from '../path/move-branch.js'
+import { findBranchMove, getLandings, moveBranch } from '../path/move-branch.js'
 import { getBasePath, getPathConfig } from '../plugin/options.js'
 import { getLocales } from '../utils/locales.js'
 import { getShownLocales } from '../utils/published-locales.js'
 import { checkBranchMove } from '../validation/check-branch-move.js'
+import { freePaths, takePaths } from '../validation/take-paths.js'
 import { documentKey, getPathContext } from './context.js'
 import { changedPath, getBranchChange, type PathsChange } from './paths-change.js'
 
@@ -18,7 +19,9 @@ import { changedPath, getBranchChange, type PathsChange } from './paths-change.j
  *
  * The ones right below take its parent, in the document and in the latest version, and they and
  * everything below them get the path and ancestors that gives them. Refused when one of them would
- * land on a path that is reserved or taken, or would become the home page.
+ * land on a path that is reserved or taken, or would become the home page. The delete takes where
+ * they land on the request before it asks the database, because Payload runs the documents of a bulk
+ * delete at once.
  */
 export const liftBranchBeforeDelete: CollectionBeforeDeleteHook = async ({ collection, id, req }) => {
   const { payload } = req
@@ -42,9 +45,17 @@ export const liftBranchBeforeDelete: CollectionBeforeDeleteHook = async ({ colle
   const parent = await findParentPathAndAncestors(slug, ancestors.at(-1) ?? null, req)
   const branchMove = await findBranchMove({ collection, document, parent, req })
 
-  // Where they land is checked, and then they move.
-  await checkBranchMove(branchMove, id, req)
-  await moveBranch(branchMove, req)
+  // Where they land is taken on the request first, then checked against the database, and then they
+  // move.
+  const by = { collection: slug, id }
+  try {
+    takePaths(by, getLandings(branchMove), req)
+    await checkBranchMove(branchMove, id, req)
+    await moveBranch(branchMove, req)
+  } finally {
+    // The database shows the lifted documents from here on, or the delete was refused.
+    freePaths(by, req)
+  }
 
   // For the hook after the delete: where the lifted documents went.
   if (branchMove.below.length === 0) return

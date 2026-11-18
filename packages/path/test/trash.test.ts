@@ -143,6 +143,28 @@ describeEachSetup(
       expect((await readTrashed(bulletin.id)).deletedAt).toEqual(expect.any(String))
     })
 
+    it('takes one of two documents that store the same path out of the trash in bulk, and refuses the other', async () => {
+      const { payload } = test
+      const almanac = await create(payload, 'articles', { slug: 'almanac', title: 'Almanac' })
+      await trash(almanac.id)
+      const reprint = await create(payload, 'articles', { slug: 'almanac', title: 'Reprint' })
+      await trash(reprint.id)
+
+      const { docs, errors } = await payload.update({
+        collection: 'articles',
+        data: { _status: 'draft', deletedAt: null },
+        overrideAccess: true,
+        trash: true,
+        where: { id: { in: [almanac.id, reprint.id] } }
+      })
+
+      const [refused, restored] = errors[0]?.id === almanac.id ? [almanac, reprint] : [reprint, almanac]
+      expect(errors).toMatchObject([{ id: refused.id }])
+      expect(docs.map(({ id }) => id)).toEqual([restored.id])
+      expect((await readTrashed(refused.id)).deletedAt).toEqual(expect.any(String))
+      expect(await findByPath({ draft: true, path: '/almanac', payload })).toMatchObject({ document: { id: restored.id } })
+    })
+
     it('lifts the documents below a document in the trash when it is deleted for good', async () => {
       const { changes, payload } = test
       const series = await create(payload, 'articles', { slug: 'series', title: 'Series' })

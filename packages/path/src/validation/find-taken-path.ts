@@ -17,7 +17,8 @@ type Self = {
   ids: Id[]
 }
 
-const pathKey = (locale: string, path: string) => `${locale} ${path}`
+// What a path in a locale is kept under.
+export const pathKey = (locale: string, path: string) => `${locale} ${path}`
 
 /**
  * Finds a document that is at one of the paths, in any collection given to the plugin. Every document

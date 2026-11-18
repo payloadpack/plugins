@@ -10,7 +10,7 @@ import {
   type PathAndAncestors
 } from '../path/build-path-and-ancestors.js'
 import { findSlugs } from '../path/find-slugs.js'
-import { findBranchMove } from '../path/move-branch.js'
+import { findBranchMove, getLandings } from '../path/move-branch.js'
 import { THIS_PATH } from '../plugin/messages.js'
 import { getParentFieldName, isLocalized } from '../plugin/options.js'
 import { getSaved } from '../utils/locales.js'
@@ -19,6 +19,7 @@ import { checkBranchMove } from '../validation/check-branch-move.js'
 import { checkNewPaths, getNewPaths, type LocalePath } from '../validation/check-new-paths.js'
 import { checkParent } from '../validation/check-parent.js'
 import { checkSlugs } from '../validation/check-slugs.js'
+import { freePaths, takePaths } from '../validation/take-paths.js'
 import { documentKey, getPathContext, type PathAndAncestorsBefore } from './context.js'
 
 // The parent a save gives the document. Payload fills a field a save leaves out from the latest
@@ -40,6 +41,8 @@ type SavedPaths = {
   here: string | undefined
   // The ones the document moves to with this save, which the documents below it follow.
   moved: LocalePath[]
+  // The ones the document takes with this save.
+  taken: LocalePath[]
 }
 
 function getSavedPaths(
@@ -66,7 +69,8 @@ function getSavedPaths(
   return {
     checked: [...takenAgain, ...newPaths],
     here: leavesTrash ? undefined : THIS_PATH,
-    moved
+    moved,
+    taken: [...takenAgain, ...moved]
   }
 }
 
@@ -79,7 +83,9 @@ function getSavedPaths(
  *
  * It refuses what the data itself shows, in this order: a missing slug, a parent the document can't
  * sit below, a path the document can't be at, and a landing of a document below it. It stores nothing,
- * because Payload's dry-run validate runs this hook too.
+ * because Payload's dry-run validate runs this hook too. A save of a stored document takes its paths
+ * on the request before it asks the database, because Payload runs the documents of a bulk update at
+ * once.
  */
 export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collection, data, operation, originalDoc, req }) => {
   const { payload } = req
@@ -117,16 +123,31 @@ export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collec
   }
   const paths = getSavedPaths(built, { before, document }, { collection, data, publishes, req })
 
-  // The paths, and then where the documents below land.
-  await checkNewPaths(collection, id, paths.checked, req, paths.here)
-  if (id !== undefined && before && paths.moved.length > 0) {
-    const branchMove = await findBranchMove({
-      collection,
-      document: { ...data, id },
-      parent: { ancestors: built.ancestors, id, paths: { ...before.paths, ...Object.fromEntries(paths.moved) } },
-      req
-    })
-    await checkBranchMove(branchMove, id, req)
+  // The paths, and then where the documents below land: each taken on the request first, and then
+  // checked against the database. Only a save of a stored document takes: a dry run writes nothing,
+  // and a create has no id to take by, which no bulk operation needs.
+  const taker = operation === 'update' ? document : undefined
+  const by = taker && { collection: slug, id: taker.id }
+  try {
+    if (by) {
+      const taken = paths.taken.map(([locale, path]) => ({ collection: slug, document: taker, locale, path }))
+      takePaths(by, taken, req, paths.here)
+    }
+    await checkNewPaths(collection, id, paths.checked, req, paths.here)
+    if (id !== undefined && before && paths.moved.length > 0) {
+      const branchMove = await findBranchMove({
+        collection,
+        document: { ...data, id },
+        parent: { ancestors: built.ancestors, id, paths: { ...before.paths, ...Object.fromEntries(paths.moved) } },
+        req
+      })
+      if (by) takePaths(by, getLandings(branchMove), req)
+      await checkBranchMove(branchMove, id, req)
+    }
+  } catch (error) {
+    // A refused save takes nothing.
+    if (by) freePaths(by, req)
+    throw error
   }
 
   // For the hook after the write: where the document was. For Payload's write: the path.
