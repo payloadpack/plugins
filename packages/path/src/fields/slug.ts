@@ -3,7 +3,7 @@ import type { Slugify } from 'payload/shared'
 
 import type { SlugFieldOwnProps } from '../components/slug-field.js'
 import { findDocuments } from '../database/documents.js'
-import { idOf } from '../path/build-path-and-ancestors.js'
+import { idOf, isSlug } from '../path/build-path-and-ancestors.js'
 import { getParentFieldName } from '../plugin/options.js'
 import { valueInLocale } from '../utils/locales.js'
 
@@ -32,7 +32,7 @@ const cleanSlug =
 const copySlug =
   (localized: boolean): FieldHook =>
   async ({ collection, data, req, value }) => {
-    if (typeof value !== 'string' || value === '' || !collection) return value
+    if (!isSlug(value) || !collection) return value
     const parentField = getParentFieldName(collection.slug, req.payload)
     const parentId = parentField === undefined ? null : idOf(data?.[parentField])
     const beside = await findDocuments(

@@ -4,7 +4,7 @@ import { hasDraftsEnabled } from 'payload/shared'
 import { findDocumentAndLatestVersion } from '../database/versions.js'
 import { getPathConfig, isLocalized } from '../plugin/options.js'
 import { getFallbackLocales, getSaved, NO_LOCALE, valueInLocale } from '../utils/locales.js'
-import type { Id } from './build-path-and-ancestors.js'
+import { isSlug, type Id } from './build-path-and-ancestors.js'
 
 /**
  * The slug of each locale the save holds one of. A document without a slug in any locale takes one
@@ -38,7 +38,7 @@ export async function findSlugs({
       savedLocale,
       getFallbackLocales(payload, savedLocale)
         .map((slugLocale) => valueInLocale(latest?.slug, slugLocale, localized))
-        .find((slug) => typeof slug === 'string' && slug !== '')
+        .find(isSlug)
     ])
     if (fallbacks.some(([, slug]) => slug)) return hasDraftsEnabled(collection) ? slugs : Object.fromEntries(fallbacks)
   }

@@ -28,6 +28,9 @@ export const HOME_PAGE_PATH = '/'
 export const idOf = (value: unknown): Id | null =>
   value === null || value === undefined || value === '' ? null : extractID(value as Id)
 
+// What the rule of a path takes for a slug: a string that isn't empty.
+export const isSlug = (value: unknown): value is string => typeof value === 'string' && value !== ''
+
 // The path a row of a collection stores, in each locale of the site.
 export function getPaths(stored: unknown, collectionSlug: string, payload: Payload): Paths {
   const localized = isLocalized(collectionSlug, payload)
@@ -106,11 +109,11 @@ export function buildPathAndAncestors(
   const paths = getLocales(payload).map((locale) => {
     const slug = (hasDraftsEnabled(collection) ? getFallbackLocales(payload, locale) : [locale])
       .map((slugLocale) => slugs[slugLocale])
-      .find((localeSlug) => typeof localeSlug === 'string' && localeSlug !== '')
+      .find(isSlug)
     const parentPath = parent ? parent.paths[locale] : basePath
     if (slug === undefined || parentPath === null || parentPath === undefined) return [locale, null]
     const isHomePage = !parent && basePath === NO_BASE_PATH && slug === pathConfig.rootSlug
-    return [locale, isHomePage ? HOME_PAGE_PATH : `${parentPath}/${String(slug)}`]
+    return [locale, isHomePage ? HOME_PAGE_PATH : `${parentPath}/${slug}`]
   })
   return { ancestors: parent ? [...parent.ancestors, parent.id] : [], paths: Object.fromEntries(paths) as Paths }
 }

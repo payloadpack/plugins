@@ -1,5 +1,6 @@
 import type { PayloadRequest } from 'payload'
 
+import { isSlug } from '../path/build-path-and-ancestors.js'
 import { buildFieldError, MISSING_SLUG_REFUSAL, REFUSAL_FIELD } from '../plugin/messages.js'
 
 /**
@@ -7,7 +8,7 @@ import { buildFieldError, MISSING_SLUG_REFUSAL, REFUSAL_FIELD } from '../plugin/
  * the rule of a path takes for a slug.
  */
 export function checkSlugs(collection: string, slugs: unknown[], req: PayloadRequest) {
-  if (slugs.every((slug) => typeof slug !== 'string' || slug === '')) {
+  if (!slugs.some(isSlug)) {
     throw buildFieldError(collection, REFUSAL_FIELD, MISSING_SLUG_REFUSAL, req)
   }
 }
