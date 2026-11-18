@@ -63,9 +63,9 @@ export const setPathAfterChange: CollectionAfterChangeHook = async ({ collection
     // whoever wrote them.
     const isElsewhere = operation === 'update' && !(before && hasSamePathAndAncestors(before, built))
     const branchMove = isElsewhere
-      ? await findBranchMove({ collection, document, parent: { ...built, id: doc.id }, req })
+      ? await findBranchMove({ collection, id: doc.id, parent: { ...built, id: doc.id }, req })
       : undefined
-    if (branchMove) await checkBranchMove(branchMove, doc.id, req)
+    if (branchMove) await checkBranchMove(branchMove, req)
 
     // The writes: the document and its latest version, where the row stores another path or other
     // ancestors than the ones built, and then the documents below.
@@ -77,7 +77,7 @@ export const setPathAfterChange: CollectionAfterChangeHook = async ({ collection
     if (branchMove) await moveBranch(branchMove, req)
 
     // The site hears what changed.
-    const moved = branchMove && before && getBranchChange(branchMove, doc.id, before.paths, built.paths, payload)
+    const moved = branchMove && before && getBranchChange(branchMove, before.paths, built.paths, payload)
     if (changedPaths.length > 0 || moved) {
       await getPathConfig(payload).onPathsChanged?.({ ...(moved ? { moved } : {}), paths: changedPaths }, req)
     }

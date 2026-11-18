@@ -139,12 +139,12 @@ export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collec
     if (id !== undefined && before && paths.moved.length > 0) {
       const branchMove = await findBranchMove({
         collection,
-        document: { ...data, id },
+        id,
         parent: { ancestors: built.ancestors, id, paths: { ...before.paths, ...Object.fromEntries(paths.moved) } },
         req
       })
       if (by) takePaths(by, getLandings(branchMove), req)
-      await checkBranchMove(branchMove, id, req)
+      await checkBranchMove(branchMove, req)
     }
   } catch (error) {
     // A refused save takes nothing.

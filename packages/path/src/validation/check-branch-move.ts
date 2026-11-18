@@ -1,6 +1,6 @@
 import type { PayloadRequest } from 'payload'
 
-import { HOME_PAGE_PATH, type Id } from '../path/build-path-and-ancestors.js'
+import { HOME_PAGE_PATH } from '../path/build-path-and-ancestors.js'
 import { getLandings, type BranchMove } from '../path/move-branch.js'
 import { becomesHomePageRefusal, buildFieldError, describeTakenPath, REFUSAL_FIELD } from '../plugin/messages.js'
 import { findTakenPath } from './find-taken-path.js'
@@ -9,10 +9,10 @@ import { getReservedPathRefusal } from './get-reserved-path-refusal.js'
 /**
  * Refuses a move that would land a document of the branch on a path it can't be at: the home page's,
  * one with a reserved segment, and one a document outside the branch is at. The branch is the
- * documents below the one that moved, or was deleted, which the id names.
+ * documents below the one that moved, or was deleted.
  */
-export async function checkBranchMove(move: BranchMove, id: Id, req: PayloadRequest) {
-  const { below, collection } = move
+export async function checkBranchMove(move: BranchMove, req: PayloadRequest) {
+  const { below, collection, id } = move
   const landings = getLandings(move)
   for (const { document, locale, path } of landings) {
     // A top-level document with the root slug answers /, which a lifted document would not have before.

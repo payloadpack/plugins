@@ -63,8 +63,7 @@ const getMovedPaths = (locales: string[], from: Paths, to: Paths) =>
 // Where a branch went and each document below with it, from the rows the move held before it wrote
 // them, or nothing when the branch starts with another path in no locale.
 export function getBranchChange(
-  { below: { length: documentsBelow }, collection, documents }: BranchMove,
-  id: Id,
+  { below: { length: documentsBelow }, collection, documents, id }: BranchMove,
   from: Paths,
   to: Paths,
   payload: Payload

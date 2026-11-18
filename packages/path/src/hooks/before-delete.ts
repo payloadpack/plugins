@@ -41,14 +41,14 @@ export const liftBranchBeforeDelete: CollectionBeforeDeleteHook = async ({ colle
   // Where the documents below go: the document hangs from the last of its ancestors, and so do they
   // once it is gone.
   const parent = await findParentPathAndAncestors(slug, ancestors.at(-1) ?? null, req)
-  const branchMove = await findBranchMove({ collection, document, parent, req })
+  const branchMove = await findBranchMove({ collection, id, parent, req })
 
   // Where they land is taken on the request first, then checked against the database, and then they
   // move.
   const by = { collection: slug, id }
   try {
     takePaths(by, getLandings(branchMove), req)
-    await checkBranchMove(branchMove, id, req)
+    await checkBranchMove(branchMove, req)
     await moveBranch(branchMove, req)
   } finally {
     // The database shows the lifted documents from here on, or the delete was refused.
@@ -58,5 +58,5 @@ export const liftBranchBeforeDelete: CollectionBeforeDeleteHook = async ({ colle
   // For the hook after the delete: where the lifted documents went.
   if (branchMove.below.length === 0) return
   // What the paths of the lifted documents start with now: the parent's path, or the base path.
-  change.lifted = getBranchChange(branchMove, id, paths, getParentPaths(parent, slug, payload), payload)
+  change.lifted = getBranchChange(branchMove, paths, getParentPaths(parent, slug, payload), payload)
 }
