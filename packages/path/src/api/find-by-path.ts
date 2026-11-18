@@ -1,7 +1,8 @@
 import type { CollectionSlug, DataFromCollectionSlug, Payload, Where } from 'payload'
 
-import { getReservedPathRefusal, getPathConfig, pickCollections } from '../plugin/options.js'
+import { getPathConfig, pickCollections } from '../plugin/options.js'
 import { hasDrafts } from '../utils/published-locales.js'
+import { getReservedPathRefusal } from '../validation/get-reserved-path-refusal.js'
 
 /** A document found at a path, with the collection it is in, among the collections named. */
 export type FoundByPath<Slug extends CollectionSlug = CollectionSlug> = {

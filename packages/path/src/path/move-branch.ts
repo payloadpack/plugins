@@ -2,16 +2,14 @@ import type { CollectionConfig, PayloadRequest } from 'payload'
 
 import { countBelow, findDocumentsBelow, setPathAndAncestors, type StoredDocument } from '../database/documents.js'
 import { findLatestVersionsBelow, setDraftPathAndAncestors, type StoredVersion } from '../database/versions.js'
-import { becomesHomePageRefusal, buildFieldError, describeTakenPath, REFUSAL_FIELD } from '../plugin/messages.js'
-import { getReservedPathRefusal, getParentFieldName } from '../plugin/options.js'
+import { getParentFieldName } from '../plugin/options.js'
 import { hasDrafts } from '../utils/published-locales.js'
-import { findTakenPath } from '../validation/find-taken-path.js'
+import type { TakenPath } from '../validation/find-taken-path.js'
 import {
   buildPathAndAncestors,
   getSlugsAndParent,
   getStoredPathAndAncestors,
   hasSamePathAndAncestors,
-  HOME_PAGE_PATH,
   type Id,
   type ParentPathAndAncestors,
   type PathAndAncestors,
@@ -29,25 +27,25 @@ type BranchMoveRequest = {
 }
 
 // The rows of a branch that get another path or other ancestors than they store, top-down, each
-// document with the paths its row stores, and how many documents the branch holds below its first.
+// document with the paths its row stores, and every document the branch holds below its first.
 export type BranchMove = {
+  below: StoredDocument[]
   collection: string
   documents: { document: StoredDocument; pathAndAncestors: PathAndAncestors; storedPaths: Paths }[]
-  documentsBelow: number
   versions: { pathAndAncestors: PathAndAncestors; version: StoredVersion }[]
 }
 
 /**
  * Finds where every document below a document is once that document has moved, or is deleted, and
  * where each latest version below it would put its document: top-down, each from its own slugs and
- * the new path and ancestors of its parent, by the one rule. It checks the whole branch and stores
- * nothing: a branch carries none of its documents onto a path that is reserved or taken.
+ * the new path and ancestors of its parent, by the one rule. It refuses nothing and stores nothing:
+ * checkBranchMove refuses a move, and moveBranch stores one.
  */
 export async function findBranchMove({ collection, document: moved, parent, req }: BranchMoveRequest): Promise<BranchMove> {
   const { payload } = req
   const { slug } = collection
   // In a collection without parents nothing sits below a document, so there is no branch to read.
-  if (getParentFieldName(slug, payload) === undefined) return { collection: slug, documents: [], documentsBelow: 0, versions: [] }
+  if (getParentFieldName(slug, payload) === undefined) return { below: [], collection: slug, documents: [], versions: [] }
   const documentCount = await countBelow(slug, moved.id, req)
   const below = documentCount > 0 ? await findDocumentsBelow(slug, moved.id, req) : []
   // The latest versions of those documents, and the ones whose draft would put their document below
@@ -65,7 +63,7 @@ export async function findBranchMove({ collection, document: moved, parent, req 
   // own. A row that hangs from a document outside the branch stays as it is.
   const parents = new Map<string, ParentPathAndAncestors | null>([[String(moved.id), parent]])
   const getParent = (parentId: Id | null) => (parentId === null ? null : parents.get(String(parentId)))
-  const move: BranchMove = { collection: slug, documents: [], documentsBelow: documentCount, versions: [] }
+  const move: BranchMove = { below, collection: slug, documents: [], versions: [] }
   const depthOf = ({ ancestors }: StoredDocument) => ancestors?.length ?? 0
   for (const document of below.sort((each, other) => depthOf(each) - depthOf(other))) {
     const slugsAndParent = getSlugsAndParent(
@@ -97,25 +95,16 @@ export async function findBranchMove({ collection, document: moved, parent, req 
       move.versions.push({ pathAndAncestors, version })
     }
   }
-  const landings = move.documents.flatMap(({ document, pathAndAncestors, storedPaths }) =>
-    Object.entries(pathAndAncestors.paths).flatMap(([pathLocale, path]) =>
-      path === null || path === storedPaths[pathLocale] ? [] : [{ document, locale: pathLocale, path }]
-    )
-  )
-  for (const { document, locale: pathLocale, path } of landings) {
-    // A top-level document with the root slug answers /, which a lifted document would not have before.
-    const refusal =
-      path === HOME_PAGE_PATH ? becomesHomePageRefusal(slug, document, pathLocale, req) : getReservedPathRefusal(path, payload)
-    if (refusal) throw buildFieldError(slug, REFUSAL_FIELD, refusal, req, pathLocale)
-  }
-  const taken = await findTakenPath(
-    landings.map(({ locale: pathLocale, path }) => [pathLocale, path]),
-    { below, collection: slug, ids: [moved.id] },
-    req
-  )
-  if (taken) throw buildFieldError(slug, REFUSAL_FIELD, describeTakenPath(taken, req), req, taken.locale)
   return move
 }
+
+// Where a branch move puts each document that it gives another path, in each locale it does.
+export const getLandings = ({ collection, documents }: BranchMove): TakenPath[] =>
+  documents.flatMap(({ document, pathAndAncestors, storedPaths }) =>
+    Object.entries(pathAndAncestors.paths).flatMap(([locale, path]) =>
+      path === null || path === storedPaths[locale] ? [] : [{ collection, document, locale, path }]
+    )
+  )
 
 export async function moveBranch({ collection, documents, versions }: BranchMove, req: PayloadRequest) {
   for (const { document, pathAndAncestors } of documents) await setPathAndAncestors(collection, document, pathAndAncestors, req)

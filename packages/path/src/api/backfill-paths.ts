@@ -16,11 +16,11 @@ import {
   hasSamePathAndAncestors,
   type Id
 } from '../path/build-path-and-ancestors.js'
-import { buildFieldError, MISSING_SLUG_REFUSAL, REFUSAL_FIELD } from '../plugin/messages.js'
 import { getPathConfig, pickCollections } from '../plugin/options.js'
 import { hasDrafts } from '../utils/published-locales.js'
 import { checkNewPaths, getNewPaths } from '../validation/check-new-paths.js'
 import { checkParent } from '../validation/check-parent.js'
+import { checkSlugs } from '../validation/check-slugs.js'
 
 /** What a backfill did to the documents it went through. */
 export type BackfillReport = {
@@ -45,9 +45,7 @@ async function findParentAndBuildCheckedPathAndAncestors(
   req: PayloadRequest
 ) {
   const slugsAndParent = getSlugsAndParent(stored, kind, collection, req.payload)
-  if (Object.values(slugsAndParent.slugs).every((slug) => typeof slug !== 'string' || slug === '')) {
-    throw buildFieldError(collection.slug, REFUSAL_FIELD, MISSING_SLUG_REFUSAL, req)
-  }
+  checkSlugs(collection.slug, Object.values(slugsAndParent.slugs), req)
   const parent = await findParentPathAndAncestors(collection.slug, slugsAndParent.parentId, req)
   checkParent(collection.slug, { id: stored.document.id, parent, parentId: slugsAndParent.parentId }, req)
   return buildPathAndAncestors(slugsAndParent, parent, collection, req.payload)

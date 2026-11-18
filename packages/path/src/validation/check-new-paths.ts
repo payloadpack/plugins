@@ -2,9 +2,9 @@ import type { CollectionConfig, PayloadRequest } from 'payload'
 
 import { countBelow } from '../database/documents.js'
 import { HOME_PAGE_PATH, type Id, type PathAndAncestors } from '../path/build-path-and-ancestors.js'
-import { buildFieldError, describeTakenPath, homePageBranchRefusal, REFUSAL_FIELD } from '../plugin/messages.js'
-import { getReservedPathRefusal } from '../plugin/options.js'
-import { findTakenPath } from './find-taken-path.js'
+import { buildFieldError, homePageBranchRefusal, REFUSAL_FIELD } from '../plugin/messages.js'
+import { checkTakenPaths } from './check-taken-paths.js'
+import { getReservedPathRefusal } from './get-reserved-path-refusal.js'
 
 export type LocalePath = [locale: string, path: string]
 
@@ -36,6 +36,5 @@ export async function checkNewPaths(
   if (becomesHomePage && (await countBelow(slug, id, req)) > 0) {
     throw buildFieldError(slug, REFUSAL_FIELD, homePageBranchRefusal(slug, req), req)
   }
-  const taken = await findTakenPath(paths, { collection: slug, ids: id === undefined ? [] : [id] }, req)
-  if (taken) throw buildFieldError(slug, REFUSAL_FIELD, describeTakenPath(taken, req, here), req, taken.locale)
+  await checkTakenPaths(slug, id, paths, req, here)
 }

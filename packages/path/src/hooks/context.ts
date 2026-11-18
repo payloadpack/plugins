@@ -1,7 +1,7 @@
 import type { PayloadRequest } from 'payload'
 
 import type { Id, PathAndAncestors } from '../path/build-path-and-ancestors.js'
-import type { PathsChange } from '../plugin/options.js'
+import type { PathsChange } from './paths-change.js'
 
 // Where the document itself was before a save's write, and the locales a site found it in there.
 export type PathAndAncestorsBefore = PathAndAncestors & { shownLocales: string[] }

@@ -1,6 +1,6 @@
 import type { PayloadRequest, Where } from 'payload'
 
-import type { StoredDocument } from '../database/documents.js'
+import { findDocument, type StoredDocument } from '../database/documents.js'
 import { getPaths, type Id } from '../path/build-path-and-ancestors.js'
 import { getPathConfig, isLocalized } from '../plugin/options.js'
 import { inChunks } from '../utils/in-chunks.js'
@@ -59,18 +59,9 @@ export async function findTakenPath(
         collection === self.collection
           ? [...new Set([...self.ids, ...chunk.flatMap(([locale, path]) => idsBelow.get(pathKey(locale, path)) ?? [])])]
           : []
-      const document = await payload.db.findOne<StoredDocument>({
-        collection,
-        joins: false,
-        req,
-        where: {
-          and: [
-            atPath,
-            ...(own.length > 0 ? [{ id: { not_in: own } }] : []),
-            ...(inTrash ? [{ deletedAt: { exists: false } }] : [])
-          ]
-        }
-      })
+      const notOwn: Where[] = own.length > 0 ? [{ id: { not_in: own } }] : []
+      const notInTrash: Where[] = inTrash ? [{ deletedAt: { exists: false } }] : []
+      const document = await findDocument(collection, { and: [atPath, ...notOwn, ...notInTrash] }, req)
       if (!document) continue
       const documentPaths = getPaths(document.path, collection, payload)
       const taken = paths.filter(([pathLocale, takenPath]) => documentPaths[pathLocale] === takenPath)

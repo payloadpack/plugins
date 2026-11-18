@@ -1,0 +1,87 @@
+import type { CollectionAfterChangeHook } from 'payload'
+
+import { setPathAndAncestors } from '../database/documents.js'
+import {
+  findDocumentAndLatestVersion,
+  findParentAndBuildPathAndAncestors,
+  setDraftPathAndAncestors
+} from '../database/versions.js'
+import { getStoredPathAndAncestors, hasSamePathAndAncestors } from '../path/build-path-and-ancestors.js'
+import { findBranchMove, moveBranch } from '../path/move-branch.js'
+import { THIS_PATH } from '../plugin/messages.js'
+import { getPathConfig, isLocalized } from '../plugin/options.js'
+import { getSaved } from '../utils/locales.js'
+import { checkBranchMove } from '../validation/check-branch-move.js'
+import { checkNewPaths, getNewPaths } from '../validation/check-new-paths.js'
+import { checkPublishedPaths } from '../validation/check-published-paths.js'
+import { documentKey, getPathContext } from './context.js'
+import { getBranchChange, getChangedPaths } from './paths-change.js'
+
+/**
+ * Stores the path and ancestors a save gave its document, moves the documents below it, and tells
+ * the site. It runs in Payload's afterChange because only then is it known what Payload wrote: a
+ * draft goes into the latest version only, and a publish in one locale decides which locales the
+ * document holds. And the documents below need writes of their own, which a hook before the write
+ * can't make.
+ *
+ * It looks at what the database holds: it finds the document and its latest version, builds the
+ * path and ancestors of each by the one rule, and stores them where the row stores other ones. When
+ * the document's path or ancestors are other ones than before the write, the documents below follow.
+ * Every check runs before the first write, and the site hears which paths changed after the last.
+ */
+export const setPathAfterChange: CollectionAfterChangeHook = async ({ collection, doc, operation, req }) => {
+  const { payload } = req
+  const { slug } = collection
+  // Where the document was before the write, which the hook before it kept.
+  const { saved } = getPathContext(req)
+  const key = documentKey(slug, doc.id)
+  const before = operation === 'create' ? undefined : saved.get(key)
+  saved.delete(key)
+
+  // What Payload wrote, and the path and ancestors the one rule makes of it: the document's, and
+  // the ones its latest draft would give it.
+  const stored = await findDocumentAndLatestVersion(collection, doc.id, req)
+  if (!stored) return doc
+  const { document, version } = stored
+  const built = await findParentAndBuildPathAndAncestors(stored, 'document', collection, req)
+  const builtDraft = version ? await findParentAndBuildPathAndAncestors(stored, 'draft', collection, req) : built
+  const storedInDocument = getStoredPathAndAncestors(document, slug, payload)
+  const storedInVersion = version && getStoredPathAndAncestors(version.version, slug, payload)
+
+  // The checks of what only Payload's write decided. A path is new where the document wasn't at it
+  // before the write and Payload's write didn't carry it, which the hook before the write checked.
+  // The same for a path of the draft's that the latest version doesn't store.
+  checkPublishedPaths(collection, document, built, req)
+  const newPaths = [
+    ...getNewPaths(built, before, storedInDocument),
+    ...(storedInVersion ? getNewPaths(builtDraft, storedInVersion) : [])
+  ]
+  await checkNewPaths(collection, doc.id, newPaths, req, THIS_PATH)
+  // The document is elsewhere when its path or ancestors are other ones than before the write,
+  // whoever wrote them.
+  const isElsewhere = operation === 'update' && !(before && hasSamePathAndAncestors(before, built))
+  const branchMove = isElsewhere
+    ? await findBranchMove({ collection, document, parent: { ...built, id: doc.id }, req })
+    : undefined
+  if (branchMove) await checkBranchMove(branchMove, doc.id, req)
+
+  // The writes: the document and its latest version, where the row stores another path or other
+  // ancestors than the ones built, and then the documents below.
+  const changedPaths = getChangedPaths({ collection, pathAndAncestors: built, req, stored }, before)
+  const setsDocument = !hasSamePathAndAncestors(built, storedInDocument)
+  const setsDraft = version && storedInVersion && !hasSamePathAndAncestors(builtDraft, storedInVersion)
+  if (setsDocument) await setPathAndAncestors(slug, document, built, req)
+  if (setsDraft) await setDraftPathAndAncestors(slug, version, builtDraft, req)
+  if (branchMove) await moveBranch(branchMove, req)
+
+  // The site hears what changed.
+  const moved = branchMove && before && getBranchChange(branchMove, doc.id, before.paths, built.paths, payload)
+  if (changedPaths.length > 0 || moved) {
+    await getPathConfig(payload).onPathsChanged?.({ ...(moved ? { moved } : {}), paths: changedPaths }, req)
+  }
+
+  // Payload made the saved document before this hook wrote, so it gets the path the hook built.
+  const { inData } = getSaved(req, isLocalized(slug, payload))
+  const written = setsDraft || (!version && setsDocument)
+  return written ? { ...doc, path: inData(builtDraft.paths) ?? null } : doc
+}

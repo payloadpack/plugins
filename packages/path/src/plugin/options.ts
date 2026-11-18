@@ -1,13 +1,8 @@
 import type { CollectionConfig, CollectionSlug, Config, Payload, PayloadRequest } from 'payload'
 import type { Slugify } from 'payload/shared'
 
-import type { Id, Paths } from '../path/build-path-and-ancestors.js'
-import type { BranchMove } from '../path/move-branch.js'
-import { NO_LOCALE } from '../utils/locales.js'
-import { getShownLocales } from '../utils/published-locales.js'
+import type { PathsChange } from '../hooks/paths-change.js'
 import {
-  ADMIN_ROUTE_REASON,
-  API_ROUTE_REASON,
   BASE_PATH_IS_ROOT,
   BASE_PATH_WITH_EMPTY_SEGMENT,
   BASE_PATH_WITH_LAST_SLASH,
@@ -15,82 +10,9 @@ import {
   basePathError,
   notGivenCollectionsError,
   PLUGIN_MISSING_ERROR,
-  REFUSAL_FIELD,
-  reservedAnyDepthRefusal,
-  reservedRootRefusal
+  REFUSAL_FIELD
 } from './messages.js'
 import { defaultSlugify } from './slugify.js'
-
-/** A path that shows something else, in the locale it belongs to. Without localization there is no locale. */
-export type ChangedPath = { locale?: string; path: string }
-
-const inLocale = (locale: string) => (locale === NO_LOCALE ? {} : { locale })
-
-export const changedPath = (locale: string, path: string): ChangedPath => ({ ...inLocale(locale), path })
-
-/** Where the documents below a document went, so a site can redirect them. */
-export type BranchChange = {
-  /** The collection the document is in. */
-  collection: string
-  /** The document that moved, or the deleted document whose documents below were lifted. */
-  id: Id
-  /** How many documents sit below it. */
-  documentsBelow: number
-  /**
-   * Per locale that changed: every path that started with from and a slash now starts with to and a
-   * slash. For a move they are the document's own paths. For a lift, from is the deleted document's
-   * path and to what was above it: its parent's path, the base path, or nothing at the root.
-   */
-  paths: { from: string; locale?: string; to: string }[]
-  /**
-   * Each document below that a site finds at another path now, top-down: the path it was at and the
-   * path it is at, per locale it is published in and has another path in. A document below that is
-   * published in no locale is not among them.
-   */
-  documents: { id: Id; paths: { from: string; locale?: string; to: string }[] }[]
-}
-
-// The paths of these locales that are other ones now. A locale without a path before or now has none.
-const getMovedPaths = (locales: string[], from: Paths, to: Paths) =>
-  locales.flatMap((locale) => {
-    const [path, newPath] = [from[locale], to[locale]]
-    return typeof path === 'string' && typeof newPath === 'string' && newPath !== path
-      ? [{ ...inLocale(locale), from: path, to: newPath }]
-      : []
-  })
-
-// Where a branch went and each document below with it, from the rows the move held before it wrote
-// them, or nothing when the branch starts with another path in no locale.
-export function getBranchChange(
-  { collection, documents, documentsBelow }: BranchMove,
-  id: Id,
-  from: Paths,
-  to: Paths,
-  payload: Payload
-): BranchChange | undefined {
-  const paths = getMovedPaths(Object.keys(from), from, to)
-  if (paths.length === 0) return undefined
-  const { config } = payload.collections[collection as CollectionSlug]
-  // Only the locales a site finds a document in count, by the rule a save's own paths follow.
-  const below = documents.flatMap(({ document, pathAndAncestors, storedPaths }) => {
-    const movedPaths = getMovedPaths(getShownLocales(document, config, payload), storedPaths, pathAndAncestors.paths)
-    return movedPaths.length > 0 ? [{ id: document.id, paths: movedPaths }] : []
-  })
-  return { collection, documents: below, documentsBelow, id, paths }
-}
-
-/** What onPathsChanged hears after a save or a delete. */
-export type PathsChange = {
-  /**
-   * Each published path that shows something else: the path of a publish, the path a document was
-   * published at and left or was unpublished at, and the path of a deleted or trashed document.
-   */
-  paths: ChangedPath[]
-  /** A save that moved a document with a path, also with nothing below it. */
-  moved?: BranchChange
-  /** A delete that lifted the documents below the deleted document. */
-  lifted?: BranchChange
-}
 
 /**
  * Reserved segments as a list, or each with a reason that is shown when a slug is refused: at the
@@ -152,7 +74,7 @@ type PathConfig = {
   slugify: Slugify
 }
 
-type ReasonBySegment = Record<string, string | undefined>
+export type ReasonBySegment = Record<string, string | undefined>
 
 const CUSTOM_KEY = 'payloadpackPath'
 
@@ -250,29 +172,3 @@ export const isLocalized = (collectionSlug: string, payload: Payload) =>
 // document with a button and has no field for the parent in the form, so there the slug shows it.
 export const getParentRefusalField = (collectionSlug: string, payload: Payload) =>
   payload.collections[collectionSlug as CollectionSlug].config.hierarchy ? REFUSAL_FIELD : PARENT_FIELD_NAME
-
-// The root segments of Payload's own routes. A route at the root has none. The routes are read from
-// the running config, because the plugin gets the config before Payload fills in their defaults.
-function getPayloadRootSegments({ routes }: Payload['config']): ReasonBySegment {
-  const reasons = [
-    [routes.admin, ADMIN_ROUTE_REASON],
-    [routes.api, API_ROUTE_REASON]
-  ] as const
-  return Object.fromEntries(
-    reasons.flatMap(([route, reason]) => {
-      const segment = route.split('/').find((routeSegment) => routeSegment !== '')
-      return segment === undefined ? [] : [[segment, reason]]
-    })
-  )
-}
-
-// What a path is refused with when one of its segments is reserved.
-export function getReservedPathRefusal(path: string, payload: Payload) {
-  const { anyDepth, root = getPayloadRootSegments(payload.config) } = getPathConfig(payload).reservedSegments
-  const segments = path.split('/').slice(1)
-  const reservedSegment = segments.find((segment) => Object.hasOwn(anyDepth, segment))
-  if (reservedSegment !== undefined) return reservedAnyDepthRefusal(reservedSegment, anyDepth[reservedSegment])
-  // The segment at the root, which a base path's first segment is too.
-  const [rootSegment = ''] = segments
-  if (Object.hasOwn(root, rootSegment)) return reservedRootRefusal(rootSegment, root[rootSegment])
-}

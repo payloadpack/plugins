@@ -33,6 +33,10 @@ export async function findDocuments(collection: string, where: Where, req: Paylo
   return docs
 }
 
+// One document of a collection that a where finds, as the database holds it, with every locale.
+export const findDocument = (collection: string, where: Where, req: PayloadRequest) =>
+  req.payload.db.findOne<StoredDocument>({ collection, joins: false, req, where })
+
 type ChunkQuery = { limit: number; pagination: false; sort: string; where: Where }
 
 /**
