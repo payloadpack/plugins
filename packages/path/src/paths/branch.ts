@@ -1,15 +1,7 @@
 import type { CollectionConfig, PayloadRequest } from 'payload'
 
-import {
-  becomesHomePageRefusal,
-  buildFieldError,
-  describeDocument,
-  describeTakenPath,
-  REFUSAL_FIELD,
-  tooManyBelowRefusal
-} from '../plugin/messages.js'
-import { findReservedPathRefusal, getParentFieldName, getPathConfig } from '../plugin/options.js'
-import { NO_LOCALE } from './locales.js'
+import { becomesHomePageRefusal, buildFieldError, describeTakenPath, REFUSAL_FIELD } from '../plugin/messages.js'
+import { findReservedPathRefusal, getParentFieldName } from '../plugin/options.js'
 import {
   HOME_PAGE_PATH,
   isSamePlace,
@@ -24,7 +16,7 @@ import {
   type StoredVersion
 } from './place.js'
 import { hasDrafts } from './status.js'
-import { findDocuments, findLatestVersionByDocument, writePlace, writePlan } from './stored.js'
+import { findDocumentsBelow, findLatestVersionsBelow, writePlace, writePlan } from './stored.js'
 import { findTakenPath } from './taken-paths.js'
 
 type BranchMoveRequest = {
@@ -56,39 +48,23 @@ export async function countBelow(collection: string, id: Id, req: PayloadRequest
 /**
  * Works out where every document below a document is once that document has moved, or is deleted,
  * and what each latest version below it plans: top-down, each from its own slugs and the new place of
- * its parent, by the one rule. It checks the whole branch and writes nothing: a branch carries at
- * most maxDocumentsPerMove documents, and none of them onto a path that is reserved or taken.
+ * its parent, by the one rule. It checks the whole branch and writes nothing: a branch carries none
+ * of its documents onto a path that is reserved or taken.
  */
 export async function planBranchMove({ collection, document: moved, parent, req }: BranchMoveRequest): Promise<BranchMove> {
   const { payload } = req
-  const pathConfig = getPathConfig(payload)
   const { slug } = collection
-  const locale = req.locale ?? NO_LOCALE
   // In a collection without parents nothing sits below a document, so there is no branch to read.
   if (getParentFieldName(slug, payload) === undefined) return { collection: slug, documents: [], documentsBelow: 0, versions: [] }
   const documentCount = await countBelow(slug, moved.id, req)
-  if (documentCount > pathConfig.maxDocumentsPerMove) {
-    const refusal = tooManyBelowRefusal({
-      collection: slug,
-      description: describeDocument(slug, moved, locale, req),
-      documentCount,
-      maxDocumentsPerMove: pathConfig.maxDocumentsPerMove,
-      req
-    })
-    throw buildFieldError(slug, REFUSAL_FIELD, refusal, req)
-  }
-  const below = documentCount > 0 ? await findDocuments(slug, { ancestors: { equals: moved.id } }, req) : []
+  const below = documentCount > 0 ? await findDocumentsBelow(slug, moved.id, req) : []
   // The latest versions of those documents, and the ones that plan a place below the document while
   // their own document is elsewhere.
   const versions = hasDrafts(collection)
-    ? await findLatestVersionByDocument(
+    ? await findLatestVersionsBelow(
         slug,
-        {
-          or: [
-            { 'version.ancestors': { equals: moved.id } },
-            ...(below.length > 0 ? [{ parent: { in: below.map(({ id }) => id) } }] : [])
-          ]
-        },
+        moved.id,
+        below.map(({ id }) => id),
         req
       )
     : new Map<string, StoredVersion>()
@@ -128,7 +104,7 @@ export async function planBranchMove({ collection, document: moved, parent, req 
   }
   const taken = await findTakenPath(
     landings.map(({ locale: pathLocale, path }) => [pathLocale, path]),
-    { collection: slug, ids: [moved.id, ...below.map(({ id }) => id)] },
+    { below, collection: slug, ids: [moved.id] },
     req
   )
   if (taken) throw buildFieldError(slug, REFUSAL_FIELD, describeTakenPath(taken, req), req, taken.locale)

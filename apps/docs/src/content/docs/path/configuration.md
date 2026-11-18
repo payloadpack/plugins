@@ -13,21 +13,19 @@ pathPlugin({
   },
   // makeSlug is yours.
   slugify: ({ valueToSlugify }) => makeSlug(valueToSlugify),
-  maxDocumentsPerMove: 1_000,
   onPathsChanged: ({ paths, moved }, req) => {
     // Purge your cache here.
   }
 })
 ```
 
-| Key                   | What it sets                                                                                                                                                                               | Default                                       |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
-| `collections`         | The [collections](#collections) whose documents get a path, each by its slug or as `{ slug, basePath, parent, localized }`                                                                 |                                               |
-| `rootSlug`            | The slug that makes a top-level document the [home page](/path/features/home-page/)                                                                                                        | `home`                                        |
-| `reservedSegments`    | [Segments your site serves itself](/path/features/reserved-slugs/), as a list or each with why                                                                                             | Payload's admin and API routes                |
-| `slugify`             | What makes [a slug](/path/features/paths/#the-slug) from a title, from what an editor typed and for the slug field's button, as the `slugify` of Payload's own slug field. It may be async | Accents off Latin letters, other scripts kept |
-| `maxDocumentsPerMove` | The most documents [one move](/path/features/moves/) or delete may carry                                                                                                                   | `1000`                                        |
-| `onPathsChanged`      | A function that [hears which paths changed](/path/features/paths-changed/)                                                                                                                 | none                                          |
+| Key                | What it sets                                                                                                                                                                               | Default                                       |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| `collections`      | The [collections](#collections) whose documents get a path, each by its slug or as `{ slug, basePath, parent, localized }`                                                                 |                                               |
+| `rootSlug`         | The slug that makes a top-level document the [home page](/path/features/home-page/)                                                                                                        | `home`                                        |
+| `reservedSegments` | [Segments your site serves itself](/path/features/reserved-slugs/), as a list or each with why                                                                                             | Payload's admin and API routes                |
+| `slugify`          | What makes [a slug](/path/features/paths/#the-slug) from a title, from what an editor typed and for the slug field's button, as the `slugify` of Payload's own slug field. It may be async | Accents off Latin letters, other scripts kept |
+| `onPathsChanged`   | A function that [hears which paths changed](/path/features/paths-changed/)                                                                                                                 | none                                          |
 
 ## Collections
 

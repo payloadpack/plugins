@@ -8,12 +8,11 @@ import {
   readLatestVersion,
   readPath,
   readVersionPaths,
-  remove,
   restoreVersion,
   update
 } from './support/documents.js'
 
-describeEachSetup('', { boot: { options: { maxDocumentsPerMove: 3 } } }, (test, setup) => {
+describeEachSetup('', {}, (test, setup) => {
   it('gives every document below a renamed page its new path, in its latest version too', async () => {
     const { payload } = test
     const harbour = await create(payload, 'pages', { slug: 'harbour', title: 'Harbour' })
@@ -101,57 +100,6 @@ describeEachSetup('', { boot: { options: { maxDocumentsPerMove: 3 } } }, (test, 
 
     expect(await readPath(payload, 'notices', flyer.id)).toBe('/lobby/hall/flyer')
     expect((await readDocument(payload, 'notices', flyer.id)).ancestors).toEqual([lobby.id, hall.id])
-  })
-
-  it('refuses a move that carries more documents than maxDocumentsPerMove, and moves none', async () => {
-    const { payload } = test
-    const ledger = await create(payload, 'pages', { slug: 'ledger', title: 'Ledger' })
-    const entries = []
-    for (const index of [1, 2, 3, 4]) {
-      entries.push(await create(payload, 'pages', { parent: ledger.id, slug: `entry-${index}`, title: `Entry ${index}` }))
-    }
-
-    expect(await catchFieldErrors(update(payload, 'pages', ledger.id, { slug: 'tally' }))).toMatchObject([
-      {
-        message:
-          'Page "Ledger" has 4 pages below it, and a move carries at most 3, so move some of them under another page first.',
-        path: 'slug'
-      }
-    ])
-    expect(await readPath(payload, 'pages', ledger.id)).toBe('/ledger')
-    expect(await readPath(payload, 'pages', entries[0]!.id)).toBe('/ledger/entry-1')
-  })
-
-  it('refuses a delete that lifts more documents than maxDocumentsPerMove, and lifts none', async () => {
-    const { payload } = test
-    const accounts = await create(payload, 'pages', { slug: 'accounts', title: 'Accounts' })
-    const entries = []
-    for (const index of [1, 2, 3, 4]) {
-      entries.push(await create(payload, 'pages', { parent: accounts.id, slug: `entry-${index}`, title: `Entry ${index}` }))
-    }
-
-    expect(await catchFieldErrors(remove(payload, 'pages', accounts.id))).toMatchObject([
-      {
-        message:
-          'Page "Accounts" has 4 pages below it, and a move carries at most 3, so move some of them under another page first.',
-        path: 'slug'
-      }
-    ])
-    expect(await readPath(payload, 'pages', accounts.id)).toBe('/accounts')
-    expect(await readPath(payload, 'pages', entries[0]!.id)).toBe('/accounts/entry-1')
-  })
-
-  it('moves a branch that carries as many documents as maxDocumentsPerMove', async () => {
-    const { payload } = test
-    const register = await create(payload, 'pages', { slug: 'register', title: 'Register' })
-    const entries = []
-    for (const index of [1, 2, 3]) {
-      entries.push(await create(payload, 'pages', { parent: register.id, slug: `entry-${index}`, title: `Entry ${index}` }))
-    }
-
-    await update(payload, 'pages', register.id, { slug: 'roll' })
-
-    expect(await readPath(payload, 'pages', entries[2]!.id)).toBe('/roll/entry-3')
   })
 
   it('gives a restored version with another slug the path of that slug, and moves the documents below it', async () => {

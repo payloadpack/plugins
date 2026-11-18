@@ -32,7 +32,7 @@ What the package does, as its owner confirmed it. Build to this list, and ask hi
   - The document moves when it gets the new slug or parent itself: a publish, an unpublish or a restored version.
   - A document that isn't published follows its draft at once.
 - A move takes the whole branch along, latest versions too.
-  - Refused when it carries more than `maxDocumentsPerMove` documents, 1,000 by default.
+  - Never refused for its size.
   - Refused when a document of the branch would land on a taken path.
 - A delete lifts the documents below it one level.
   - Refused when one of them can't land.

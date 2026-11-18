@@ -84,9 +84,6 @@ export type PathPluginOptions = {
   // own slug field. Defaults to one that takes the accents off Latin letters and keeps the letters of
   // other scripts.
   slugify?: Slugify
-  // The most documents a move carries along below the moved document. Defaults to 1,000, about what
-  // MongoDB advises for one transaction.
-  maxDocumentsPerMove?: number
   // Runs after a save or a delete that changed a published path or moved a branch, so a site purges
   // its own cache and keeps its redirects.
   onPathsChanged?: (change: PathsChange, req: PayloadRequest) => Promise<void> | void
@@ -97,7 +94,6 @@ type PathConfig = {
   // Each collection with its base path, which is empty without one, whether its documents have a
   // parent, and whether they have a slug and a path per locale.
   collections: { basePath: string; hasParent: boolean; localized: boolean; slug: CollectionSlug }[]
-  maxDocumentsPerMove: number
   onPathsChanged?: PathPluginOptions['onPathsChanged']
   // Each reserved segment with its reason, if it has one. Without root, Payload's own routes count.
   reservedSegments: { anyDepth: ReasonBySegment; root?: ReasonBySegment }
@@ -139,7 +135,6 @@ export function resolvePathConfig(options: PathPluginOptions, config: Config): P
   const { anyDepth = [], root } = options.reservedSegments ?? {}
   return {
     collections: options.collections.map((collection) => resolveCollection(collection, config)),
-    maxDocumentsPerMove: options.maxDocumentsPerMove ?? 1_000,
     onPathsChanged: options.onPathsChanged,
     reservedSegments: { anyDepth: resolveReserved(anyDepth), root: root && resolveReserved(root) },
     rootSlug: options.rootSlug ?? 'home',

@@ -88,24 +88,6 @@ export const ADMIN_ROUTE_REASON = 'the admin panel'
 
 export const API_ROUTE_REASON = 'the API'
 
-export function tooManyBelowRefusal({
-  collection,
-  description,
-  documentCount,
-  maxDocumentsPerMove,
-  req
-}: {
-  collection: string
-  // The document whose branch moves, as describeDocument names it.
-  description: string
-  documentCount: number
-  maxDocumentsPerMove: number
-  req: PayloadRequest
-}) {
-  const { plural, singular } = getLowercaseLabels(collection, req)
-  return `${description} has ${documentCount.toLocaleString('en')} ${plural} below it, and a move carries at most ${maxDocumentsPerMove.toLocaleString('en')}, so move some of them under another ${singular} first.`
-}
-
 // Where describeTakenPath says the document is when it is at the path of the document being saved.
 export const THIS_PATH = 'this path'
 

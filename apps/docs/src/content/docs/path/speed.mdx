@@ -16,7 +16,7 @@ The package tests count the queries a lookup runs, on MongoDB, Postgres and SQLi
 
 On Postgres and SQLite with localization, Payload reads the document `findByPath` found in a second statement.
 
-A save reads the document before and after its write, and a move rewrites every document below it one by one, up to `maxDocumentsPerMove`. No test counts the queries of a save or a move.
+A save reads the document before and after its write, and a move reads the documents below it 1,000 at a time and rewrites them one by one. No test counts the queries of a save or a move.
 
 A save runs its queries one at a time, as MongoDB requires inside a transaction.
 

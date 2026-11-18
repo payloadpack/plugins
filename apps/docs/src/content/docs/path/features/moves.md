@@ -15,13 +15,9 @@ A document's branch stays in its own collection, so a move rewrites only that co
 - A document below it moves in its latest version too, so a pending draft keeps the slug it plans under the new path.
 - Older versions keep the paths they had. A restored version takes its path from its parent and slug again.
 
-## The most a move carries
+## A big branch
 
-A move carries at most `maxDocumentsPerMove` documents, 1,000 by default, about what MongoDB advises for one transaction. A bigger one is refused before anything changes:
-
-> Page "Ledger" has 1,204 pages below it, and a move carries at most 1,000, so move some of them under another page first.
-
-The count includes every document below it, at any depth.
+A move is never refused for its size. It writes the documents below one by one, inside the request of the save, so a branch of many thousands takes a while. The [speed page](/path/speed/) has what a move of 1,000 pages takes.
 
 ## Where the branch lands
 

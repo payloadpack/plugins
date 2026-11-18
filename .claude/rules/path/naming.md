@@ -54,6 +54,10 @@ A draft's new slug or parent on a published document, which the document takes w
 What a delete does to the documents right below the deleted document: they move up one level.
 _Avoid_: promote, orphan, reparent
 
+**Chunk**:
+The most documents or paths a move names in one statement or asks for in one read. A branch of any size is read and checked a chunk at a time.
+_Avoid_: batch, and page, which is a document
+
 **Taken path**:
 A path a document is at. Every document takes its path, whatever its status, except one in the trash; a pending move takes nothing until the document moves.
 _Avoid_: holder, owner, conflict

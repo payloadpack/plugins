@@ -24,7 +24,10 @@ const COLLECTIONS: CollectionConfig[] = [
   { ...titled('sections', true), hierarchy: true },
   titled('offers', true),
   // Memos have no drafts, so every save publishes.
-  { slug: 'memos', admin: { useAsTitle: 'title' }, fields: [{ name: 'title', type: 'text' }] }
+  { slug: 'memos', admin: { useAsTitle: 'title' }, fields: [{ name: 'title', type: 'text' }] },
+  // Berths start below a path a topic can be at, so a berth can be where a document below that
+  // topic would land while the topic's own path is free.
+  titled('berths', false)
 ]
 
 const GIVEN: PathCollection[] = [
@@ -33,13 +36,14 @@ const GIVEN: PathCollection[] = [
   { basePath: '/products', localized: false, slug: 'products' },
   { basePath: '/sections', localized: false, slug: 'sections' },
   { localized: false, parent: false, slug: 'offers' },
-  { basePath: '/memos', localized: false, slug: 'memos' }
+  { basePath: '/memos', localized: false, slug: 'memos' },
+  { basePath: '/topics/brygga', localized: false, slug: 'berths' }
 ]
 
 describeEachSetup(
   'with collections that are not localized',
   {
-    boot: { collections: COLLECTIONS, options: { collections: GIVEN, maxDocumentsPerMove: 2 } },
+    boot: { collections: COLLECTIONS, options: { collections: GIVEN } },
     setups: SETUPS.filter(({ localized }) => localized)
   },
   (test, setup) => {
@@ -133,16 +137,13 @@ describeEachSetup(
       const { payload } = test
       const pier = await create(payload, 'topics', { slug: 'pier', title: 'Pier' })
       for (const slug of ['planks', 'ropes', 'nets']) await create(payload, 'topics', { parent: pier.id, slug, title: slug })
+      // Where the topic's planks would land once it is at /topics/brygga.
+      await create(payload, 'berths', { slug: 'planks', title: 'Planks berth' })
 
-      // The block boots with at most two documents below a moved one.
       await update(payload, 'topics', pier.id, { slug: 'brygga', title: 'Brygga' }, { draft: true, locale: 'sv' })
 
       expect(await catchFieldErrors(update(payload, 'topics', pier.id, {}, inSwedish))).toMatchObject([
-        {
-          message:
-            'Topic "Brygga" has 3 topics below it, and a move carries at most 2, so move some of them under another topic first.',
-          path: 'slug'
-        }
+        { message: 'Berth "Planks berth" is already at /topics/brygga/planks, so change the slug or the parent.', path: 'slug' }
       ])
       expect(await readPaths('topics', pier.id)).toEqual(inEveryLocale('/topics/pier'))
     })

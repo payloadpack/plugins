@@ -18,8 +18,6 @@ The delete is refused, and nothing moves, when a lifted document would land:
 - on `/`, as the home page:
   > Page "Start home" would become the home page at /, so change its slug first.
 
-A lift is a move, so it carries at most `maxDocumentsPerMove` documents too, with the same message as a [move](/path/features/moves/).
-
 A document below it that was never published is checked like the others, since a draft takes its path too.
 
 ## Without a parent

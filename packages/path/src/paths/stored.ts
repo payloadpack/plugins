@@ -1,6 +1,7 @@
 import type { CollectionConfig, PayloadRequest, Where } from 'payload'
 
 import { getParentFieldName, isLocalized } from '../plugin/options.js'
+import { CHUNK_SIZE, inChunks } from './chunks.js'
 import {
   idOf,
   readRecord,
@@ -24,6 +25,32 @@ export async function findDocuments(collection: string, where: Where, req: Paylo
   return docs
 }
 
+type ChunkQuery = { limit: number; pagination: false; sort: string; where: Where }
+
+/**
+ * Every row a where finds, read a chunk at a time in the order of the ids, each read after the last
+ * id of the one before. For a where on a relationship, Postgres and SQLite first select the ids it
+ * finds and then ask for the rows with every one of those ids in one list, so a single read of a
+ * branch would name each of its documents in one statement.
+ */
+async function findInChunks<Row extends { id: Id }>(find: (query: ChunkQuery) => Promise<{ docs: Row[] }>, where: Where) {
+  const rows: Row[] = []
+  for (let last: Id | undefined; ; last = rows.at(-1)!.id) {
+    const after: Where = last === undefined ? where : { and: [where, { id: { greater_than: last } }] }
+    const { docs } = await find({ limit: CHUNK_SIZE, pagination: false, sort: 'id', where: after })
+    rows.push(...docs)
+    if (docs.length < CHUNK_SIZE) return rows
+  }
+}
+
+// The documents below a document, at any depth, as the database holds them, with every locale.
+export const findDocumentsBelow = (collection: string, id: Id, req: PayloadRequest) =>
+  findInChunks((query) => req.payload.db.find<StoredDocument>({ collection, joins: false, req, ...query }), {
+    ancestors: { equals: id }
+  })
+
+const LATEST: Where = { latest: { equals: true } }
+
 // The latest versions among a collection's versions, newest first, as Payload itself finds one.
 export async function findLatestVersions(collection: string, where: Where, req: PayloadRequest) {
   const { docs } = await req.payload.db.findVersions<StoredVersion['version']>({
@@ -31,17 +58,45 @@ export async function findLatestVersions(collection: string, where: Where, req: 
     pagination: false,
     req,
     sort: '-updatedAt',
-    where: { and: [where, { latest: { equals: true } }] }
+    where: { and: [where, LATEST] }
   })
   return docs as StoredVersion[]
 }
 
+const updatedAtOf = ({ updatedAt }: StoredVersion) => new Date(updatedAt as Date | string).getTime()
+
+// Keeps each document's newest version among the ones found, by the document's id.
+function keepNewest(versions: Map<string, StoredVersion>, found: StoredVersion[]) {
+  for (const version of found) {
+    const known = versions.get(String(version.parent))
+    if (!known || updatedAtOf(known) < updatedAtOf(version)) versions.set(String(version.parent), version)
+  }
+  return versions
+}
+
 // Each document's latest version among a collection's versions, by the document's id.
 export async function findLatestVersionByDocument(collection: string, where: Where, req: PayloadRequest) {
-  const versions = new Map<string, StoredVersion>()
-  for (const version of await findLatestVersions(collection, where, req)) {
-    if (!versions.has(String(version.parent))) versions.set(String(version.parent), version)
+  return keepNewest(new Map(), await findLatestVersions(collection, where, req))
+}
+
+/**
+ * The latest versions a move of the documents below a document reaches, by their document's id:
+ * those of the documents below it, and those that plan a place below it while their own document is
+ * elsewhere. The documents are named a chunk at a time. The question that names the first chunk
+ * also asks for the versions that plan a place below, and is read a chunk at a time, so a branch
+ * that fits in one chunk takes one question.
+ */
+export async function findLatestVersionsBelow(collection: string, id: Id, below: Id[], req: PayloadRequest) {
+  const [first = [], ...rest] = inChunks(below)
+  const reached: Where = {
+    or: [{ 'version.ancestors': { equals: id } }, ...(first.length > 0 ? [{ parent: { in: first } }] : [])]
   }
+  const found = await findInChunks(
+    (query) => req.payload.db.findVersions<StoredVersion['version']>({ collection, req, ...query }),
+    { and: [reached, LATEST] }
+  )
+  const versions = keepNewest(new Map(), found as StoredVersion[])
+  for (const ids of rest) keepNewest(versions, await findLatestVersions(collection, { parent: { in: ids } }, req))
   return versions
 }
 

@@ -31,10 +31,10 @@ import {
 
 /**
  * Times what a site and its editors do most on a used database: a lookup by path, an autosave, a
- * publish, a rename and moves of pages with up to the most pages a move carries below them. The
- * database holds BENCH_DOCUMENTS pages and posts (100,000 by default), each with two versions, and a
- * tenth of them with a pending draft, the posts in a tree of their own below /blog. It is seeded
- * without the plugin, through the same fields, then opened again with it.
+ * publish, a rename and moves of pages with up to MOVE_SIZE pages below them. The database holds
+ * BENCH_DOCUMENTS pages and posts (100,000 by default), each with two versions, and a tenth of them
+ * with a pending draft, the posts in a tree of their own below /blog. It is seeded without the
+ * plugin, through the same fields, then opened again with it.
  *
  * Without localization, it also compares path with the other ways a site finds a page by its URL and
  * moves a branch, on two copies of the pages seeded the same way: one with Payload's nested-docs
@@ -388,7 +388,7 @@ describe.each(SETUPS)('$name', (setup) => {
     )
     const lookups = compared ? await timeLookups(payload, site) : []
     const moves = await timeMoves(payload, site, compared ? MOVED_METHODS : ['path'])
-    // The move of the most pages a move carries is the benchmark's own row too.
+    // The largest move is the benchmark's own row too.
     const { median, p95 } = moves.find(({ below, method }) => below === MOVE_SIZE && method === 'path')!
     operations.push({ median, name: `Move of ${MOVE_SIZE.toLocaleString('en')} pages`, p95 })
 

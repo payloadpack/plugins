@@ -50,11 +50,12 @@ type Seed = { [field: string]: unknown; slug?: string; title: string }
 
 /**
  * Stores a document as a site held it before it added the plugin: through the database adapter, so
- * no hook ran, and it has a slug and a parent and neither a path nor ancestors. Published, with a
- * latest version that says the same unless a draft says otherwise.
+ * no hook ran, and it has a slug and a parent and neither a path nor ancestors, unless the seed
+ * holds them. Published, with a latest version that says the same unless a draft says otherwise. In
+ * the transaction of a request that has one, which stays open.
  */
 export async function store(
-  { payload }: { payload: Payload },
+  { payload, req }: { payload: Payload; req?: PayloadRequest },
   { localized }: Setup,
   collection: CollectionSlug,
   seed: Seed,
@@ -71,13 +72,14 @@ export async function store(
     updatedAt: now,
     ...(drafts ? { _status: inLocales(status) } : {})
   })
-  const { id } = await payload.db.create({ collection, data: row(seed, 'published') })
+  const { id } = await payload.db.create({ collection, data: row(seed, 'published'), req })
   if (drafts) {
     await payload.db.createVersion({
       autosave: false,
       collectionSlug: collection,
       createdAt: now,
       parent: id,
+      req,
       updatedAt: now,
       versionData: draft ? row(draft, 'draft') : row(seed, 'published')
     })

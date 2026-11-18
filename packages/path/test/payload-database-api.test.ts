@@ -1,5 +1,12 @@
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
-import { commitTransaction, createPayloadRequest, initTransaction, type CollectionConfig, type Payload } from 'payload'
+import {
+  commitTransaction,
+  createPayloadRequest,
+  initTransaction,
+  type CollectionConfig,
+  type Payload,
+  type Where
+} from 'payload'
 import { expect, it } from 'vitest'
 
 import { ancestorsField } from '../src/fields/ancestors.js'
@@ -295,6 +302,49 @@ describeEachSetup(
       expect(docs.map(({ id }) => id).sort()).toEqual([idOf('box'), idOf('jar')])
       expect(await payload.db.count({ collection: 'tagged', where })).toEqual({ totalDocs: 2 })
       expect(docs.find(({ id }) => id === idOf('jar'))!.ancestors).toEqual([idOf('shelf'), idOf('box')])
+    })
+
+    it('reads the documents and the latest versions below a document two at a time, each read after the last id of the one before', async () => {
+      const { payload } = test
+      const top = await plain(payload, 'Top of five')
+      const below: Row['id'][] = []
+      for (const title of ['One', 'Two', 'Three', 'Four', 'Five']) {
+        const data = { _status: 'published', ancestors: [top.id], title }
+        below.push(((await payload.create({ collection: 'rich', data, overrideAccess: true })) as Row).id)
+      }
+      const idOf = (name: string) => `${name} ${HOSTILE}`
+      const given = ['tin', 'pot', 'cup'].map(idOf)
+      await payload.create({ collection: 'tagged', data: { id: idOf('rack'), ancestors: [] }, overrideAccess: true })
+      for (const id of given) {
+        await payload.create({ collection: 'tagged', data: { id, ancestors: [idOf('rack')] }, overrideAccess: true })
+      }
+      type Read = (query: { limit: number; pagination: false; sort: string; where: Where }) => Promise<{ docs: Row[] }>
+      const readTwoAtATime = async (read: Read, where: Where) => {
+        const reads: Row[][] = []
+        for (let last: Row['id'] | undefined; ; last = reads.at(-1)!.at(-1)!.id) {
+          const after = last === undefined ? where : { and: [where, { id: { greater_than: last } }] }
+          const { docs } = await read({ limit: 2, pagination: false, sort: 'id', where: after })
+          reads.push(docs)
+          if (docs.length < 2) return reads
+        }
+      }
+
+      const documents = await readTwoAtATime((query) => payload.db.find<Row>({ collection: 'rich', ...query }), {
+        ancestors: { equals: top.id }
+      })
+      const versions = await readTwoAtATime((query) => payload.db.findVersions<Row>({ collection: 'rich', ...query }), {
+        and: [{ 'version.ancestors': { equals: top.id } }, { latest: { equals: true } }]
+      })
+      const tagged = await readTwoAtATime((query) => payload.db.find<Row>({ collection: 'tagged', ...query }), {
+        ancestors: { equals: idOf('rack') }
+      })
+
+      expect(documents.map((read) => read.length)).toEqual([2, 2, 1])
+      expect(documents.flatMap((read) => read.map(({ id }) => id)).sort()).toEqual([...below].sort())
+      expect(versions.map((read) => read.length)).toEqual([2, 2, 1])
+      expect(versions.flatMap((read) => read.map(({ parent }) => parent)).sort()).toEqual([...below].sort())
+      expect(tagged.map((read) => read.length)).toEqual([2, 1])
+      expect(tagged.flatMap((read) => read.map(({ id }) => id)).sort()).toEqual([...given].sort())
     })
   }
 )

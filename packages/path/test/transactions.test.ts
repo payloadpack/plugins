@@ -129,14 +129,14 @@ const REFUSALS: Refusal[] = [
     }
   },
   {
-    message: 'Page "Ledger" has 4 pages below it, and a move carries at most 3, so move some of them under another page first.',
-    name: 'a move of a branch that is too large',
+    message: 'Post "Ledger post" is already at /blog/ledger, so change the slug or the parent.',
+    name: 'the publish of a pending move that lands a page of the branch on a taken path',
     prepare: async (payload) => {
-      const ledger = await create(payload, 'pages', { slug: 'ledger', title: 'Ledger' })
-      for (const index of [1, 2, 3, 4]) {
-        await create(payload, 'pages', { parent: ledger.id, slug: `entry-${index}`, title: `Entry ${index}` })
-      }
-      return () => update(payload, 'pages', ledger.id, { slug: 'tally' })
+      await create(payload, 'posts', { slug: 'ledger', title: 'Ledger post' })
+      const tally = await create(payload, 'pages', { slug: 'tally', title: 'Tally' })
+      await create(payload, 'pages', { parent: tally.id, slug: 'ledger', title: 'Ledger page' })
+      await update(payload, 'pages', tally.id, { slug: 'blog' }, { draft: true })
+      return () => update(payload, 'pages', tally.id, {})
     }
   },
   {
@@ -166,7 +166,7 @@ for (const transactions of [true, false]) {
     `with transactions ${transactions ? 'on' : 'off'}`,
     {
       boot: {
-        options: { collections: ['pages', { basePath: '/blog', slug: 'posts' }, 'notices'], maxDocumentsPerMove: 3 },
+        options: { collections: ['pages', { basePath: '/blog', slug: 'posts' }, 'notices'] },
         transactions
       }
     },
