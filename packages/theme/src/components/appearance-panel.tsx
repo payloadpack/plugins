@@ -1,6 +1,6 @@
 'use client'
 
-import { PayloadIcon, useConfig, useTheme, useTranslation, XIcon } from '@payloadcms/ui'
+import { PayloadIcon, useConfig, useRootTheme, useTranslation, XIcon } from '@payloadcms/ui'
 import type { StaticLabel } from 'payload'
 import { Fragment, type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react'
 
@@ -330,7 +330,7 @@ export function AppearanceSheet() {
     setOption,
     shareableSetup
   } = useAppearance()
-  const { autoMode, setTheme, theme } = useTheme()
+  const { autoMode, setTheme, theme } = useRootTheme()
   const { config } = useConfig()
   const { t } = useTranslation<object, TranslationKey>()
   const fineTuneSummary = useRef<HTMLElement>(null)

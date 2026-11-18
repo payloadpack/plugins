@@ -122,6 +122,20 @@
       box-shadow: var(--elevation-400-menu-panel);
     }
 
+    .payload-toast-item [data-button] {
+      flex-shrink: 0;
+      height: var(--spacer-4);
+      border-radius: var(--radius-medium);
+      font-family: inherit;
+      font-size: var(--text-body-medium-bold-font-size);
+      font-weight: var(--text-body-medium-bold-font-weight);
+      cursor: pointer;
+
+      &:focus-visible {
+        outline: var(--accessibility-outline);
+      }
+    }
+
     /* 6. Checkboxes and radios */
     .field-type.checkbox .checkbox-input__wrap > .field-label {
       flex-grow: 1;
