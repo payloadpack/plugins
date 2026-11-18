@@ -2,7 +2,7 @@ import type { PayloadRequest } from 'payload'
 
 import { HOME_PAGE_PATH } from '../path/build-path-and-ancestors.js'
 import { getLandings, type BranchMove } from '../path/move-branch.js'
-import { becomesHomePageRefusal, buildFieldError, describeTakenPath, REFUSAL_FIELD } from '../plugin/messages.js'
+import { becomesHomePageRefusal, buildFieldError, buildTakenPathError, REFUSAL_FIELD } from '../plugin/messages.js'
 import { findTakenPath } from './find-taken-path.js'
 import { getReservedPathRefusal } from './get-reserved-path-refusal.js'
 
@@ -27,5 +27,5 @@ export async function checkBranchMove(move: BranchMove, req: PayloadRequest) {
     { below, collection, ids: [id] },
     req
   )
-  if (taken) throw buildFieldError(collection, REFUSAL_FIELD, describeTakenPath(taken, req), req, taken.locale)
+  if (taken) throw buildTakenPathError(collection, taken, req)
 }

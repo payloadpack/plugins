@@ -93,10 +93,14 @@ export const THIS_PATH = 'this path'
 
 // Names the document at a taken path and where it is: in the editor's locale, here or the path, and in
 // another locale the path and that locale, since the editor doesn't see it.
-export function describeTakenPath({ collection, document, locale, path }: TakenPath, req: PayloadRequest, here = path) {
+function describeTakenPath({ collection, document, locale, path }: TakenPath, req: PayloadRequest, here = path) {
   const where = locale === NO_LOCALE || locale === req.locale ? here : `${path} in ${locale}`
   return `${describeDocument(collection, document, locale, req)} is already at ${where}, so change the slug or the parent.`
 }
+
+// The refusal of a taken path, shown in the locale the path is taken in.
+export const buildTakenPathError = (collection: string, taken: TakenPath, req: PayloadRequest, here?: string) =>
+  buildFieldError(collection, REFUSAL_FIELD, describeTakenPath(taken, req, here), req, taken.locale)
 
 // The errors a developer meets, at startup or in code.
 

@@ -1,7 +1,7 @@
 import type { PayloadRequest } from 'payload'
 
 import type { Id } from '../path/build-path-and-ancestors.js'
-import { buildFieldError, describeTakenPath, REFUSAL_FIELD } from '../plugin/messages.js'
+import { buildTakenPathError } from '../plugin/messages.js'
 import { pathKey, type TakenPath } from './find-taken-path.js'
 
 // The document being saved or deleted, which is never in its own way.
@@ -38,7 +38,7 @@ export function takePaths(by: By, paths: TakenPath[], req: PayloadRequest, here?
   })
   // The locale of the request before another, as findTakenPath names it.
   const first = taken.find(({ locale }) => locale === req.locale) ?? taken[0]
-  if (first) throw buildFieldError(by.collection, REFUSAL_FIELD, describeTakenPath(first, req, here), req, first.locale)
+  if (first) throw buildTakenPathError(by.collection, first, req, here)
   for (const each of paths) taking.set(pathKey(each.locale, each.path), { by, taken: each })
 }
 

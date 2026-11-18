@@ -1,7 +1,7 @@
 import type { PayloadRequest } from 'payload'
 
 import type { Id, LocalePath } from '../path/build-path-and-ancestors.js'
-import { buildFieldError, describeTakenPath, REFUSAL_FIELD } from '../plugin/messages.js'
+import { buildTakenPathError } from '../plugin/messages.js'
 import { findTakenPath } from './find-taken-path.js'
 
 /**
@@ -16,5 +16,5 @@ export async function checkTakenPaths(
   here?: string
 ) {
   const taken = await findTakenPath(paths, { collection, ids: id === undefined ? [] : [id] }, req)
-  if (taken) throw buildFieldError(collection, REFUSAL_FIELD, describeTakenPath(taken, req, here), req, taken.locale)
+  if (taken) throw buildTakenPathError(collection, taken, req, here)
 }
