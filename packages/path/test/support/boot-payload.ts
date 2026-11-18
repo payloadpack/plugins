@@ -29,7 +29,7 @@ const STANDARD_COLLECTIONS = ['pages', 'posts', 'notices']
 let databaseCount = 0
 
 // The fields the plugin adds to a collection, for one that holds them without the plugin.
-export const pathFields = (collection: CollectionSlug, localized: boolean): Field[] => [
+const pathFields = (collection: CollectionSlug, localized: boolean): Field[] => [
   parentField(collection),
   slugField({ localized, slugify: defaultSlugify, useAsTitle: 'title' }),
   pathField(localized),

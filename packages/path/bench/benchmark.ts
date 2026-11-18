@@ -22,7 +22,6 @@ import {
   logMemory,
   printAll,
   printSetup,
-  REPORT_FILES,
   writeReport,
   type Run,
   type SetupResults,
@@ -106,7 +105,7 @@ type Seeded = { collection: SeededCollection; id: Id; paths: Record<string, stri
 
 const allResults: SetupResults[] = []
 
-async function inBatches<Item>(items: Item[], size: number, work: (item: Item) => Promise<void>) {
+async function workAtOnce<Item>(items: Item[], size: number, work: (item: Item) => Promise<void>) {
   for (let start = 0; start < items.length; start += size) {
     await Promise.all(items.slice(start, start + size).map(work))
   }
@@ -199,11 +198,11 @@ async function seed(payload: Payload, setup: Setup, { compared }: { compared: bo
     if (++seededCount % 10_000 === 0) logMemory(`${setup.name}: seeded ${seededCount.toLocaleString('en')} documents`)
     return { collection, id: created.id, paths, slug } satisfies Seeded
   }
-  // The documents come back in the order they were asked for, whichever of a batch the database
-  // finished first, so pick finds the same ones on every database.
+  // The documents come back in the order they were asked for, whichever of the ones written at once
+  // the database finished first, so pick finds the same ones on every database.
   const seedAll = async (specs: { collection: SeededCollection; parent?: Seeded; slug: string }[]) => {
     const seeded = new Array<Seeded>(specs.length)
-    await inBatches(
+    await workAtOnce(
       specs.map((spec, index) => ({ ...spec, index })),
       concurrency,
       async ({ collection, index, parent, slug }) => {
@@ -322,7 +321,7 @@ async function timeMoves(payload: Payload, site: Site, methods: readonly MovedMe
 }
 
 // Before anything is seeded.
-await checkReadme(RUN, SETUPS.length, REPORT_FILES)
+await checkReadme(RUN, SETUPS.length)
 
 describe.each(SETUPS)('$name', (setup) => {
   it(`seeds ${DOCUMENTS.toLocaleString('en')} documents and times the plugin on them`, async () => {
@@ -403,5 +402,5 @@ describe.each(SETUPS)('$name', (setup) => {
 
 afterAll(async () => {
   printAll(allResults)
-  await writeReport(allResults, RUN, REPORT_FILES)
+  await writeReport(allResults, RUN)
 })

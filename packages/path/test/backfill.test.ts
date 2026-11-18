@@ -160,8 +160,8 @@ describeEachSetup('', {}, (test, setup) => {
   const storedAt = (path: string, locales = ['en', 'sv']) => ({
     path: setup.localized ? Object.fromEntries(locales.map((locale) => [locale, path])) : path
   })
-  const takenBy = (holder: string, path: string) =>
-    `${holder} is already at ${path}${setup.localized ? ' in en' : ''}, so change the slug or the parent.`
+  const takenBy = (document: string, path: string) =>
+    `${document} is already at ${path}${setup.localized ? ' in en' : ''}, so change the slug or the parent.`
 
   it('leaves two documents that store the same path, each naming the other, and writes neither', async () => {
     const { payload } = test

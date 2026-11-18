@@ -25,7 +25,7 @@ export const FULL_RUN_DOCUMENTS = 100_000
  * Where the full run writes its numbers: the JSON the docs' speed page renders its tables and charts
  * from, and the README, whose table sits between the two markers and is written whole each time.
  */
-export const REPORT_FILES = {
+const REPORT_FILES = {
   json: fileURLToPath(new URL('../../../apps/docs/src/data/path-speed.json', import.meta.url)),
   readme: fileURLToPath(new URL('../README.md', import.meta.url))
 }
@@ -174,8 +174,8 @@ async function readAroundTable(file: string) {
  * Before a run seeds anything: a run that writes once each of its setups is timed finds out here
  * that the README has no place for its table, not an hour later.
  */
-export async function checkReadme(run: Run, setups: number, files: typeof REPORT_FILES) {
-  if (findShortfalls(run, setups).length === 0) await readAroundTable(files.readme)
+export async function checkReadme(run: Run, setups: number) {
+  if (findShortfalls(run, setups).length === 0) await readAroundTable(REPORT_FILES.readme)
 }
 
 // Joins what a run fell short in, as in "a, b and c".
@@ -186,7 +186,7 @@ const SHORTFALL_LIST = new Intl.ListFormat('en', { type: 'conjunction' })
  * other run writes nothing and says why, so neither file ever holds a small run's numbers or mixes
  * two runs.
  */
-export async function writeReport(allResults: SetupResults[], run: Run, files: typeof REPORT_FILES) {
+export async function writeReport(allResults: SetupResults[], run: Run) {
   const shortfalls = findShortfalls(run, allResults.length)
   if (shortfalls.length > 0) {
     const list = SHORTFALL_LIST.format(shortfalls)
@@ -212,12 +212,12 @@ export async function writeReport(allResults: SetupResults[], run: Run, files: t
       operations: results.operations.map(rounded)
     }))
   }
-  const { after, before } = await readAroundTable(files.readme)
+  const { after, before } = await readAroundTable(REPORT_FILES.readme)
   const readmeTable = [
     `The median and 95th percentile (p95) of each, on a database with ${ranOn.documents.toLocaleString('en')} documents. Run on ${ranOn.date}, on ${ranOn.processor} with ${ranOn.memoryGigabytes} GB of memory and Node ${ranOn.node.replace(/^v/, '')}.`,
     ...summaryTables(allResults).flatMap(({ table, title }) => [`${title}:`, table])
   ].join('\n\n')
-  await writeFile(files.json, `${JSON.stringify(report, null, 2)}\n`)
-  await writeFile(files.readme, `${before}${TABLE_START}\n\n${readmeTable}\n\n${after}`)
-  console.log(`\nWritten to ${files.json} and ${files.readme}.`)
+  await writeFile(REPORT_FILES.json, `${JSON.stringify(report, null, 2)}\n`)
+  await writeFile(REPORT_FILES.readme, `${before}${TABLE_START}\n\n${readmeTable}\n\n${after}`)
+  console.log(`\nWritten to ${REPORT_FILES.json} and ${REPORT_FILES.readme}.`)
 }
