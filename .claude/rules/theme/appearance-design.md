@@ -114,7 +114,7 @@ A setup is what an editor picked: a character, that character's options, their p
 
 ## Theme
 
-Theme is Payload's own light/dark preference: the panel calls `useTheme().setTheme('light' | 'dark' | 'auto')`, which switches without a reload and writes Payload's `<cookiePrefix>-theme` cookie. When `admin.theme` is fixed, Payload hides its own switch and the panel hides its Theme section. Reset does not touch it.
+Theme is Payload's own light/dark preference: the panel calls `useRootTheme().setTheme('light' | 'dark' | 'auto')`, which switches without a reload and writes Payload's `<cookiePrefix>-theme` cookie. When `admin.theme` is fixed, Payload hides its own switch and the panel hides its Theme section. Reset does not touch it.
 
 ## The Appearance panel
 
@@ -174,7 +174,7 @@ src/characters/enhanced/config.ts   defaults
 src/characters/enhanced/enhanced.css
 src/characters/studio/config.ts
 src/characters/studio/studio.css     the nav's layout: the collapse button's corner, the user menu at the bottom and its initial in the rail
-src/characters/shared.css           what Enhanced and Studio share: the 2px focus ring, the sidebar tabs, the 288px nav on a 12px gutter, inset group dividers, the nav group chevron, the checkbox cells' icons, the create-first-user form without Payload's empty field gap, Back to login 8px under Submit as on the login page, hierarchy row names lined up with their heading when a row has no icon, even padding on a button whose icon renders nothing and a pointer over a selectable document card
+src/characters/shared.css           what Enhanced and Studio share: the 2px focus ring, the sidebar tabs, the 288px nav on a 12px gutter, inset group dividers, the nav group chevron, the checkbox cells' icons, rounded 24px toast buttons with a bold label, the create-first-user form without Payload's empty field gap, Back to login 8px under Submit as on the login page, hierarchy row names lined up with their heading when a row has no icon, even padding on a button whose icon renders nothing and a pointer over a selectable document card
 src/palettes/index.ts               the names of the built-in palettes
 src/palettes/palette.css            derives Payload's colors from each palette's base colors, and what every palette but Payload's shares: focus ring, fields, toggles, date picker, toasts, error reds, the slash menu's scrollbar, a document card's hover and press, a menu item's hover, select options included, a check instead of a fill on a select list's chosen option, an open popup button's pressed fill under the pointer, and a dark secondary button's press one step past its hover instead of Payload's mid grey, which the scrollbar keeps
 src/palettes/neutral.css
@@ -211,7 +211,7 @@ The Warm palette mixes its field, nav and card surfaces from the accent into Pay
 
 ## What each setting drives
 
-From Payload 4.0.0-beta.9's CSS:
+From Payload 4.0.0-beta.10's CSS:
 
 - `primary`: `--color-bg-brand`, its hover and pressed shades, the `onbrand` text and icon colors, `--color-bg-selected-strong*` and the focus ring, in `palette.css`.
 - `accent`: every other brand token (`--color-bg-brand-secondary`, `--color-bg-brand-tertiary*`, `--color-border-brand`, `--color-text-brand`) reads one of Payload's 11 `--ramp-blue-*` and `--ramp-pale-blue-*` steps, declared once on `:root`. `palette.css` points the selection borders (`--color-border-selected*`, `--color-border-brand-strong`) and the marks drawn with `--color-icon-brand`, such as the active tab's underline, at the primary instead.

@@ -9,23 +9,7 @@
       border-width: var(--stroke-width-small);
     }
 
-    /* 2. Toasts */
-    .payload-toast-item [data-button] {
-      flex-shrink: 0;
-      height: var(--spacer-4);
-      padding-inline: var(--spacer-2);
-      border-radius: var(--radius-medium);
-      font-family: inherit;
-      font-size: var(--text-body-medium-bold-font-size);
-      font-weight: var(--text-body-medium-bold-font-weight);
-      cursor: pointer;
-
-      &:focus-visible {
-        outline: var(--accessibility-outline);
-      }
-    }
-
-    /* 3. Nav */
+    /* 2. Nav */
     @media (min-width: 769px) {
       .nav__header .user-menu {
         margin-inline-end: calc(var(--spacer-5) + var(--spacer-1));
