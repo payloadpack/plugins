@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.7](https://github.com/payloadpack/plugins/compare/theme-v0.3.6...theme-v0.3.7) (2026-11-18)
+
+
+### Bug Fixes
+
+* support Payload 4.0.0-beta.10 ([#76](https://github.com/payloadpack/plugins/issues/76)) ([111d0e5](https://github.com/payloadpack/plugins/commit/111d0e500a3572dfbbce9a87204a0dd7dac8ad74))
+
 ## [0.3.6](https://github.com/payloadpack/plugins/compare/theme-v0.3.5...theme-v0.3.6) (2026-11-16)
 
 
