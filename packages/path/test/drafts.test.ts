@@ -188,12 +188,12 @@ describeEachSetup('', {}, (test, setup) => {
     expect(changes).toEqual([{ paths: [at('/annexe')] }, { paths: [at('/annexe')] }])
   })
 
-  it('lets the drafts of two published pages plan one free path, and refuses the second publish', async () => {
+  it('lets the drafts of two published pages both rename to one free path, and refuses the second publish', async () => {
     const { payload } = test
     const first = await create(payload, 'posts', { slug: 'gallery-one', title: 'Gallery one' })
     const second = await create(payload, 'posts', { slug: 'gallery-two', title: 'Gallery two' })
 
-    // A plan takes nothing, so both drafts save.
+    // A pending move takes nothing, so both drafts save.
     await update(payload, 'posts', first.id, { slug: 'gallery' }, { draft: true })
     await update(payload, 'posts', second.id, { slug: 'gallery' }, { draft: true })
     await update(payload, 'posts', first.id, {})
@@ -203,7 +203,7 @@ describeEachSetup('', {}, (test, setup) => {
     expect(await readPath(payload, 'posts', second.id)).toBe('/gallery-two')
   })
 
-  it('refuses the draft of a published page that plans a path another document is at', async () => {
+  it('refuses the draft of a published page that would move it to a path another document is at', async () => {
     const { payload } = test
     await create(payload, 'pages', { slug: 'events', title: 'Events' }, { draft: true })
     const diary = await create(payload, 'posts', { slug: 'diary', title: 'Diary' })
@@ -239,11 +239,11 @@ describeEachSetup('', {}, (test, setup) => {
 
   it('finds the latest draft at a path when draft is set', async () => {
     const { payload } = test
-    const plan = await create(payload, 'posts', { slug: 'plan', title: 'Plan' }, { draft: true })
+    const blueprint = await create(payload, 'posts', { slug: 'blueprint', title: 'Blueprint' }, { draft: true })
     const live = await create(payload, 'posts', { slug: 'live', title: 'Live' })
     await update(payload, 'posts', live.id, { slug: 'live-soon' }, { draft: true })
 
-    expect(await findByPath({ draft: true, path: '/plan', payload })).toMatchObject({ document: { id: plan.id } })
+    expect(await findByPath({ draft: true, path: '/blueprint', payload })).toMatchObject({ document: { id: blueprint.id } })
     expect(await findByPath({ draft: true, path: '/live-soon', payload })).toMatchObject({ document: { id: live.id } })
   })
 })

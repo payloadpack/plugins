@@ -1,6 +1,6 @@
 import type { CollectionSlug, Payload, PayloadRequest, Where } from 'payload'
 
-import type { Id } from '../../src/paths/place.js'
+import type { Id } from '../../src/path/build-path-and-ancestors.js'
 import type { Setup } from './setups.js'
 
 type Document = { [key: string]: unknown; id: Id }

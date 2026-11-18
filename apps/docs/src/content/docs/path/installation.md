@@ -54,7 +54,7 @@ The plugin gives a document its path when it is saved. For the documents from be
 ```ts
 import { backfillPaths } from '@payloadpack/path'
 
-const { left, placed, unchanged } = await backfillPaths({ payload })
+const { left, unchanged, updated } = await backfillPaths({ payload })
 ```
 
 It gives every document the path its slug and its parent make, parents before the documents below them, and writes only what differs, in the document and in its latest version. It makes no new version, runs no hook of the collection and doesn't call `onPathsChanged`. A draft's new slug or parent on a published document stays a pending move.
@@ -63,11 +63,11 @@ It makes up no slug. A document without one is listed in `left` with this messag
 
 > Give this document a slug, or a title to make one from.
 
-| In the result | What it holds                                                                                              |
-| ------------- | ---------------------------------------------------------------------------------------------------------- |
-| `placed`      | How many documents got another path or other ancestors, in the document or its latest version              |
-| `unchanged`   | How many documents had theirs already                                                                      |
-| `left`        | Each document it couldn't place, as `{ collection, id, refusal }`, with the message a save of it would get |
+| In the result | What it holds                                                                                                    |
+| ------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `updated`     | How many documents got another path or other ancestors, in the document or its latest version                    |
+| `unchanged`   | How many documents had theirs already                                                                            |
+| `left`        | Each document it couldn't give a path, as `{ collection, id, refusal }`, with the message a save of it would get |
 
 A document below one that was left without a path is left too, with this message:
 

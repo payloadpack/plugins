@@ -2,7 +2,7 @@ import type { Payload } from 'payload'
 import { beforeEach, expect, it } from 'vitest'
 
 import { findByPath } from '../src/index.js'
-import type { Id } from '../src/paths/place.js'
+import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup } from './support/boot-payload.js'
 import {
   catchFieldErrors,
@@ -313,7 +313,7 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
     const vault = await create(payload, 'pages', { slug: 'vault', title: 'Vault' })
     const trunk = await create(payload, 'pages', { parent: loft.id, slug: 'trunk', title: 'Trunk' })
     await update(payload, 'pages', trunk.id, { parent: vault.id }, { draft: true, locale: 'sv' })
-    // A pending move takes no path, so another page can be published where it plans to go.
+    // A pending move takes no path, so another page can be published where it would go.
     await create(payload, 'pages', { parent: vault.id, slug: 'trunk', title: 'Vault trunk' })
 
     expect(await catchFieldErrors(update(payload, 'pages', trunk.id, { title: 'Old trunk' }))).toMatchObject([

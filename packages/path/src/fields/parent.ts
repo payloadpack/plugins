@@ -1,6 +1,6 @@
 import type { CollectionSlug, RelationshipField } from 'payload'
 
-import { HOME_PAGE_PATH } from '../paths/place.js'
+import { HOME_PAGE_PATH } from '../path/build-path-and-ancestors.js'
 import { PARENT_FIELD_NAME } from '../plugin/options.js'
 
 // A document sits below a document of its own collection, so each collection is a tree of its own.

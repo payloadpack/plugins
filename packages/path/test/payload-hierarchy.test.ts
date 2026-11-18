@@ -1,7 +1,7 @@
 import { beforeEach, expect, it } from 'vitest'
 
 import { backfillPaths, findByPath } from '../src/index.js'
-import type { Id } from '../src/paths/place.js'
+import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
 import { catchFieldErrors, create, readDocument, readPath, remove, store, update } from './support/documents.js'
 
@@ -241,7 +241,7 @@ for (const { hierarchy, label, parentField } of HIERARCHIES) {
 
         const report = await backfillPaths({ collections: ['topics'], payload })
 
-        expect(report.placed).toBe(2)
+        expect(report.updated).toBe(2)
         for (const draft of [false, true]) {
           expect(await readDocument(payload, 'topics', deltas, { draft })).toMatchObject({
             ancestors: [rivers],

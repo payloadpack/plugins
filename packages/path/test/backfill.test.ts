@@ -1,7 +1,7 @@
 import { beforeEach, expect, it } from 'vitest'
 
 import { backfillPaths, findByPath } from '../src/index.js'
-import type { Id } from '../src/paths/place.js'
+import type { Id } from '../src/path/build-path-and-ancestors.js'
 import type { Query } from './support/adapters.js'
 import { describeEachSetup } from './support/boot-payload.js'
 import { create, readDocument, readLatestVersion, readPath, store, update } from './support/documents.js'
@@ -27,7 +27,7 @@ describeEachSetup('', {}, (test, setup) => {
 
     const report = await backfillPaths({ collections: ['pages', 'notices'], payload })
 
-    expect(report).toMatchObject({ left: [], placed: 6 })
+    expect(report).toMatchObject({ left: [], updated: 6 })
     for (const draft of [false, true]) {
       expect(await readDocument(payload, 'pages', guides, { draft })).toMatchObject({ ancestors: [], path: '/guides' })
       expect(await readDocument(payload, 'pages', mac, { draft })).toMatchObject({
@@ -51,7 +51,7 @@ describeEachSetup('', {}, (test, setup) => {
     const menu = await store(test, setup, 'pages', { slug: 'menu', title: 'Menu' }, { slug: 'food', title: 'Food' })
     const lunch = await store(test, setup, 'pages', { parent: menu, slug: 'lunch', title: 'Lunch' })
 
-    expect(await backfillPaths({ collections: ['pages'], payload })).toMatchObject({ left: [], placed: 2 })
+    expect(await backfillPaths({ collections: ['pages'], payload })).toMatchObject({ left: [], updated: 2 })
 
     expect(await readPath(payload, 'pages', menu)).toBe('/menu')
     expect(await readPath(payload, 'pages', menu, { draft: true })).toBe('/food')
@@ -79,12 +79,12 @@ describeEachSetup('', {}, (test, setup) => {
       second = await backfillPaths({ collections: ['pages', 'notices'], payload })
     })
 
-    expect(first).toMatchObject({ left: [], placed: 3 })
-    expect(second).toEqual({ left: [], placed: 0, unchanged: first.placed + first.unchanged })
+    expect(first).toMatchObject({ left: [], updated: 3 })
+    expect(second).toEqual({ left: [], updated: 0, unchanged: first.updated + first.unchanged })
     expect(writesOf(queries)).toEqual([])
   })
 
-  it('leaves a document it cannot place, saying why as a save would, and places the rest', async () => {
+  it('leaves a document it cannot give a path, saying why as a save would, and gives the rest theirs', async () => {
     const { payload } = test
     const events = await create(payload, 'posts', { slug: 'events', title: 'Events' })
     const oldEvents = await store(test, setup, 'posts', { slug: 'events', title: 'Old events' })
@@ -108,7 +108,7 @@ describeEachSetup('', {}, (test, setup) => {
         left(admin, 'The site serves the CMS at /admin, so pick another slug or a parent.'),
         left(about, "The home page can't hold posts, so pick another parent.")
       ]),
-      placed: 3,
+      updated: 3,
       unchanged: 1
     })
     expect(report.left).toHaveLength(4)
@@ -147,8 +147,8 @@ describeEachSetup('', {}, (test, setup) => {
         { collection: 'pages', id: lobby, refusal },
         { collection: 'notices', id: lift, refusal }
       ]),
-      placed: 0,
-      unchanged: before.placed + before.unchanged
+      updated: 0,
+      unchanged: before.updated + before.unchanged
     })
     expect(report.left).toHaveLength(before.left.length + 2)
     expect((await readPath(payload, 'pages', lobby)) ?? null).toBeNull()
@@ -175,7 +175,7 @@ describeEachSetup(
 
       const report = await backfillPaths({ payload })
 
-      expect(report).toEqual({ left: [], placed: 2, unchanged: 2 })
+      expect(report).toEqual({ left: [], updated: 2, unchanged: 2 })
       for (const draft of [false, true]) {
         expect(await readDocument(payload, 'pages', branch.id, { draft })).toMatchObject({
           ancestors: [globe.id, atlas.id],

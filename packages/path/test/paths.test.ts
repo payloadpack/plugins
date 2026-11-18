@@ -219,7 +219,7 @@ describeEachSetup(
       ).toMatchObject([{ message: "The parent doesn't exist, so pick another one.", path: 'parent' }])
     })
 
-    it('checks and places each document a hook saves on the same request on its own', async () => {
+    it('checks and gives a path to each document a hook saves on the same request on its own', async () => {
       const { payload } = test
       const launch = await create(payload, 'events', { slug: 'launch', title: 'Launch' })
 
@@ -231,7 +231,7 @@ describeEachSetup(
       ])
     })
 
-    it('places a document whose own hook returns a copy of the data made with a spread', async () => {
+    it('gives a path to a document whose own hook returns a copy of the data made with a spread', async () => {
       const { payload } = test
       const saved = { collection: 'stalls', context: SPREAD_COPY, overrideAccess: true } as const
       const market = await payload.create({ ...saved, data: { _status: 'published', slug: 'market', title: 'Market' } })
@@ -245,7 +245,7 @@ describeEachSetup(
       expect(await readPath(payload, 'stalls', fruit.id)).toBe('/bazaar/fruit')
     })
 
-    it('places a new and a stored document whose own hook returns an object it rebuilt', async () => {
+    it('gives a path to a new and a stored document whose own hook returns an object it rebuilt', async () => {
       const { payload } = test
       const saved = { collection: 'stalls', context: REBUILT_OBJECT, overrideAccess: true } as const
       const fair = await payload.create({ ...saved, data: { _status: 'published', slug: 'fair', title: 'Fair' } })

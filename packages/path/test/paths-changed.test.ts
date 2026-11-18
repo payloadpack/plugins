@@ -1,7 +1,7 @@
 import { beforeEach, expect, it } from 'vitest'
 
 import { findByPath } from '../src/index.js'
-import type { Id } from '../src/paths/place.js'
+import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup } from './support/boot-payload.js'
 import { create, readPath, remove, update } from './support/documents.js'
 

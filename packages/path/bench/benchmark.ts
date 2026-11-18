@@ -2,7 +2,7 @@ import type { Payload } from 'payload'
 import { afterAll, describe, it } from 'vitest'
 
 import { findByPath, type PathPluginOptions } from '../src/index.js'
-import type { Id } from '../src/paths/place.js'
+import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { startPayload } from '../test/support/boot-payload.js'
 import { create, readDocument, update } from '../test/support/documents.js'
 import { LOCALES, SETUPS, type Setup } from '../test/support/setups.js'
@@ -131,7 +131,7 @@ async function measure<Result>(
 
 // A seeded document's paths: its parent's, or its collection's base path, a slash and its slug, in
 // Swedish its own slug for a page.
-function placeBelow(
+function pathsBelow(
   parent: Seeded | undefined,
   collection: SeededCollection,
   slug: string,
@@ -157,7 +157,7 @@ async function seed(payload: Payload, setup: Setup, { compared }: { compared: bo
   let seededCount = 0
   const seedOne = async (collection: SeededCollection, slug: string, parent: Seeded | undefined, index: number) => {
     const key = (id: Seeded['id']) => `${collection}:${id}`
-    const paths = placeBelow(parent, collection, slug, setup.localized)
+    const paths = pathsBelow(parent, collection, slug, setup.localized)
     const ancestors = parent ? [...ancestorsOf.get(key(parent.id))!, parent.id] : []
     const breadcrumbs = (id: Seeded['id'] | undefined, label: string): Breadcrumb[] => [
       ...(parent ? breadcrumbsOf.get(key(parent.id))! : []),
@@ -168,7 +168,8 @@ async function seed(payload: Payload, setup: Setup, { compared }: { compared: bo
     const breadcrumbsOnSave = (id: Seeded['id'] | undefined, title: string) =>
       collection === NESTED_PAGES ? { breadcrumbs: breadcrumbs(id, title) } : {}
     const title = `${collection === 'posts' ? 'Post' : 'Page'} ${slug}`
-    // Pages and posts hold the place the plugin stores, so its first save of each writes none again.
+    // Pages and posts hold the path and ancestors the plugin stores, so its first save of each writes
+    // none again.
     const pathFields =
       collection === 'pages' || collection === 'posts' ? { ancestors, path: setup.localized ? paths.en : paths[''] } : {}
     const created = await create(payload, collection, {

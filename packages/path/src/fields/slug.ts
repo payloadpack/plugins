@@ -2,10 +2,10 @@ import type { FieldHook, TextField } from 'payload'
 import type { Slugify } from 'payload/shared'
 
 import type { SlugFieldOwnProps } from '../components/slug-field.js'
-import { valueInLocale } from '../paths/locales.js'
-import { idOf } from '../paths/place.js'
-import { findDocuments } from '../paths/stored.js'
+import { findDocuments } from '../database/documents.js'
+import { idOf } from '../path/build-path-and-ancestors.js'
 import { getParentFieldName } from '../plugin/options.js'
+import { valueInLocale } from '../utils/locales.js'
 
 // A slug is cleaned on every save, and kept when a save clears it. A save in every locale at once
 // that sends a localized slug holds a value per locale. The save's own hook gives a document without

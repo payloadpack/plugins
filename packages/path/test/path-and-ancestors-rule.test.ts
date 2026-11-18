@@ -2,8 +2,8 @@ import { createPayloadRequest, type CollectionSlug, type Payload } from 'payload
 import { beforeEach, expect, it } from 'vitest'
 
 import { findByPath } from '../src/index.js'
-import { readStoredPlace, type Id } from '../src/paths/place.js'
-import { readStored, workOutStoredPlace } from '../src/paths/stored.js'
+import { findDocumentAndLatestVersion, findParentAndBuildPathAndAncestors } from '../src/database/versions.js'
+import { getStoredPathAndAncestors, type Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup } from './support/boot-payload.js'
 import { catchFieldErrors, create, readDocument, restoreVersion, update } from './support/documents.js'
 
@@ -11,18 +11,19 @@ import { catchFieldErrors, create, readDocument, restoreVersion, update } from '
 // is a pending move. Where it isn't published, it is where its latest draft says, at once.
 
 /**
- * A document's place and plan as the one rule works them out from what the database holds, which is
- * also what the document itself and its latest version must store.
+ * A document's path and ancestors, and the ones its latest draft would give it, as the one rule
+ * builds them from what the database holds, which is also what the document itself and its latest
+ * version must store.
  */
-async function readPlaces(payload: Payload, collection: CollectionSlug, id: Id) {
+async function readPathAndAncestors(payload: Payload, collection: CollectionSlug, id: Id) {
   const req = await createPayloadRequest({ payload })
   const { config } = payload.collections[collection]
-  const stored = (await readStored(config, id, req))!
-  const place = await workOutStoredPlace(stored, 'place', config, req)
-  const plan = await workOutStoredPlace(stored, 'plan', config, req)
-  expect(readStoredPlace(stored.document, collection, payload)).toEqual(place)
-  if (stored.version) expect(readStoredPlace(stored.version.version, collection, payload)).toEqual(plan)
-  return { place, plan }
+  const stored = (await findDocumentAndLatestVersion(config, id, req))!
+  const document = await findParentAndBuildPathAndAncestors(stored, 'document', config, req)
+  const draft = await findParentAndBuildPathAndAncestors(stored, 'draft', config, req)
+  expect(getStoredPathAndAncestors(stored.document, collection, payload)).toEqual(document)
+  if (stored.version) expect(getStoredPathAndAncestors(stored.version.version, collection, payload)).toEqual(draft)
+  return { document, draft }
 }
 
 describeEachSetup('', {}, (test, setup) => {
@@ -48,13 +49,13 @@ describeEachSetup('', {}, (test, setup) => {
 
     await update(payload, 'pages', loft.id, { slug: 'attic' }, { draft: true })
 
-    expect(await readPlaces(payload, 'pages', loft.id)).toEqual({
-      place: { ancestors: [], paths: paths('/attic') },
-      plan: { ancestors: [], paths: paths('/attic') }
+    expect(await readPathAndAncestors(payload, 'pages', loft.id)).toEqual({
+      document: { ancestors: [], paths: paths('/attic') },
+      draft: { ancestors: [], paths: paths('/attic') }
     })
-    expect(await readPlaces(payload, 'pages', beams.id)).toEqual({
-      place: { ancestors: [loft.id], paths: paths('/attic/beams') },
-      plan: { ancestors: [loft.id], paths: paths('/attic/beams') }
+    expect(await readPathAndAncestors(payload, 'pages', beams.id)).toEqual({
+      document: { ancestors: [loft.id], paths: paths('/attic/beams') },
+      draft: { ancestors: [loft.id], paths: paths('/attic/beams') }
     })
     // Nothing published changed, and the site hears that the page below moved.
     expect(changes).toEqual([
@@ -76,15 +77,15 @@ describeEachSetup('', {}, (test, setup) => {
 
     await update(payload, 'pages', tiles.id, { parent: roof.id }, { draft: true })
 
-    expect(await readPlaces(payload, 'pages', tiles.id)).toEqual({
-      place: { ancestors: [roof.id], paths: paths('/roof/tiles') },
-      plan: { ancestors: [roof.id], paths: paths('/roof/tiles') }
+    expect(await readPathAndAncestors(payload, 'pages', tiles.id)).toEqual({
+      document: { ancestors: [roof.id], paths: paths('/roof/tiles') },
+      draft: { ancestors: [roof.id], paths: paths('/roof/tiles') }
     })
-    // Payload wrote the draft to the latest version only, and the page itself stores the parent its place hangs from.
+    // Payload wrote the draft to the latest version only, and the page itself stores the parent its path hangs from.
     expect(String((await readDocument(payload, 'pages', tiles.id)).parent)).toBe(String(roof.id))
-    expect(await readPlaces(payload, 'pages', moss.id)).toEqual({
-      place: { ancestors: [roof.id, tiles.id], paths: paths('/roof/tiles/moss') },
-      plan: { ancestors: [roof.id, tiles.id], paths: paths('/roof/tiles/moss') }
+    expect(await readPathAndAncestors(payload, 'pages', moss.id)).toEqual({
+      document: { ancestors: [roof.id, tiles.id], paths: paths('/roof/tiles/moss') },
+      draft: { ancestors: [roof.id, tiles.id], paths: paths('/roof/tiles/moss') }
     })
     expect(changes).toEqual([
       { moved: { collection: 'pages', documentsBelow: 1, id: tiles.id, paths: fromTo('/tiles', '/roof/tiles') }, paths: [] }
@@ -100,14 +101,14 @@ describeEachSetup('', {}, (test, setup) => {
 
     await update(payload, 'pages', menu.id, { slug: 'food' }, { draft: true })
 
-    // The latest version shows the planned path, and the page and the page below it keep theirs.
-    expect(await readPlaces(payload, 'pages', menu.id)).toEqual({
-      place: { ancestors: [], paths: paths('/menu') },
-      plan: { ancestors: [], paths: paths('/food') }
+    // The latest version shows the draft's path, and the page and the page below it keep theirs.
+    expect(await readPathAndAncestors(payload, 'pages', menu.id)).toEqual({
+      document: { ancestors: [], paths: paths('/menu') },
+      draft: { ancestors: [], paths: paths('/food') }
     })
-    expect(await readPlaces(payload, 'pages', lunch.id)).toEqual({
-      place: { ancestors: [menu.id], paths: paths('/menu/lunch') },
-      plan: { ancestors: [menu.id], paths: paths('/menu/lunch') }
+    expect(await readPathAndAncestors(payload, 'pages', lunch.id)).toEqual({
+      document: { ancestors: [menu.id], paths: paths('/menu/lunch') },
+      draft: { ancestors: [menu.id], paths: paths('/menu/lunch') }
     })
     expect(changes).toEqual([])
     // A pending move takes nothing, and the page still takes the path it is at.
@@ -117,8 +118,8 @@ describeEachSetup('', {}, (test, setup) => {
 
     await update(payload, 'pages', menu.id, {})
 
-    expect((await readPlaces(payload, 'pages', menu.id)).place.paths).toEqual(paths('/food'))
-    expect((await readPlaces(payload, 'pages', lunch.id)).place.paths).toEqual(paths('/food/lunch'))
+    expect((await readPathAndAncestors(payload, 'pages', menu.id)).document.paths).toEqual(paths('/food'))
+    expect((await readPathAndAncestors(payload, 'pages', lunch.id)).document.paths).toEqual(paths('/food/lunch'))
     expect(changes).toEqual([
       {
         moved: { collection: 'pages', documentsBelow: 1, id: menu.id, paths: fromTo('/menu', '/food') },
@@ -142,8 +143,8 @@ describeEachSetup('', {}, (test, setup) => {
     // A restore without draft writes the version to the page itself, with the status the version has.
     await restoreVersion(payload, 'pages', quay.id, { version: 1 })
 
-    expect((await readPlaces(payload, 'pages', lights.id)).place.paths).toEqual(paths('/platform/lights'))
-    expect((await readPlaces(payload, 'pages', boats.id)).place.paths).toEqual(paths('/mooring/boats'))
+    expect((await readPathAndAncestors(payload, 'pages', lights.id)).document.paths).toEqual(paths('/platform/lights'))
+    expect((await readPathAndAncestors(payload, 'pages', boats.id)).document.paths).toEqual(paths('/mooring/boats'))
   })
 
   it('moves a page at once when a draft renames it after it was unpublished', async () => {
@@ -154,8 +155,8 @@ describeEachSetup('', {}, (test, setup) => {
 
     await update(payload, 'pages', porch.id, { slug: 'veranda' }, { draft: true })
 
-    expect((await readPlaces(payload, 'pages', porch.id)).place.paths).toEqual(paths('/veranda'))
-    expect((await readPlaces(payload, 'pages', steps.id)).place.paths).toEqual(paths('/veranda/steps'))
+    expect((await readPathAndAncestors(payload, 'pages', porch.id)).document.paths).toEqual(paths('/veranda'))
+    expect((await readPathAndAncestors(payload, 'pages', steps.id)).document.paths).toEqual(paths('/veranda/steps'))
   })
 
   it('works out the home page, a base of ancestors and a document without a slug by the same rule', async () => {
@@ -167,14 +168,14 @@ describeEachSetup('', {}, (test, setup) => {
     const empty = await create(payload, 'posts', {}, { draft: true })
     const none = setup.localized ? { en: null, sv: null } : { '': null }
 
-    expect((await readPlaces(payload, 'pages', home.id)).place).toEqual({ ancestors: [], paths: paths('/') })
-    expect((await readPlaces(payload, 'posts', leaf.id)).place).toEqual({
+    expect((await readPathAndAncestors(payload, 'pages', home.id)).document).toEqual({ ancestors: [], paths: paths('/') })
+    expect((await readPathAndAncestors(payload, 'posts', leaf.id)).document).toEqual({
       ancestors: [top.id, middle.id],
       paths: paths('/top/middle/leaf')
     })
-    expect(await readPlaces(payload, 'posts', empty.id)).toEqual({
-      place: { ancestors: [], paths: none },
-      plan: { ancestors: [], paths: none }
+    expect(await readPathAndAncestors(payload, 'posts', empty.id)).toEqual({
+      document: { ancestors: [], paths: none },
+      draft: { ancestors: [], paths: none }
     })
   })
 
@@ -184,12 +185,12 @@ describeEachSetup('', {}, (test, setup) => {
   const inSwedish = { locale: 'sv' }
 
   const readPaths = async (id: Id) => {
-    const { place, plan } = await readPlaces(test.payload, 'pages', id)
-    return { place: place.paths, plan: plan.paths }
+    const { document, draft } = await readPathAndAncestors(test.payload, 'pages', id)
+    return { document: document.paths, draft: draft.paths }
   }
   const both = (english: string, swedish: string) => {
     const paths = { en: english, sv: swedish }
-    return { place: paths, plan: paths }
+    return { document: paths, draft: paths }
   }
 
   it('moves the Swedish path at once when a draft renames a page that is published in English only', async () => {
@@ -235,7 +236,7 @@ describeEachSetup('', {}, (test, setup) => {
     const dairy = await create(payload, 'pages', { slug: 'dairy', title: 'Dairy' })
     await update(payload, 'pages', dairy.id, { slug: 'mejeri', title: 'Mejeri' }, inSwedish)
     const churn = await create(payload, 'pages', { parent: dairy.id, slug: 'churn', title: 'Churn' })
-    const pending = { place: { en: '/dairy', sv: '/mejeri' }, plan: { en: '/dairy', sv: '/ysteri' } }
+    const pending = { document: { en: '/dairy', sv: '/mejeri' }, draft: { en: '/dairy', sv: '/ysteri' } }
 
     await update(payload, 'pages', dairy.id, { slug: 'ysteri' }, { draft: true, locale: 'sv' })
     expect(await readPaths(dairy.id)).toEqual(pending)
@@ -261,15 +262,15 @@ describeEachSetup('', {}, (test, setup) => {
     await update(payload, 'pages', hall.id, { parent: west.id }, { draft: true, locale: 'sv' })
 
     // The parent is one for every locale, so it is pending in Swedish too.
-    expect(await readPlaces(payload, 'pages', hall.id)).toEqual({
-      place: { ancestors: [east.id], paths: { en: '/east-wing/hall', sv: '/east-wing/hall' } },
-      plan: { ancestors: [west.id], paths: { en: '/west-wing/hall', sv: '/west-wing/hall' } }
+    expect(await readPathAndAncestors(payload, 'pages', hall.id)).toEqual({
+      document: { ancestors: [east.id], paths: { en: '/east-wing/hall', sv: '/east-wing/hall' } },
+      draft: { ancestors: [west.id], paths: { en: '/west-wing/hall', sv: '/west-wing/hall' } }
     })
     expect(await readPaths(seats.id)).toEqual(both('/east-wing/hall/seats', '/east-wing/hall/seats'))
 
     await payload.update({ collection: 'pages', data: { _status: 'draft' }, id: hall.id, locale: 'en', overrideAccess: true })
 
-    expect((await readPlaces(payload, 'pages', hall.id)).place).toEqual({
+    expect((await readPathAndAncestors(payload, 'pages', hall.id)).document).toEqual({
       ancestors: [west.id],
       paths: { en: '/west-wing/hall', sv: '/west-wing/hall' }
     })

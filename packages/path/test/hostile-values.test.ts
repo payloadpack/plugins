@@ -63,18 +63,18 @@ describeEachSetup(
       const lid = await label('lid', { parent: crate.id })
       const hinge = await label('hinge', { parent: lid.id })
       const cart = await label('cart')
-      await update(payload, 'labels', hinge.id, { slug: 'hinge--planned' }, { draft: true })
+      await update(payload, 'labels', hinge.id, { slug: 'hinge--pending' }, { draft: true })
 
       await update(payload, 'labels', crate.id, { slug: 'chest' })
 
       expect(await readPath(payload, 'labels', lid.id)).toBe(`${BASE_PATH}/chest/lid`)
       expect(await readPath(payload, 'labels', hinge.id)).toBe(`${BASE_PATH}/chest/lid/hinge`)
-      expect(await readPath(payload, 'labels', hinge.id, { draft: true })).toBe(`${BASE_PATH}/chest/lid/hinge--planned`)
+      expect(await readPath(payload, 'labels', hinge.id, { draft: true })).toBe(`${BASE_PATH}/chest/lid/hinge--pending`)
 
       await update(payload, 'labels', lid.id, { parent: cart.id })
 
       expect(await readPath(payload, 'labels', hinge.id)).toBe(`${BASE_PATH}/cart/lid/hinge`)
-      expect(await readPath(payload, 'labels', hinge.id, { draft: true })).toBe(`${BASE_PATH}/cart/lid/hinge--planned`)
+      expect(await readPath(payload, 'labels', hinge.id, { draft: true })).toBe(`${BASE_PATH}/cart/lid/hinge--pending`)
       expect((await readDocument(payload, 'labels', hinge.id)).ancestors).toEqual([idOf('cart'), idOf('lid')])
       expect((await readDocument(payload, 'labels', hinge.id, { draft: true })).ancestors).toEqual([idOf('cart'), idOf('lid')])
       if (setup.localized) {

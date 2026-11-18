@@ -1,7 +1,7 @@
 import type { CollectionConfig, Config, Field, Payload, WhereField } from 'payload'
 
 import { findByPath } from '../src/index.js'
-import type { Id } from '../src/paths/place.js'
+import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { titled } from '../test/support/boot-payload.js'
 
 /**

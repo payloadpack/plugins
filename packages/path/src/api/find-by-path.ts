@@ -1,7 +1,7 @@
 import type { CollectionSlug, DataFromCollectionSlug, Payload, Where } from 'payload'
 
-import { findReservedPathRefusal, getPathConfig, pickCollections } from '../plugin/options.js'
-import { hasDrafts } from './status.js'
+import { getReservedPathRefusal, getPathConfig, pickCollections } from '../plugin/options.js'
+import { hasDrafts } from '../utils/published-locales.js'
 
 // A document found at a path, with the collection it is in, among the collections named.
 export type FoundByPath<Slug extends CollectionSlug = CollectionSlug> = {
@@ -32,7 +32,7 @@ export async function findByPath<Slug extends CollectionSlug = CollectionSlug>({
   payload: Payload
 }): Promise<FoundByPath<Slug> | null> {
   const slugs = pickCollections(collections, getPathConfig(payload))
-  if (findReservedPathRefusal(path, payload)) return null
+  if (getReservedPathRefusal(path, payload)) return null
   const found = await Promise.all(
     slugs.map(async (collection) => {
       const published = !draft && hasDrafts(payload.collections[collection].config)

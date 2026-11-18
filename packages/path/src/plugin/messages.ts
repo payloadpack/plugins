@@ -1,8 +1,8 @@
 import { ValidationError, type CollectionSlug, type PayloadRequest } from 'payload'
 
-import { getFallbackLocales, NO_LOCALE, valueInLocale } from '../paths/locales.js'
-import type { StoredDocument } from '../paths/place.js'
-import type { TakenPath } from '../paths/taken-paths.js'
+import type { StoredDocument } from '../database/documents.js'
+import { getFallbackLocales, NO_LOCALE, valueInLocale } from '../utils/locales.js'
+import type { TakenPath } from '../validation/find-taken-path.js'
 
 // Every message the package can show. The docs pages copy them word for word.
 
@@ -17,7 +17,7 @@ export function buildFieldError(collection: string, fieldName: string, message: 
   })
 }
 
-const readLabel = (label: unknown, req: PayloadRequest): string => {
+const getLabel = (label: unknown, req: PayloadRequest): string => {
   if (typeof label === 'function') return String(label({ i18n: req.i18n, t: req.t }))
   if (label && typeof label === 'object') {
     const labels = label as Record<string, string>
@@ -27,7 +27,7 @@ const readLabel = (label: unknown, req: PayloadRequest): string => {
 }
 
 function getCollectionLabel(collectionSlug: string, number: 'plural' | 'singular', req: PayloadRequest) {
-  return readLabel(req.payload.collections[collectionSlug as CollectionSlug].config.labels[number], req)
+  return getLabel(req.payload.collections[collectionSlug as CollectionSlug].config.labels[number], req)
 }
 
 // A collection's labels as they read inside a sentence.

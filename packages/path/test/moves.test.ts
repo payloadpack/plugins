@@ -27,7 +27,7 @@ describeEachSetup('', {}, (test, setup) => {
     expect(await readPath(payload, 'pages', ferries.id)).toBe('/port/ferries')
     expect(await readPath(payload, 'pages', timetable.id)).toBe('/port/ferries/timetable')
     expect(await readPath(payload, 'pages', tickets.id)).toBe('/port/tickets')
-    // A draft keeps the slug it plans, under the page's new path.
+    // A draft keeps its own slug, under the page's new path.
     expect(await readPath(payload, 'pages', tickets.id, { draft: true })).toBe('/port/fares')
     // A restore takes its path from the parent and the slug, so older versions keep theirs.
     expect(await readVersionPaths(payload, 'pages', timetable.id)).toEqual([
@@ -148,7 +148,7 @@ describeEachSetup('', {}, (test, setup) => {
     const tools = await create(payload, 'pages', { parent: shed.id, slug: 'tools', title: 'Tools' })
     await update(payload, 'pages', shed.id, { parent: annex.id })
     // MongoDB stores no parent for a top-level page, and Payload's restore writes only what the
-    // version holds, so there the page keeps the parent it has, and the plugin places it below it.
+    // version holds, so there the page keeps the parent it has, and the plugin gives it the path below it.
     const keepsParent = setup.database === 'mongodb'
 
     await restoreVersion(payload, 'pages', shed.id)
@@ -161,24 +161,24 @@ describeEachSetup('', {}, (test, setup) => {
     expect(await readPath(payload, 'pages', tools.id)).toBe(keepsParent ? '/annex/shed/tools' : '/shed/tools')
   })
 
-  it('keeps the parent and the place in agreement when a version from before a page had a parent is restored as a draft and then published', async () => {
+  it('keeps the parent in agreement with the path and ancestors when a version from before a page had a parent is restored as a draft and then published', async () => {
     const { payload } = test
     const lodge = await create(payload, 'pages', { slug: 'lodge', title: 'Lodge' })
     const hut = await create(payload, 'pages', { slug: 'hut', title: 'Hut' })
     await update(payload, 'pages', hut.id, { parent: lodge.id })
     // On MongoDB the page keeps the parent it has, as in a restore without draft.
-    const place =
+    const expected =
       setup.database === 'mongodb'
         ? { ancestors: [lodge.id], parent: lodge.id, path: '/lodge/hut' }
         : { ancestors: [], parent: null, path: '/hut' }
-    const readLatestPlace = async () => {
+    const readLatest = async () => {
       const { ancestors, parent = null } = await readLatestVersion(payload, 'pages', hut.id)
       return { ancestors, parent, path: await readPath(payload, 'pages', hut.id, { draft: true }) }
     }
 
     await restoreVersion(payload, 'pages', hut.id, { draft: true })
 
-    expect(await readLatestPlace()).toEqual(place)
+    expect(await readLatest()).toEqual(expected)
     expect(await readDocument(payload, 'pages', hut.id)).toMatchObject({
       ancestors: [lodge.id],
       parent: lodge.id,
@@ -187,8 +187,8 @@ describeEachSetup('', {}, (test, setup) => {
 
     await update(payload, 'pages', hut.id, {})
 
-    expect(await readLatestPlace()).toEqual(place)
-    expect(await readDocument(payload, 'pages', hut.id)).toMatchObject(place)
+    expect(await readLatest()).toEqual(expected)
+    expect(await readDocument(payload, 'pages', hut.id)).toMatchObject(expected)
   })
 
   it('gives a document below a renamed page the path its own slug makes, whatever path it stored', async () => {

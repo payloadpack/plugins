@@ -1,7 +1,7 @@
 import { beforeEach, expect, it } from 'vitest'
 
 import { findByPath } from '../src/index.js'
-import type { Id } from '../src/paths/place.js'
+import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
 import { catchFieldErrors, create, readPath, update } from './support/documents.js'
 
@@ -46,7 +46,7 @@ describeEachSetup(
     const readTrashed = (id: Id) =>
       test.payload.findByID({ collection: 'articles', depth: 0, id, overrideAccess: true, trash: true })
 
-    it('frees the path of a document in the trash, which keeps its place, as do the documents below it', async () => {
+    it('frees the path of a document in the trash, which keeps its path and ancestors, as do the documents below it', async () => {
       const { payload } = test
       const guide = await create(payload, 'articles', { slug: 'guide', title: 'Guide' })
       const intro = await create(payload, 'articles', { parent: guide.id, slug: 'intro', title: 'Intro' })

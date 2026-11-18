@@ -37,14 +37,12 @@ _Avoid_: breadcrumbs, lineage
 A document and every document below it, at any depth. A branch stays inside one collection.
 _Avoid_: subtree, descendants, children, which means one level only
 
-**Place**:
-Where a document is: its path in each locale and its ancestors. The document itself stores it, and the documents below it hang from it. Where a document is published, it is where it was published; where it isn't, it is where its latest draft says.
-
-**Plan**:
-Where a document's latest draft would put it, which its latest version stores. Without a pending move it is the document's place.
+**Path and ancestors**:
+What says where a document is: its path in each locale and its ancestors. The document itself stores them, and the documents below it hang from them. Where a document is published, they are where it was published; where it isn't, they are where its latest draft says. The latest version stores the ones its draft would give, which without a pending move are the document's own. Code says `PathAndAncestors`, and `draft` for the latest version's.
+_Avoid_: place, plan, position, location
 
 **Move**:
-A save that changes the place of a document, and with it the paths of its whole branch. A published document moves when it is published, and one that isn't follows its draft.
+A save that changes a document's path or ancestors, and with them the paths of its whole branch. A published document moves when it is published, and one that isn't follows its draft.
 _Avoid_: reparent, cascade
 
 **Pending move**:
@@ -63,11 +61,11 @@ A path a document is at. Every document takes its path, whatever its status, exc
 _Avoid_: holder, owner, conflict
 
 **Trash**:
-Where a collection with Payload's `trash` keeps a deleted document until it is deleted for good. A document in the trash takes no path and keeps the place it stores, and it takes its paths again when it is taken out of the trash.
+Where a collection with Payload's `trash` keeps a deleted document until it is deleted for good. A document in the trash takes no path and keeps the path and ancestors it stores, and it takes its paths again when it is taken out of the trash.
 _Avoid_: soft delete, bin, archive
 
 **Backfill**:
-A run of `backfillPaths`, which gives every document the place the rule makes where it stores another one or none: the documents a site had before the plugin, and the ones a move that stopped halfway left behind. A document it can't place is left as it is, with the refusal a save would get.
+A run of `backfillPaths`, which gives every document the path and ancestors its slug and its parent make, where it stores other ones or none: the documents a site had before the plugin, and the ones a move that stopped halfway left behind. A document it can't give a path is left as it is, with the refusal a save would get.
 _Avoid_: migrate, rebuild, reindex
 
 **Localized**:

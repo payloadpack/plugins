@@ -1,8 +1,8 @@
 import type { CollectionConfig, Payload } from 'payload'
 import { hasLocalizeStatusEnabled } from 'payload/shared'
 
+import type { StoredDocument } from '../database/documents.js'
 import { getLocales, valueInLocale } from './locales.js'
-import type { StoredDocument } from './place.js'
 
 export function hasDrafts(collection: Pick<CollectionConfig, 'versions'>) {
   return typeof collection.versions === 'object' && Boolean(collection.versions.drafts)
@@ -21,7 +21,7 @@ export function getPublishedLocales(row: Pick<StoredDocument, '_status'>, collec
 }
 
 // Whether a stored document is in the trash, where a collection that has one keeps a deleted document
-// until it is deleted for good. There it takes no path, and keeps the place it stores.
+// until it is deleted for good. There it takes no path, and keeps the path and ancestors it stores.
 export const isInTrash = (document: StoredDocument) => Boolean(document.deletedAt)
 
 // The locales a site finds a stored document in: the ones it is published in, and none from the trash.

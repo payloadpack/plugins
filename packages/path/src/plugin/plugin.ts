@@ -6,7 +6,7 @@ import { parentField } from '../fields/parent.js'
 import { pathField } from '../fields/path.js'
 import { slugField } from '../fields/slug.js'
 import { liftBranchBeforeDelete, reportPathsAfterDelete } from '../hooks/delete.js'
-import { placeAfterSave, planPathBeforeSave } from '../hooks/save.js'
+import { buildPathBeforeSave, setPathAfterSave } from '../hooks/save.js'
 import { missingCollectionsError, repeatedCollectionsError, takenFieldNamesError } from './messages.js'
 import { hasPayloadHierarchy, resolvePathConfig, storePathConfig, type PathPluginOptions } from './options.js'
 
@@ -34,9 +34,9 @@ function withPath(
     fields: [...collection.fields, ...fields],
     hooks: {
       ...collection.hooks,
-      afterChange: [placeAfterSave, ...(collection.hooks?.afterChange ?? [])],
+      afterChange: [setPathAfterSave, ...(collection.hooks?.afterChange ?? [])],
       afterDelete: [reportPathsAfterDelete, ...(collection.hooks?.afterDelete ?? [])],
-      beforeChange: [planPathBeforeSave, ...(collection.hooks?.beforeChange ?? [])],
+      beforeChange: [buildPathBeforeSave, ...(collection.hooks?.beforeChange ?? [])],
       beforeDelete: [liftBranchBeforeDelete, ...(collection.hooks?.beforeDelete ?? [])]
     }
   }

@@ -1,8 +1,8 @@
 import { commitTransaction, createPayloadRequest, initTransaction } from 'payload'
 import { beforeAll, expect, it } from 'vitest'
 
-import { CHUNK_SIZE } from '../src/paths/chunks.js'
-import type { Id } from '../src/paths/place.js'
+import type { Id } from '../src/path/build-path-and-ancestors.js'
+import { CHUNK_SIZE } from '../src/utils/in-chunks.js'
 import { describeEachSetup } from './support/boot-payload.js'
 import { catchFieldErrors, create, readPath, remove, store, update } from './support/documents.js'
 
@@ -11,8 +11,8 @@ import { catchFieldErrors, create, readPath, remove, store, update } from './sup
 // below it, and a spare crate below the inner depot. The inner depot is the first document below and
 // the spare crate the last, so they fall in the first chunk and in the last one. The documents below
 // the depot are stored through the database adapter, with the ancestors a move finds them by and no
-// path, and one rename of the depot gives each its place by the rule. That costs a fraction of a
-// save per document, or of a backfill. The tests run in order on the one branch.
+// path, and one rename of the depot gives each its path and ancestors by the rule. That costs a
+// fraction of a save per document, or of a backfill. The tests run in order on the one branch.
 
 const LAST_CRATE = `crate-${CHUNK_SIZE - 1}`
 
@@ -40,11 +40,11 @@ describeEachSetup(
       await commitTransaction(stored.req)
       await update(payload, 'pages', depot, { slug: 'depot' })
       Object.assign(branch, { depot, firstCrate: crates[0], innerDepot, lastCrate: crates.at(-1), spareCrate })
-      // A pending move in the last chunk: the spare crate's draft plans another slug.
+      // A pending move in the last chunk: the spare crate's draft has another slug.
       await update(payload, 'pages', spareCrate, { slug: 'spare' }, { draft: true })
       if (!setup.localized) return
       // The last crate isn't published in Swedish, so there it is where its draft's slug says. That
-      // draft also plans a parent outside the branch, so a move finds it only by asking for the
+      // draft also has a parent outside the branch, so a move finds it only by asking for the
       // latest versions of the last chunk's documents.
       const annex = await create(payload, 'pages', { slug: 'annex', title: 'Annex' })
       await update(payload, 'pages', branch.lastCrate, { parent: annex.id, slug: 'reserv' }, { draft: true, locale: 'sv' })

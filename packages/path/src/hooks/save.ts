@@ -1,38 +1,44 @@
 import type { CollectionAfterChangeHook, CollectionBeforeChangeHook, PayloadRequest, SanitizedCollectionConfig } from 'payload'
 import { hasLocalizeStatusEnabled } from 'payload/shared'
 
-import { planBranchMove, writeBranchMove } from '../paths/branch.js'
-import { checkNewPaths, checkParent, findNewPaths } from '../paths/checks.js'
-import { getFallbackLocales, getLocales, NO_LOCALE, valueInLocale } from '../paths/locales.js'
+import { findDocuments, findParentPathAndAncestors, setPathAndAncestors } from '../database/documents.js'
 import {
+  findDocumentAndLatestVersion,
+  findParentAndBuildPathAndAncestors,
+  setDraftPathAndAncestors,
+  type DocumentAndLatestVersion
+} from '../database/versions.js'
+import {
+  buildPathAndAncestors,
   getOwnSlugLocales,
+  getStoredPathAndAncestors,
+  hasSamePathAndAncestors,
   idOf,
-  isSamePlace,
-  readStoredPlace,
-  workOutPlace,
   type Id,
-  type Place,
-  type Stored
-} from '../paths/place.js'
-import { getPublishedLocales, getShownLocales, hasDrafts, isInTrash } from '../paths/status.js'
-import { findDocuments, readParentPlace, readStored, workOutStoredPlace, writePlace, writePlan } from '../paths/stored.js'
+  type PathAndAncestors
+} from '../path/build-path-and-ancestors.js'
+import { findBranchMove, moveBranch } from '../path/move-branch.js'
 import { buildFieldError, MISSING_SLUG_REFUSAL, THIS_PATH } from '../plugin/messages.js'
 import {
   changedPath,
-  findBranchChange,
+  getBranchChange,
   getParentFieldName,
   getPathConfig,
   isLocalized,
   type ChangedPath
 } from '../plugin/options.js'
-import { documentKey, getPathContext, type PlaceBefore } from './context.js'
+import { getFallbackLocales, getLocales, NO_LOCALE, valueInLocale } from '../utils/locales.js'
+import { getPublishedLocales, getShownLocales, hasDrafts, isInTrash } from '../utils/published-locales.js'
+import { checkNewPaths, getNewPaths } from '../validation/check-new-paths.js'
+import { checkParent } from '../validation/check-parent.js'
+import { documentKey, getPathContext, type PathAndAncestorsBefore } from './context.js'
 
 /**
  * What a save holds of a field. Of a localized one it holds the value of the locale it is in, or a
  * value per locale when it is in every locale at once. Of one that isn't localized it holds the one
  * value, which is every locale's.
  */
-function readSaved(req: PayloadRequest, localized: boolean) {
+function getSaved(req: PayloadRequest, localized: boolean) {
   const perLocale = localized && req.locale === 'all'
   const savedLocales = localized && !perLocale ? [req.locale ?? NO_LOCALE] : getLocales(req.payload)
   return {
@@ -51,19 +57,19 @@ type SavedData = { collection: SanitizedCollectionConfig; data: Record<string, u
  * The slug of each locale the save holds one of. A document without a slug in any locale takes one
  * from its title. A locale without a slug of its own, on a document with one in another locale,
  * falls back to that one, so a translated title never moves a path. In a collection with drafts the
- * rule of a place does that. In one without, a locale has a path only with a slug of its own, so the
+ * rule of a path does that. In one without, a locale has a path only with a slug of its own, so the
  * save keeps the slug it falls back to as the locale's own.
  */
-async function readSlugs({ collection, data, id, req }: SavedData): Promise<Record<string, unknown>> {
+async function findSlugs({ collection, data, id, req }: SavedData): Promise<Record<string, unknown>> {
   const { payload } = req
   const localized = isLocalized(collection.slug, payload)
-  const { inLocales, savedLocales } = readSaved(req, localized)
+  const { inLocales, savedLocales } = getSaved(req, localized)
   const slugs = inLocales(data.slug)
   if (savedLocales.some((savedLocale) => slugs[savedLocale])) return slugs
   // Only of a localized slug can a stored document have one in a locale the save holds no value of:
   // in its latest version, or in the document itself in a collection without drafts.
   if (id !== undefined && localized) {
-    const stored = await readStored(collection, id, req)
+    const stored = await findDocumentAndLatestVersion(collection, id, req)
     const latest = stored?.version?.version ?? stored?.document
     const fallbacks = savedLocales.map((savedLocale): [string, unknown] => [
       savedLocale,
@@ -75,7 +81,7 @@ async function readSlugs({ collection, data, id, req }: SavedData): Promise<Reco
   }
   // The title is a field of the site's own, localized or not whatever the slug is.
   const titleField = collection.flattenedFields.find(({ name }) => name === collection.admin.useAsTitle)
-  const titles = readSaved(req, Boolean(titleField?.localized)).inLocales(titleField && data[titleField.name])
+  const titles = getSaved(req, Boolean(titleField?.localized)).inLocales(titleField && data[titleField.name])
   const { slugify } = getPathConfig(payload)
   const makeSlug = async (title: unknown) => (await slugify({ data, req, valueToSlugify: title })) || undefined
   // One slug for every locale is made once: from the title of the locale the save is in, and in a
@@ -91,20 +97,21 @@ async function readSlugs({ collection, data, id, req }: SavedData): Promise<Reco
 }
 
 /**
- * Before the write: refuses what the data itself shows, and puts the planned path and ancestors in
- * the data, as the save holds a path, so Payload's own write carries them: into the latest version
- * always, and into the document itself when Payload writes that. It predicts nothing of that write.
- * The hook after it looks. Payload's dry-run validate runs this hook too, so it only reads.
+ * Before the write: refuses what the data itself shows, and puts the path and ancestors the save
+ * would give the document in the data, as the save holds a path, so Payload's own write carries
+ * them: into the latest version always, and into the document itself when Payload writes that. It
+ * predicts nothing of that write. The hook after it looks. Payload's dry-run validate runs this hook
+ * too, so it only reads.
  */
-export const planPathBeforeSave: CollectionBeforeChangeHook = async ({ collection, data, operation, originalDoc, req }) => {
+export const buildPathBeforeSave: CollectionBeforeChangeHook = async ({ collection, data, operation, originalDoc, req }) => {
   const { payload } = req
   const { slug } = collection
   const localized = isLocalized(slug, payload)
-  const { inData, savedLocales } = readSaved(req, localized)
+  const { inData, savedLocales } = getSaved(req, localized)
   // A duplicate is created with its source as the original.
   const id: Id | undefined = operation === 'create' ? undefined : originalDoc?.id
   const publishes = !hasDrafts(collection) || data._status === 'published'
-  const slugs = await readSlugs({ collection, data, id, req })
+  const slugs = await findSlugs({ collection, data, id, req })
   // A draft without a slug has no path yet. A stored document may have a localized slug in another
   // locale to fall back to, which only the hook after the write sees.
   const fallsBack = localized && hasDrafts(collection) && id !== undefined
@@ -117,20 +124,20 @@ export const planPathBeforeSave: CollectionBeforeChangeHook = async ({ collectio
   const parentField = getParentFieldName(slug, payload)
   const parentId =
     parentField === undefined ? null : idOf(data[parentField] === undefined ? originalDoc?.[parentField] : data[parentField])
-  const parent = await readParentPlace(slug, parentId, req)
+  const parent = await findParentPathAndAncestors(slug, parentId, req)
   checkParent(slug, { id, parent, parentId }, req)
-  const plan = workOutPlace({ parentId, slugs }, parent, collection, payload)
+  const built = buildPathAndAncestors({ parentId, slugs }, parent, collection, payload)
   const [document] = id === undefined ? [] : await findDocuments(slug, { id: { equals: id } }, req)
-  const before: PlaceBefore | undefined = document && {
-    ...readStoredPlace(document, slug, payload),
+  const before: PathAndAncestorsBefore | undefined = document && {
+    ...getStoredPathAndAncestors(document, slug, payload),
     shownLocales: getShownLocales(document, collection, payload)
   }
   // A path the document itself is at already was checked when it got there. A document in the trash
   // takes no path, so one that a save takes out of it takes the paths it stores again.
   const leavesTrash = document !== undefined && isInTrash(document) && data.deletedAt === null
   const savedIn = new Set(savedLocales)
-  const newPaths = findNewPaths(plan, before).filter(([pathLocale]) => savedIn.has(pathLocale))
-  const takenAgain = leavesTrash && before ? findNewPaths(before) : []
+  const newPaths = getNewPaths(built, before).filter(([pathLocale]) => savedIn.has(pathLocale))
+  const takenAgain = leavesTrash && before ? getNewPaths(before) : []
   await checkNewPaths(collection, id, [...takenAgain, ...newPaths], req, leavesTrash ? undefined : THIS_PATH)
   if (id !== undefined && before) {
     // A save moves the document now where it publishes, and where a site doesn't find the document,
@@ -138,10 +145,10 @@ export const planPathBeforeSave: CollectionBeforeChangeHook = async ({ collectio
     const ownSlugLocales = new Set(getOwnSlugLocales(before.shownLocales, slug, payload))
     const movedPaths = newPaths.filter(([pathLocale]) => publishes || !ownSlugLocales.has(pathLocale))
     if (movedPaths.length > 0) {
-      await planBranchMove({
+      await findBranchMove({
         collection,
         document: { ...data, id },
-        parent: { ancestors: plan.ancestors, id, paths: { ...before.paths, ...Object.fromEntries(movedPaths) } },
+        parent: { ancestors: built.ancestors, id, paths: { ...before.paths, ...Object.fromEntries(movedPaths) } },
         req
       })
     }
@@ -149,30 +156,37 @@ export const planPathBeforeSave: CollectionBeforeChangeHook = async ({ collectio
   }
   return {
     ...data,
-    path: inData(plan.paths) ?? null,
+    path: inData(built.paths) ?? null,
     slug: inData(slugs),
     // A collection without parents stores neither ancestors nor a parent.
-    ...(parentField === undefined ? {} : { ancestors: plan.ancestors, ...(parentId === null ? {} : { [parentField]: parentId }) })
+    ...(parentField === undefined
+      ? {}
+      : { ancestors: built.ancestors, ...(parentId === null ? {} : { [parentField]: parentId }) })
   }
 }
 
 // Which paths show something else after a save, from where a site found the document before the write
 // and where it finds it after: each path it finds it at now and didn't before, or that the save
 // published it at, and each path it found it at before and doesn't now.
-function findChangedPaths(
-  { collection, place, req, stored }: Pick<SavedData, 'collection' | 'req'> & { place: Place; stored: Stored },
-  before: PlaceBefore | undefined
+function getChangedPaths(
+  {
+    collection,
+    pathAndAncestors,
+    req,
+    stored
+  }: Pick<SavedData, 'collection' | 'req'> & { pathAndAncestors: PathAndAncestors; stored: DocumentAndLatestVersion },
+  before: PathAndAncestorsBefore | undefined
 ) {
   const { payload } = req
   // A save publishes in the locales it holds a status of, and in a collection without drafts, which
   // has none, in the ones it holds a slug of.
   const publishesPerLocale = hasDrafts(collection) ? hasLocalizeStatusEnabled(collection) : isLocalized(collection.slug, payload)
-  const savedLocales = new Set(readSaved(req, publishesPerLocale).savedLocales)
+  const savedLocales = new Set(getSaved(req, publishesPerLocale).savedLocales)
   const publishedLocales = new Set(getPublishedLocales(stored.version?.version ?? stored.document, collection, payload))
   const shownLocales = new Set(getShownLocales(stored.document, collection, payload))
   const shownLocalesBefore = new Set(before?.shownLocales)
   const shownBefore = (locale: string) => (shownLocalesBefore.has(locale) ? before?.paths[locale] : null) ?? null
-  const shownNow = (locale: string) => (shownLocales.has(locale) ? place.paths[locale] : null) ?? null
+  const shownNow = (locale: string) => (shownLocales.has(locale) ? pathAndAncestors.paths[locale] : null) ?? null
   const changedPaths: ChangedPath[] = []
   for (const locale of shownLocales) {
     const path = shownNow(locale)
@@ -188,57 +202,63 @@ function findChangedPaths(
 }
 
 /**
- * After the write, the plugin looks: it reads the document and its latest version, works out the
- * place and the plan by the one rule, and writes each where the row stores another one. That covers
+ * After the write, the plugin looks: it finds the document and its latest version, builds the path
+ * and ancestors of each by the one rule, and stores them where the row stores other ones. That covers
  * what only Payload's write decided, such as the locales a publish in one locale leaves in the
- * document. When the place is another one than before the write, the documents below follow. Every
- * check runs before the first write, and the site hears which paths changed after the last.
+ * document. When the document's path or ancestors are other ones than before the write, the
+ * documents below follow. Every check runs before the first write, and the site hears which paths
+ * changed after the last.
  */
-export const placeAfterSave: CollectionAfterChangeHook = async ({ collection, doc, operation, req }) => {
+export const setPathAfterSave: CollectionAfterChangeHook = async ({ collection, doc, operation, req }) => {
   const { payload } = req
   const { slug } = collection
   const { saved } = getPathContext(req)
   const key = documentKey(slug, doc.id)
   const before = operation === 'create' ? undefined : saved.get(key)
   saved.delete(key)
-  const stored = await readStored(collection, doc.id, req)
+  const stored = await findDocumentAndLatestVersion(collection, doc.id, req)
   if (!stored) return doc
   const { document, version } = stored
-  const place = await workOutStoredPlace(stored, 'place', collection, req)
-  const plan = version ? await workOutStoredPlace(stored, 'plan', collection, req) : place
-  const storedPlace = readStoredPlace(document, slug, payload)
-  const storedPlan = version && readStoredPlace(version.version, slug, payload)
+  const built = await findParentAndBuildPathAndAncestors(stored, 'document', collection, req)
+  const builtDraft = version ? await findParentAndBuildPathAndAncestors(stored, 'draft', collection, req) : built
+  const storedInDocument = getStoredPathAndAncestors(document, slug, payload)
+  const storedInVersion = version && getStoredPathAndAncestors(version.version, slug, payload)
   // In a collection with drafts every locale falls back to a slug, so a published locale without a
   // path belongs to a document without a slug in any locale.
-  const withoutPath = getPublishedLocales(document, collection, payload).find((locale) => place.paths[locale] === null)
+  const withoutPath = getPublishedLocales(document, collection, payload).find((locale) => built.paths[locale] === null)
   if (hasDrafts(collection) && withoutPath !== undefined) {
     throw buildFieldError(slug, 'slug', MISSING_SLUG_REFUSAL, req, withoutPath)
   }
   // A path is new where the document wasn't at it before the write and Payload's write didn't carry
-  // it, which the hook before the write checked. The same for a plan the latest version doesn't store.
-  const newPaths = [...findNewPaths(place, before, storedPlace), ...(storedPlan ? findNewPaths(plan, storedPlan) : [])]
+  // it, which the hook before the write checked. The same for a path of the draft's that the latest
+  // version doesn't store.
+  const newPaths = [
+    ...getNewPaths(built, before, storedInDocument),
+    ...(storedInVersion ? getNewPaths(builtDraft, storedInVersion) : [])
+  ]
   await checkNewPaths(collection, doc.id, newPaths, req, THIS_PATH)
-  // The place changed when it is another one than the document was at before the write, whoever wrote it.
-  const placeChanged = operation === 'update' && !(before && isSamePlace(before, place))
-  const branchMove = placeChanged
-    ? await planBranchMove({ collection, document, parent: { ...place, id: doc.id }, req })
+  // The document is elsewhere when its path or ancestors are other ones than before the write, whoever
+  // wrote them.
+  const isElsewhere = operation === 'update' && !(before && hasSamePathAndAncestors(before, built))
+  const branchMove = isElsewhere
+    ? await findBranchMove({ collection, document, parent: { ...built, id: doc.id }, req })
     : undefined
-  const changedPaths = findChangedPaths({ collection, place, req, stored }, before)
-  // The document needs a write when it stores another place than the one worked out, and so does the
-  // latest version for the plan.
-  const writesPlan = version && storedPlan && !isSamePlace(plan, storedPlan)
-  if (!isSamePlace(place, storedPlace)) await writePlace(slug, document, place, req)
-  if (writesPlan) await writePlan(slug, version, plan, req)
-  if (branchMove) await writeBranchMove(branchMove, req)
+  const changedPaths = getChangedPaths({ collection, pathAndAncestors: built, req, stored }, before)
+  // The document needs a write when it stores another path or other ancestors than the ones built,
+  // and so does the latest version for the draft's.
+  const setsDraft = version && storedInVersion && !hasSamePathAndAncestors(builtDraft, storedInVersion)
+  if (!hasSamePathAndAncestors(built, storedInDocument)) await setPathAndAncestors(slug, document, built, req)
+  if (setsDraft) await setDraftPathAndAncestors(slug, version, builtDraft, req)
+  if (branchMove) await moveBranch(branchMove, req)
   const moved =
     branchMove &&
     before &&
-    findBranchChange({ collection: slug, documentsBelow: branchMove.documentsBelow, id: doc.id }, before.paths, place.paths)
+    getBranchChange({ collection: slug, documentsBelow: branchMove.documentsBelow, id: doc.id }, before.paths, built.paths)
   if (changedPaths.length > 0 || moved) {
     await getPathConfig(payload).onPathsChanged?.({ ...(moved ? { moved } : {}), paths: changedPaths }, req)
   }
-  // Payload made the saved document before this hook wrote, so it gets the path the hook worked out.
-  const { inData } = readSaved(req, isLocalized(slug, payload))
-  const written = writesPlan || (!version && !isSamePlace(place, storedPlace))
-  return written ? { ...doc, path: inData(plan.paths) ?? null } : doc
+  // Payload made the saved document before this hook wrote, so it gets the path the hook built.
+  const { inData } = getSaved(req, isLocalized(slug, payload))
+  const written = setsDraft || (!version && !hasSamePathAndAncestors(built, storedInDocument))
+  return written ? { ...doc, path: inData(builtDraft.paths) ?? null } : doc
 }

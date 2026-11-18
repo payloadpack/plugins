@@ -1,7 +1,7 @@
 import type { FilterOptionsProps, RelationshipField, Where } from 'payload'
 import { beforeAll, expect, it } from 'vitest'
 
-import type { Id } from '../src/paths/place.js'
+import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup } from './support/boot-payload.js'
 import { catchFieldErrors, create, readPath, remove, update } from './support/documents.js'
 

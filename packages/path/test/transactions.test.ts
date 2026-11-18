@@ -1,7 +1,7 @@
 import type { Payload } from 'payload'
 import { expect, it } from 'vitest'
 
-import type { Id } from '../src/paths/place.js'
+import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup } from './support/boot-payload.js'
 import { catchFieldErrors, create, readDocument, readPath, remove, update } from './support/documents.js'
 import { refuseWritesOf } from './support/raw-access.js'
@@ -97,8 +97,8 @@ const REFUSALS: Refusal[] = [
     prepare: async (payload) => {
       const first = await create(payload, 'pages', { slug: 'first', title: 'First' })
       const second = await create(payload, 'pages', { slug: 'second', title: 'Second' })
-      await update(payload, 'pages', first.id, { slug: 'planned' }, { draft: true })
-      await update(payload, 'pages', second.id, { slug: 'planned' }, { draft: true })
+      await update(payload, 'pages', first.id, { slug: 'pending' }, { draft: true })
+      await update(payload, 'pages', second.id, { slug: 'pending' }, { draft: true })
       await update(payload, 'pages', first.id, {})
       return () => update(payload, 'pages', second.id, {})
     }

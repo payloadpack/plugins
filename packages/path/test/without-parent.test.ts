@@ -129,7 +129,7 @@ describeEachSetup(
 
       const report = await backfillPaths({ collections: ['articles'], payload })
 
-      expect(report).toMatchObject({ left: [], placed: 2 })
+      expect(report).toMatchObject({ left: [], updated: 2 })
       expect(await readPath(payload, 'articles', census)).toBe('/news/census')
       expect(await readPath(payload, 'articles', survey)).toBe('/news/survey')
       expect(await readPath(payload, 'articles', survey, { draft: true })).toBe('/news/poll')

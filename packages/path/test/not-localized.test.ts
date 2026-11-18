@@ -2,7 +2,7 @@ import type { CollectionConfig, CollectionSlug } from 'payload'
 import { beforeEach, expect, it } from 'vitest'
 
 import { backfillPaths, findByPath, type PathCollection } from '../src/index.js'
-import type { Id } from '../src/paths/place.js'
+import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
 import { catchFieldErrors, create, readPath, remove, store, update } from './support/documents.js'
 import { listIndexes, readSqlitePlan } from './support/raw-access.js'
@@ -241,7 +241,7 @@ describeEachSetup(
 
       const report = await backfillPaths({ collections: ['products'], payload })
 
-      expect(report).toMatchObject({ left: [], placed: 2 })
+      expect(report).toMatchObject({ left: [], updated: 2 })
       expect(await readPaths('products', saws)).toEqual(inEveryLocale('/products/tools/saws'))
       expect(await readPaths('products', saws, { draft: true })).toEqual(inEveryLocale('/products/tools/handsaws'))
       expect(await readRow('products', saws)).toMatchObject({ ancestors: [tools], path: '/products/tools/saws' })

@@ -1,8 +1,8 @@
 import type { CollectionConfig, CollectionSlug, Config, Payload, PayloadRequest } from 'payload'
 import type { Slugify } from 'payload/shared'
 
-import { NO_LOCALE } from '../paths/locales.js'
-import type { Id, Paths } from '../paths/place.js'
+import type { Id, Paths } from '../path/build-path-and-ancestors.js'
+import { NO_LOCALE } from '../utils/locales.js'
 import {
   ADMIN_ROUTE_REASON,
   API_ROUTE_REASON,
@@ -40,7 +40,7 @@ export type BranchChange = {
 }
 
 // Where a branch went, or nothing when it starts with another path in no locale.
-export function findBranchChange(branch: Omit<BranchChange, 'paths'>, from: Paths, to: Paths): BranchChange | undefined {
+export function getBranchChange(branch: Omit<BranchChange, 'paths'>, from: Paths, to: Paths): BranchChange | undefined {
   const paths = Object.entries(from).flatMap(([locale, path]) => {
     const newPath = to[locale]
     return path === null || newPath === null || newPath === undefined || newPath === path
@@ -110,7 +110,7 @@ export const NO_BASE_PATH = ''
 
 // A base path stands where a parent's path would, so it takes the same shape: a slash before each
 // segment and none at the end.
-function findBasePathFault(basePath: string) {
+function getBasePathFault(basePath: string) {
   if (basePath === '/' || basePath === '') return BASE_PATH_IS_ROOT
   if (!basePath.startsWith('/')) return BASE_PATH_WITHOUT_FIRST_SLASH
   if (basePath.endsWith('/')) return BASE_PATH_WITH_LAST_SLASH
@@ -123,7 +123,7 @@ function resolveCollection(collection: PathCollection, { localization }: Config)
   const { basePath, localized, parent, slug } = typeof collection === 'string' ? { slug: collection } : collection
   const resolved = { hasParent: parent !== false, localized: Boolean(localization) && localized !== false, slug }
   if (basePath === undefined) return { ...resolved, basePath: NO_BASE_PATH }
-  const fault = findBasePathFault(basePath)
+  const fault = getBasePathFault(basePath)
   if (fault) throw new Error(basePathError(basePath, slug, fault))
   return { ...resolved, basePath }
 }
@@ -216,7 +216,7 @@ function getPayloadRootSegments({ routes }: Payload['config']): ReasonBySegment 
 }
 
 // What a path is refused with when one of its segments is reserved.
-export function findReservedPathRefusal(path: string, payload: Payload) {
+export function getReservedPathRefusal(path: string, payload: Payload) {
   const { anyDepth, root = getPayloadRootSegments(payload.config) } = getPathConfig(payload).reservedSegments
   const segments = path.split('/').slice(1)
   const reservedSegment = segments.find((segment) => Object.hasOwn(anyDepth, segment))

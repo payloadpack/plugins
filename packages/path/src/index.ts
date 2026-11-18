@@ -7,5 +7,5 @@ export type {
   ReservedSegments
 } from './plugin/options.js'
 export { pathPlugin } from './plugin/plugin.js'
-export { backfillPaths, type BackfillReport } from './paths/backfill.js'
-export { findByPath, type FoundByPath } from './paths/find-by-path.js'
+export { backfillPaths, type BackfillReport } from './api/backfill-paths.js'
+export { findByPath, type FoundByPath } from './api/find-by-path.js'
