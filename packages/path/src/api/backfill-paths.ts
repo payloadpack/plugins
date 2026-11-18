@@ -6,6 +6,7 @@ import {
   type Payload,
   type PayloadRequest
 } from 'payload'
+import { hasDraftsEnabled } from 'payload/shared'
 
 import { findDocuments, findParentPathAndAncestors, setPathAndAncestors } from '../database/documents.js'
 import { findLatestVersionByDocument, setDraftPathAndAncestors, type DocumentAndLatestVersion } from '../database/versions.js'
@@ -17,7 +18,7 @@ import {
   type Id
 } from '../path/build-path-and-ancestors.js'
 import { getPathConfig, pickCollections } from '../plugin/options.js'
-import { hasDrafts, isInTrash } from '../utils/published-locales.js'
+import { isInTrash } from '../utils/published-locales.js'
 import { checkNewPaths, getNewPaths } from '../validation/check-new-paths.js'
 import { checkParent } from '../validation/check-parent.js'
 import { checkSlugs } from '../validation/check-slugs.js'
@@ -81,7 +82,7 @@ async function backfillDocument(stored: DocumentAndLatestVersion, collection: Co
 // A collection's documents as the database holds them, parents before the documents below them.
 async function findStoredTopDown(collection: CollectionConfig, req: PayloadRequest) {
   const documents = await findDocuments(collection.slug, {}, req)
-  const versions = hasDrafts(collection) ? await findLatestVersionByDocument(collection.slug, {}, req) : undefined
+  const versions = hasDraftsEnabled(collection) ? await findLatestVersionByDocument(collection.slug, {}, req) : undefined
   const stored = documents.map((document): DocumentAndLatestVersion => ({
     document,
     version: versions?.get(String(document.id))

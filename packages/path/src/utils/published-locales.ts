@@ -1,12 +1,8 @@
 import type { CollectionConfig, Payload } from 'payload'
-import { hasLocalizeStatusEnabled } from 'payload/shared'
+import { hasDraftsEnabled, hasLocalizeStatusEnabled } from 'payload/shared'
 
 import type { StoredDocument } from '../database/documents.js'
 import { getLocales, valueInLocale } from './locales.js'
-
-export function hasDrafts(collection: Pick<CollectionConfig, 'versions'>) {
-  return typeof collection.versions === 'object' && Boolean(collection.versions.drafts)
-}
 
 /**
  * The locales a stored document, or a latest version, is published in. A collection without drafts
@@ -15,7 +11,7 @@ export function hasDrafts(collection: Pick<CollectionConfig, 'versions'>) {
  * locale where it has none, which a collection given with localized: false can be.
  */
 export function getPublishedLocales(row: Pick<StoredDocument, '_status'>, collection: CollectionConfig, payload: Payload) {
-  if (!hasDrafts(collection)) return getLocales(payload)
+  if (!hasDraftsEnabled(collection)) return getLocales(payload)
   const perLocale = hasLocalizeStatusEnabled(collection)
   return getLocales(payload).filter((locale) => valueInLocale(row._status, locale, perLocale) === 'published')
 }

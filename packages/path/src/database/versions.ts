@@ -1,8 +1,8 @@
 import type { CollectionConfig, PayloadRequest, Where } from 'payload'
+import { hasDraftsEnabled } from 'payload/shared'
 
 import { buildPathAndAncestors, getSlugsAndParent, type Id, type PathAndAncestors } from '../path/build-path-and-ancestors.js'
 import { inChunks } from '../utils/in-chunks.js'
-import { hasDrafts } from '../utils/published-locales.js'
 import {
   buildRowWithPathAndAncestors,
   findDocuments,
@@ -76,7 +76,7 @@ export async function findDocumentAndLatestVersion(
 ): Promise<DocumentAndLatestVersion | undefined> {
   const [document] = await findDocuments(collection.slug, { id: { equals: id } }, req)
   if (!document) return
-  if (!hasDrafts(collection)) return { document }
+  if (!hasDraftsEnabled(collection)) return { document }
   const [version] = await findLatestVersions(collection.slug, { parent: { equals: id } }, req)
   return { document, version }
 }

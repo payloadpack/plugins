@@ -1,11 +1,11 @@
 import type { CollectionConfig, Payload } from 'payload'
-import { extractID } from 'payload/shared'
+import { extractID, hasDraftsEnabled } from 'payload/shared'
 
 import type { StoredDocument } from '../database/documents.js'
 import type { DocumentAndLatestVersion } from '../database/versions.js'
 import { getBasePath, getParentFieldName, getPathConfig, isLocalized, NO_BASE_PATH } from '../plugin/options.js'
 import { getFallbackLocales, getLocales, valueInLocale } from '../utils/locales.js'
-import { getPublishedLocales, hasDrafts } from '../utils/published-locales.js'
+import { getPublishedLocales } from '../utils/published-locales.js'
 
 export type Id = number | string
 
@@ -104,7 +104,7 @@ export function buildPathAndAncestors(
   const pathConfig = getPathConfig(payload)
   const basePath = getBasePath(collection.slug, pathConfig)
   const paths = getLocales(payload).map((locale) => {
-    const slug = (hasDrafts(collection) ? getFallbackLocales(payload, locale) : [locale])
+    const slug = (hasDraftsEnabled(collection) ? getFallbackLocales(payload, locale) : [locale])
       .map((slugLocale) => slugs[slugLocale])
       .find((localeSlug) => typeof localeSlug === 'string' && localeSlug !== '')
     const parentPath = parent ? parent.paths[locale] : basePath

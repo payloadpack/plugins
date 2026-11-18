@@ -1,4 +1,5 @@
 import type { CollectionBeforeChangeHook, CollectionConfig, PayloadRequest } from 'payload'
+import { hasDraftsEnabled } from 'payload/shared'
 
 import { findDocuments, findParentPathAndAncestors, type StoredDocument } from '../database/documents.js'
 import {
@@ -14,7 +15,7 @@ import { findBranchMove, getLandings } from '../path/move-branch.js'
 import { THIS_PATH } from '../plugin/messages.js'
 import { getParentFieldName, isLocalized } from '../plugin/options.js'
 import { getSaved } from '../utils/locales.js'
-import { getShownLocales, hasDrafts, isInTrash } from '../utils/published-locales.js'
+import { getShownLocales, isInTrash } from '../utils/published-locales.js'
 import { checkBranchMove } from '../validation/check-branch-move.js'
 import { checkNewPaths, getNewPaths, type LocalePath } from '../validation/check-new-paths.js'
 import { checkParent } from '../validation/check-parent.js'
@@ -94,12 +95,12 @@ export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collec
   const { inData, savedLocales } = getSaved(req, localized)
   // A duplicate is created with its source as the original.
   const id: Id | undefined = operation === 'create' ? undefined : originalDoc?.id
-  const publishes = !hasDrafts(collection) || data._status === 'published'
+  const publishes = !hasDraftsEnabled(collection) || data._status === 'published'
 
   // The slug. A draft without one has no path yet, and a stored document may have a localized slug
   // in another locale to fall back to, which only the hook after the write sees.
   const slugs = await findSlugs({ collection, data, id, req })
-  const fallsBack = localized && hasDrafts(collection) && id !== undefined
+  const fallsBack = localized && hasDraftsEnabled(collection) && id !== undefined
   if (publishes && !fallsBack) {
     checkSlugs(
       slug,

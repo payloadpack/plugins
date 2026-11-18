@@ -1,9 +1,9 @@
 import type { CollectionConfig, PayloadRequest } from 'payload'
+import { hasDraftsEnabled } from 'payload/shared'
 
 import { countBelow, findDocumentsBelow, setPathAndAncestors, type StoredDocument } from '../database/documents.js'
 import { findLatestVersionsBelow, setDraftPathAndAncestors, type StoredVersion } from '../database/versions.js'
 import { getParentFieldName } from '../plugin/options.js'
-import { hasDrafts } from '../utils/published-locales.js'
 import type { TakenPath } from '../validation/find-taken-path.js'
 import {
   buildPathAndAncestors,
@@ -50,7 +50,7 @@ export async function findBranchMove({ collection, document: moved, parent, req 
   const below = documentCount > 0 ? await findDocumentsBelow(slug, moved.id, req) : []
   // The latest versions of those documents, and the ones whose draft would put their document below
   // the document while the document itself is elsewhere.
-  const versions = hasDrafts(collection)
+  const versions = hasDraftsEnabled(collection)
     ? await findLatestVersionsBelow(
         slug,
         moved.id,

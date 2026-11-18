@@ -1,9 +1,9 @@
 import type { PayloadRequest, SanitizedCollectionConfig } from 'payload'
+import { hasDraftsEnabled } from 'payload/shared'
 
 import { findDocumentAndLatestVersion } from '../database/versions.js'
 import { getPathConfig, isLocalized } from '../plugin/options.js'
 import { getFallbackLocales, getSaved, NO_LOCALE, valueInLocale } from '../utils/locales.js'
-import { hasDrafts } from '../utils/published-locales.js'
 import type { Id } from './build-path-and-ancestors.js'
 
 /**
@@ -40,7 +40,7 @@ export async function findSlugs({
         .map((slugLocale) => valueInLocale(latest?.slug, slugLocale, localized))
         .find((slug) => typeof slug === 'string' && slug !== '')
     ])
-    if (fallbacks.some(([, slug]) => slug)) return hasDrafts(collection) ? slugs : Object.fromEntries(fallbacks)
+    if (fallbacks.some(([, slug]) => slug)) return hasDraftsEnabled(collection) ? slugs : Object.fromEntries(fallbacks)
   }
   // The title is a field of the site's own, localized or not whatever the slug is.
   const titleField = collection.flattenedFields.find(({ name }) => name === collection.admin.useAsTitle)

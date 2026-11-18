@@ -1,7 +1,7 @@
 import type { CollectionSlug, DataFromCollectionSlug, Payload, Where } from 'payload'
+import { hasDraftsEnabled } from 'payload/shared'
 
 import { getPathConfig, pickCollections } from '../plugin/options.js'
-import { hasDrafts } from '../utils/published-locales.js'
 import { getReservedPathRefusal } from '../validation/get-reserved-path-refusal.js'
 
 /** A document found at a path, with the collection it is in, among the collections named. */
@@ -38,7 +38,7 @@ export async function findByPath<Slug extends CollectionSlug = CollectionSlug>({
   if (getReservedPathRefusal(path, payload)) return null
   const found = await Promise.all(
     slugs.map(async (collection) => {
-      const published = !draft && hasDrafts(payload.collections[collection].config)
+      const published = !draft && hasDraftsEnabled(payload.collections[collection].config)
       // The query names the path, so a database reads the path index for it. A published lookup also
       // asks that the locale holds a status of its own, because Payload's read fills a missing one
       // from the fallback locale, where the document was never published. It asks that the status
