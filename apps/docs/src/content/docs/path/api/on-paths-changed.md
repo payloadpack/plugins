@@ -58,19 +58,24 @@ type BranchChange = {
 
 ## Redirects
 
-`moved` and `lifted` hold what a redirect needs:
+`moved` and `lifted` hold what a redirect needs: the moved document's own paths, and those of each published document below it.
 
 ```ts title="payload.config.ts"
 pathPlugin({
   collections: ['pages', 'posts'],
   onPathsChanged: async ({ moved, lifted }) => {
-    for (const { from, to, locale } of (moved ?? lifted)?.paths ?? []) {
-      // saveRedirect is yours. After a move, `from` itself is at `to` too.
+    // A moved document is at its new path. A deleted one is gone, so only the documents below it get a redirect.
+    const own = moved?.paths ?? []
+    const below = (moved ?? lifted)?.documents.flatMap((document) => document.paths) ?? []
+    for (const { from, to, locale } of [...own, ...below]) {
+      // saveRedirect is yours.
       await saveRedirect({ from, to, locale })
     }
   }
 })
 ```
+
+For a branch too big to keep a redirect per document, `paths` on `moved` or `lifted` gives one rule per locale instead: every path that starts with `from` and a slash goes to the same path below `to`. After a delete at the root `to` is an empty string, so `/about/team` goes to `/team`.
 
 ## When it runs
 

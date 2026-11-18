@@ -59,6 +59,8 @@ const { left, unchanged, updated } = await backfillPaths({ payload })
 
 A collection with [Payload's hierarchy](/path/configuration/#payloads-hierarchy) that already has documents with parents needs this run before anything in it is deleted.
 
+A collection that already has a `slug` or a `parent` field keeps what its documents hold in them. The plugin [adds its own](/path/configuration/#when-the-config-is-wrong) fields with those names, so remove yours first, or remove `@payloadcms/plugin-nested-docs` from your config when it is what adds `parent`. The run then makes each document's path from the slugs and parents that are there. In a site with localization, a slug that isn't localized today stays one slug with [`localized: false`](/path/configuration/#one-path-in-every-locale).
+
 ## Generate types
 
 ```sh
