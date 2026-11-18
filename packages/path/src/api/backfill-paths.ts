@@ -22,13 +22,16 @@ import { hasDrafts } from '../utils/published-locales.js'
 import { checkNewPaths, getNewPaths } from '../validation/check-new-paths.js'
 import { checkParent } from '../validation/check-parent.js'
 
+/** What a backfill did to the documents it went through. */
 export type BackfillReport = {
-  // The documents left as they were, each with the refusal a save of it would get.
+  /** The documents left as they were, each with the refusal a save of it would get. */
   left: { collection: string; id: Id; refusal: string }[]
-  // How many documents got another path or other ancestors than they stored, in the document or its
-  // latest version.
+  /**
+   * How many documents got another path or other ancestors than they stored, in the document or its
+   * latest version.
+   */
   updated: number
-  // How many documents stored their path and ancestors already.
+  /** How many documents stored their path and ancestors already. */
   unchanged: number
 }
 
@@ -105,6 +108,7 @@ export async function backfillPaths({
   collections,
   payload
 }: {
+  /** The collections to go through, among the plugin's. Without it, every one of them. */
   collections?: CollectionSlug[]
   payload: Payload
 }): Promise<BackfillReport> {

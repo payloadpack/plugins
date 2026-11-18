@@ -21,27 +21,32 @@ import {
 } from './messages.js'
 import { defaultSlugify } from './slugify.js'
 
-// A path that shows something else, in the locale it belongs to. Without localization there is no locale.
+/** A path that shows something else, in the locale it belongs to. Without localization there is no locale. */
 export type ChangedPath = { locale?: string; path: string }
 
 const inLocale = (locale: string) => (locale === NO_LOCALE ? {} : { locale })
 
 export const changedPath = (locale: string, path: string): ChangedPath => ({ ...inLocale(locale), path })
 
-// Where the documents below a document went, so a site can redirect them.
+/** Where the documents below a document went, so a site can redirect them. */
 export type BranchChange = {
+  /** The collection the document is in. */
   collection: string
-  // The document that moved, or the deleted document whose documents below were lifted.
+  /** The document that moved, or the deleted document whose documents below were lifted. */
   id: Id
-  // How many documents sit below it.
+  /** How many documents sit below it. */
   documentsBelow: number
-  // Per locale that changed: every path that started with from and a slash now starts with to and a
-  // slash. For a move they are the document's own paths. For a lift, from is the deleted document's
-  // path and to what was above it: its parent's path, the base path, or nothing at the root.
+  /**
+   * Per locale that changed: every path that started with from and a slash now starts with to and a
+   * slash. For a move they are the document's own paths. For a lift, from is the deleted document's
+   * path and to what was above it: its parent's path, the base path, or nothing at the root.
+   */
   paths: { from: string; locale?: string; to: string }[]
-  // Each document below that a site finds at another path now, top-down: the path it was at and the
-  // path it is at, per locale it is published in and has another path in. A document below that is
-  // published in no locale is not among them.
+  /**
+   * Each document below that a site finds at another path now, top-down: the path it was at and the
+   * path it is at, per locale it is published in and has another path in. A document below that is
+   * published in no locale is not among them.
+   */
   documents: { id: Id; paths: { from: string; locale?: string; to: string }[] }[]
 }
 
@@ -74,42 +79,64 @@ export function getBranchChange(
   return { collection, documents: below, documentsBelow, id, paths }
 }
 
+/** What onPathsChanged hears after a save or a delete. */
 export type PathsChange = {
-  // Each published path that shows something else: the path of a publish, the path a document was
-  // published at and left or was unpublished at, and the path of a deleted or trashed document.
+  /**
+   * Each published path that shows something else: the path of a publish, the path a document was
+   * published at and left or was unpublished at, and the path of a deleted or trashed document.
+   */
   paths: ChangedPath[]
-  // A save that moved a document with a path, also with nothing below it.
+  /** A save that moved a document with a path, also with nothing below it. */
   moved?: BranchChange
-  // A delete that lifted the documents below the deleted document.
+  /** A delete that lifted the documents below the deleted document. */
   lifted?: BranchChange
 }
 
-// Reserved segments as a list, or each with a reason that is shown when a slug is refused: at the
-// root what the site serves there, and at any depth what the segment means in a path.
+/**
+ * Reserved segments as a list, or each with a reason that is shown when a slug is refused: at the
+ * root what the site serves there, and at any depth what the segment means in a path.
+ */
 export type ReservedSegments = Record<string, string> | string[]
 
-// A collection whose documents get a path, by its slug, or with the base path its top-level
-// documents' paths start with, such as /blog, with parent: false when its documents have no parent,
-// so each one's path is the base path, a slash and its slug, and with localized: false when, in a
-// site with localization, its documents have one slug and one path, the same in every locale.
-export type PathCollection = CollectionSlug | { basePath?: string; localized?: false; parent?: false; slug: CollectionSlug }
+/** A collection whose documents get a path: its slug alone, or its slug with what sets the collection apart. */
+export type PathCollection =
+  | CollectionSlug
+  | {
+      /** What the paths of its top-level documents start with, such as /blog. Without one they start at the root. */
+      basePath?: string
+      /** false when, in a site with localization, its documents have one slug and one path, the same in every locale. */
+      localized?: false
+      /** false when its documents have no parent, so each one's path is the base path, a slash and its slug. */
+      parent?: false
+      slug: CollectionSlug
+    }
 
 export type PathPluginOptions = {
-  // The collections whose documents get a path. Each one's documents sit below documents of its own,
-  // by the plugin's parent field, or by Payload's own where the collection has Payload's hierarchy.
+  /**
+   * The collections whose documents get a path. Each one's documents sit below documents of its own,
+   * by the plugin's parent field, or by Payload's own where the collection has Payload's hierarchy.
+   */
   collections: PathCollection[]
-  // The top-level document with this slug, in a collection without a base path, is the home page and
-  // answers /. Defaults to 'home'.
+  /**
+   * The top-level document with this slug, in a collection without a base path, is the home page and
+   * answers /. Defaults to 'home'.
+   */
   rootSlug?: string
-  // Segments a path can't use, at the root and at any depth. Without root, the root segments of
-  // Payload's admin and API routes are reserved, and a root that is given is the whole list.
+  /**
+   * Segments a path can't use, at the root and at any depth. Without root, the root segments of
+   * Payload's admin and API routes are reserved, and a root that is given is the whole list.
+   */
   reservedSegments?: { anyDepth?: ReservedSegments; root?: ReservedSegments }
-  // Makes a slug from a title and from what an editor typed, in the shape of the slugify of Payload's
-  // own slug field. Defaults to one that takes the accents off Latin letters and keeps the letters of
-  // other scripts.
+  /**
+   * Makes a slug from a title and from what an editor typed, in the shape of the slugify of Payload's
+   * own slug field. Defaults to defaultSlugify, which takes the accents off Latin letters and keeps
+   * the letters of other scripts.
+   */
   slugify?: Slugify
-  // Runs after a save or a delete that changed a published path or moved a branch, so a site purges
-  // its own cache and keeps its redirects.
+  /**
+   * Runs after a save or a delete that changed a published path or moved a branch, so a site purges
+   * its own cache and keeps its redirects.
+   */
   onPathsChanged?: (change: PathsChange, req: PayloadRequest) => Promise<void> | void
 }
 

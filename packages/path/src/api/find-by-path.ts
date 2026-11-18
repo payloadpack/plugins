@@ -3,7 +3,7 @@ import type { CollectionSlug, DataFromCollectionSlug, Payload, Where } from 'pay
 import { getReservedPathRefusal, getPathConfig, pickCollections } from '../plugin/options.js'
 import { hasDrafts } from '../utils/published-locales.js'
 
-// A document found at a path, with the collection it is in, among the collections named.
+/** A document found at a path, with the collection it is in, among the collections named. */
 export type FoundByPath<Slug extends CollectionSlug = CollectionSlug> = {
   [Each in Slug]: { collection: Each; document: DataFromCollectionSlug<Each> }
 }[Slug]
@@ -21,13 +21,15 @@ export async function findByPath<Slug extends CollectionSlug = CollectionSlug>({
   path,
   payload
 }: {
-  // The collections to look in, among the plugin's. Without it, every one of them.
+  /** The collections to look in, among the plugin's. Without it, every one of them. */
   collections?: Slug[]
-  // How deep the document's relationships are populated, as in Payload's find. Defaults to 0.
+  /** How deep the document's relationships are populated, as in Payload's find. Defaults to 0. */
   depth?: number
+  /** true finds the latest draft at the path, for a preview. Defaults to false. */
   draft?: boolean
-  // With localization, the locale whose path this is. The site keeps the locale out of the path.
+  /** With localization, the locale whose path this is. The site keeps the locale out of the path. */
   locale?: string
+  /** The path as it is stored: it starts with a slash and, but for the home page's /, ends with none. */
   path: string
   payload: Payload
 }): Promise<FoundByPath<Slug> | null> {
