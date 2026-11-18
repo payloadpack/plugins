@@ -1,6 +1,6 @@
 import { beforeEach, expect, it } from 'vitest'
 
-import { findByPath } from '../src/index.js'
+import { backfillPaths, findByPath } from '../src/index.js'
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
 import { catchFieldErrors, create, named, readPath, update } from './support/documents.js'
@@ -166,6 +166,15 @@ describeEachSetup(
           paths: []
         }
       ])
+    })
+
+    it('leaves neither a document in the trash nor the document at its path out of a backfill', async () => {
+      const { payload } = test
+      const ledger = await create(payload, 'articles', { slug: 'ledger', title: 'Ledger' })
+      await trash(ledger.id)
+      await create(payload, 'pages', { slug: 'ledger', title: 'Ledger page' })
+
+      expect((await backfillPaths({ payload })).left).toEqual([])
     })
 
     if (setup.localized) {

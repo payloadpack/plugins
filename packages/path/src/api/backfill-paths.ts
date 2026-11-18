@@ -17,14 +17,18 @@ import {
   type Id
 } from '../path/build-path-and-ancestors.js'
 import { getPathConfig, pickCollections } from '../plugin/options.js'
-import { hasDrafts } from '../utils/published-locales.js'
+import { hasDrafts, isInTrash } from '../utils/published-locales.js'
 import { checkNewPaths, getNewPaths } from '../validation/check-new-paths.js'
 import { checkParent } from '../validation/check-parent.js'
 import { checkSlugs } from '../validation/check-slugs.js'
+import { checkTakenPaths } from '../validation/check-taken-paths.js'
 
 /** What a backfill did to the documents it went through. */
 export type BackfillReport = {
-  /** The documents left as they were, each with the refusal a save of it would get. */
+  /**
+   * The documents left as they were, each with why: the refusal a save of it would get, or the one
+   * that names the other document at a path it stores.
+   */
   left: { collection: string; id: Id; refusal: string }[]
   /**
    * How many documents got another path or other ancestors than they stored, in the document or its
@@ -53,7 +57,7 @@ async function findParentAndBuildCheckedPathAndAncestors(
 
 // Stores a document's path and ancestors, and the ones its latest draft would give it, where its rows
 // store other ones, as a move stores them, and says whether it stored any. Refused as a save is,
-// before either write.
+// and where another document is at a path it stores, before either write.
 async function backfillDocument(stored: DocumentAndLatestVersion, collection: CollectionConfig, req: PayloadRequest) {
   const { document, version } = stored
   const built = await findParentAndBuildCheckedPathAndAncestors(stored, 'document', collection, req)
@@ -62,6 +66,10 @@ async function backfillDocument(stored: DocumentAndLatestVersion, collection: Co
   const storedInVersion = version && getStoredPathAndAncestors(version.version, collection.slug, req.payload)
   const newPaths = [...getNewPaths(built, storedInDocument), ...(storedInVersion ? getNewPaths(builtDraft, storedInVersion) : [])]
   await checkNewPaths(collection, document.id, newPaths, req)
+  // A path the document stores already was checked when it got there, but two saves of the same path
+  // in the same instant can both pass. A document in the trash takes no path, so it shares none.
+  const keptPaths = getNewPaths(built).filter(([locale, path]) => storedInDocument.paths[locale] === path)
+  if (!isInTrash(document)) await checkTakenPaths(collection.slug, document.id, keptPaths, req)
   const setsDocument = !hasSamePathAndAncestors(built, storedInDocument)
   const setsDraft =
     version !== undefined && storedInVersion !== undefined && !hasSamePathAndAncestors(builtDraft, storedInVersion)
@@ -100,7 +108,8 @@ async function findStoredTopDown(collection: CollectionConfig, req: PayloadReque
  * and for a move that stopped halfway. Parents come before the documents below them, and only a row
  * that stores another path or other ancestors is written, as a move writes it: without a new version
  * and without the collection's hooks. A document a save would refuse, and one without a slug in any
- * locale, is left as it is and listed with the refusal.
+ * locale, is left as it is and listed with the refusal. So is a document at a path another document
+ * is at too.
  */
 export async function backfillPaths({
   collections,

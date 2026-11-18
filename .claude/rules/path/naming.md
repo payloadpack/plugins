@@ -65,7 +65,7 @@ Where a collection with Payload's `trash` keeps a deleted document until it is d
 _Avoid_: soft delete, bin, archive
 
 **Backfill**:
-A run of `backfillPaths`, which gives every document the path and ancestors its slug and its parent make, where it stores other ones or none: the documents a site had before the plugin, and the ones a move that stopped halfway left behind. A document it can't give a path is left as it is, with the refusal a save would get.
+A run of `backfillPaths`, which gives every document the path and ancestors its slug and its parent make, where it stores other ones or none: the documents a site had before the plugin, and the ones a move that stopped halfway left behind. A document it can't give a path is left as it is, with the refusal a save would get, and so is a document at a path another document is at too, with the refusal that names the other.
 _Avoid_: migrate, rebuild, reindex
 
 **Localized**:

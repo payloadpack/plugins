@@ -154,6 +154,47 @@ describeEachSetup('', {}, (test, setup) => {
     expect((await readPath(payload, 'pages', lobby)) ?? null).toBeNull()
     expect((await readPath(payload, 'notices', lift)) ?? null).toBeNull()
   })
+
+  // Two saves of the same path in the same instant can both pass, so two documents can store one path.
+  // A page falls back to its English slug in Swedish, and a notice, without drafts, has no Swedish path.
+  const storedAt = (path: string, locales = ['en', 'sv']) => ({
+    path: setup.localized ? Object.fromEntries(locales.map((locale) => [locale, path])) : path
+  })
+  const takenBy = (holder: string, path: string) =>
+    `${holder} is already at ${path}${setup.localized ? ' in en' : ''}, so change the slug or the parent.`
+
+  it('leaves two documents that store the same path, each naming the other, and writes neither', async () => {
+    const { payload } = test
+    const first = await store(test, setup, 'pages', { slug: 'twins', title: 'First twin', ...storedAt('/twins') })
+    // Its stored ancestors are not the ones its parent makes, so a run would write it.
+    const second = await store(test, setup, 'pages', {
+      ancestors: [first],
+      slug: 'twins',
+      title: 'Second twin',
+      ...storedAt('/twins')
+    })
+
+    const report = await backfillPaths({ collections: ['pages'], payload })
+
+    expect(report.left).toEqual(
+      expect.arrayContaining([
+        { collection: 'pages', id: first, refusal: takenBy('Page "Second twin"', '/twins') },
+        { collection: 'pages', id: second, refusal: takenBy('Page "First twin"', '/twins') }
+      ])
+    )
+    expect(await readDocument(payload, 'pages', second)).toMatchObject({ ancestors: [first] })
+  })
+
+  it('leaves a document that stores the path of a document in a collection the run was not asked for', async () => {
+    const { payload } = test
+    const desk = await store(test, setup, 'pages', { slug: 'desk', title: 'Desk', ...storedAt('/desk') })
+    await store(test, setup, 'notices', { slug: 'desk', title: 'Desk moved', ...storedAt('/desk', ['en']) })
+
+    const report = await backfillPaths({ collections: ['pages'], payload })
+
+    expect(report.left).toContainEqual({ collection: 'pages', id: desk, refusal: takenBy('Notice "Desk moved"', '/desk') })
+    expect(report.left.filter(({ collection }) => collection === 'notices')).toEqual([])
+  })
 })
 
 describeEachSetup(
