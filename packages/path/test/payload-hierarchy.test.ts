@@ -3,7 +3,7 @@ import { beforeEach, expect, it } from 'vitest'
 import { backfillPaths, findByPath } from '../src/index.js'
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
-import { catchFieldErrors, create, readDocument, readPath, remove, store, update } from './support/documents.js'
+import { catchFieldErrors, create, named, readDocument, readPath, remove, store, update } from './support/documents.js'
 
 // Payload's own hierarchy holds a topic's parent in a field Payload names, or one the site names.
 const HIERARCHIES = [
@@ -75,7 +75,17 @@ for (const { hierarchy, label, parentField } of HIERARCHIES) {
         })
         expect(changes).toEqual([
           {
-            moved: { collection: 'topics', documentsBelow: 2, id: crafts.id, paths: fromTo('/crafts', '/arts/crafts') },
+            // The topic with a renamed draft is named at the path it is published at.
+            moved: {
+              collection: 'topics',
+              documents: [
+                named(setup, pottery, '/crafts/pottery', '/arts/crafts/pottery'),
+                named(setup, glazes, '/crafts/pottery/glazes', '/arts/crafts/pottery/glazes')
+              ],
+              documentsBelow: 2,
+              id: crafts.id,
+              paths: fromTo('/crafts', '/arts/crafts')
+            },
             paths: [at('/arts/crafts'), at('/crafts')]
           }
         ])
@@ -164,8 +174,14 @@ for (const { hierarchy, label, parentField } of HIERARCHIES) {
         expect(String(draft[parentField])).toBe(String(sports.id))
         expect(changes).toEqual([
           {
+            // The topics right below first, then the one deeper.
             lifted: {
               collection: 'topics',
+              documents: [
+                named(setup, tennis, '/sports/ball-games/tennis', '/sports/tennis'),
+                named(setup, golf, '/sports/ball-games/golf', '/sports/golf'),
+                named(setup, serve, '/sports/ball-games/tennis/serve', '/sports/tennis/serve')
+              ],
               documentsBelow: 3,
               id: ballGames.id,
               paths: fromTo('/sports/ball-games', '/sports')

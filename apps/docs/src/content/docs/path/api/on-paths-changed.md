@@ -10,8 +10,13 @@ pathPlugin({
   collections: ['pages', 'posts'],
   onPathsChanged: ({ paths, moved, lifted }) => {
     for (const { path } of paths) revalidatePath(path)
-    // Everything below a moved or deleted document has a new path, so purge the whole site, or a tag you keep per branch.
-    if (moved?.documentsBelow || lifted) revalidatePath('/', 'layout')
+    // Each published document below a moved or deleted one has a new path too.
+    for (const document of (moved ?? lifted)?.documents ?? []) {
+      for (const { from, to } of document.paths) {
+        revalidatePath(from)
+        revalidatePath(to)
+      }
+    }
   }
 })
 ```
@@ -30,6 +35,7 @@ type BranchChange = {
   id: number | string
   documentsBelow: number
   paths: { from: string; to: string; locale?: string }[]
+  documents: { id: number | string; paths: { from: string; to: string; locale?: string }[] }[]
 }
 ```
 
@@ -44,6 +50,7 @@ type BranchChange = {
 
 - `moved` names the document a save moved, and `lifted` the document a delete removed when documents below it were lifted. Both name the collection as well as the id, since a page and a post may share an id on Postgres and SQLite.
 - In both, every path that started with `from` and a slash now starts with `to` and a slash. For `lifted`, `to` is the parent's path, the collection's base path, or an empty string at the root.
+- `documents` names each document below that your site finds at another path now, top-down, with the path it left and the one it is at, in each locale it is published in. A document below that isn't published is not listed, so there can be fewer than `documentsBelow`.
 - A rename of a document with nothing below it reports `moved` with `documentsBelow: 0`, and a publish that keeps the slug and the parent reports none.
 - It isn't called when there is nothing to report. A delete of a document in the trash reports no `paths`, since your site heard them when it went there, and still reports `lifted`.
 - With localization, each path has its `locale`, and only the locales the save changed are listed, which usually includes the ones that fall back to a renamed slug.

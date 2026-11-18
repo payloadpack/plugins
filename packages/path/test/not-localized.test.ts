@@ -202,25 +202,49 @@ describeEachSetup(
       ])
     })
 
-    it('reports where a move and a lift took each locale from and to, with the paths a site found the document at', async () => {
+    it('reports where a move and a lift took each locale from and to, with the paths a site found the document and each document below at', async () => {
       const { changes, payload } = test
       const dune = await create(payload, 'topics', { slug: 'dune', title: 'Dune' })
       const grass = await create(payload, 'topics', { parent: dune.id, slug: 'grass', title: 'Grass' })
+      const shelf = await create(payload, 'products', { slug: 'shelf', title: 'Shelf' })
+      const bracket = await create(payload, 'products', { parent: shelf.id, slug: 'bracket', title: 'Bracket' })
       changes.length = 0
 
       await update(payload, 'topics', dune.id, { slug: 'sanddyn' }, inSwedish)
       await remove(payload, 'topics', dune.id)
+      await update(payload, 'products', shelf.id, { slug: 'hylla' })
 
       const branch = { collection: 'topics', documentsBelow: 1, id: dune.id }
+      // The topic below is published in English only, so its one path is named in that locale only.
+      const grassAt = (from: string, to: string) => [{ id: grass.id, paths: [{ from, locale: 'en', to }] }]
       expect(changes).toEqual([
         {
-          moved: { ...branch, paths: each({ from: '/topics/dune', to: '/topics/sanddyn' }) },
+          moved: {
+            ...branch,
+            documents: grassAt('/topics/dune/grass', '/topics/sanddyn/grass'),
+            paths: each({ from: '/topics/dune', to: '/topics/sanddyn' })
+          },
           // The move published the topic in Swedish, and it left the path it was published at in English.
           paths: [...each({ path: '/topics/sanddyn' }), { locale: 'en', path: '/topics/dune' }]
         },
         {
-          lifted: { ...branch, paths: each({ from: '/topics/sanddyn', to: '/topics' }) },
+          lifted: {
+            ...branch,
+            documents: grassAt('/topics/sanddyn/grass', '/topics/grass'),
+            paths: each({ from: '/topics/sanddyn', to: '/topics' })
+          },
           paths: each({ path: '/topics/sanddyn' })
+        },
+        // A product has one status for every locale, so the one below is named in each locale.
+        {
+          moved: {
+            collection: 'products',
+            documents: [{ id: bracket.id, paths: each({ from: '/products/shelf/bracket', to: '/products/hylla/bracket' }) }],
+            documentsBelow: 1,
+            id: shelf.id,
+            paths: each({ from: '/products/shelf', to: '/products/hylla' })
+          },
+          paths: [...each({ path: '/products/hylla' }), ...each({ path: '/products/shelf' })]
         }
       ])
       expect(await readPaths('topics', grass.id)).toEqual(inEveryLocale('/topics/grass'))
@@ -379,6 +403,7 @@ describeEachSetup(
         {
           moved: {
             collection: 'topics',
+            documents: [{ id: gravel.id, paths: [{ from: '/topics/quarry/gravel', to: '/topics/pit/gravel' }] }],
             documentsBelow: 1,
             id: quarry.id,
             paths: [{ from: '/topics/quarry', to: '/topics/pit' }]

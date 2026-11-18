@@ -2,7 +2,9 @@ import type { CollectionConfig, CollectionSlug, Config, Payload, PayloadRequest 
 import type { Slugify } from 'payload/shared'
 
 import type { Id, Paths } from '../path/build-path-and-ancestors.js'
+import type { BranchMove } from '../path/move-branch.js'
 import { NO_LOCALE } from '../utils/locales.js'
+import { getShownLocales } from '../utils/published-locales.js'
 import {
   ADMIN_ROUTE_REASON,
   API_ROUTE_REASON,
@@ -37,17 +39,39 @@ export type BranchChange = {
   // slash. For a move they are the document's own paths. For a lift, from is the deleted document's
   // path and to what was above it: its parent's path, the base path, or nothing at the root.
   paths: { from: string; locale?: string; to: string }[]
+  // Each document below that a site finds at another path now, top-down: the path it was at and the
+  // path it is at, per locale it is published in and has another path in. A document below that is
+  // published in no locale is not among them.
+  documents: { id: Id; paths: { from: string; locale?: string; to: string }[] }[]
 }
 
-// Where a branch went, or nothing when it starts with another path in no locale.
-export function getBranchChange(branch: Omit<BranchChange, 'paths'>, from: Paths, to: Paths): BranchChange | undefined {
-  const paths = Object.entries(from).flatMap(([locale, path]) => {
-    const newPath = to[locale]
-    return path === null || newPath === null || newPath === undefined || newPath === path
-      ? []
-      : [{ ...inLocale(locale), from: path, to: newPath }]
+// The paths of these locales that are other ones now. A locale without a path before or now has none.
+const getMovedPaths = (locales: string[], from: Paths, to: Paths) =>
+  locales.flatMap((locale) => {
+    const [path, newPath] = [from[locale], to[locale]]
+    return typeof path === 'string' && typeof newPath === 'string' && newPath !== path
+      ? [{ ...inLocale(locale), from: path, to: newPath }]
+      : []
   })
-  return paths.length > 0 ? { ...branch, paths } : undefined
+
+// Where a branch went and each document below with it, from the rows the move held before it wrote
+// them, or nothing when the branch starts with another path in no locale.
+export function getBranchChange(
+  { collection, documents, documentsBelow }: BranchMove,
+  id: Id,
+  from: Paths,
+  to: Paths,
+  payload: Payload
+): BranchChange | undefined {
+  const paths = getMovedPaths(Object.keys(from), from, to)
+  if (paths.length === 0) return undefined
+  const { config } = payload.collections[collection as CollectionSlug]
+  // Only the locales a site finds a document in count, by the rule a save's own paths follow.
+  const below = documents.flatMap(({ document, pathAndAncestors, storedPaths }) => {
+    const movedPaths = getMovedPaths(getShownLocales(document, config, payload), storedPaths, pathAndAncestors.paths)
+    return movedPaths.length > 0 ? [{ id: document.id, paths: movedPaths }] : []
+  })
+  return { collection, documents: below, documentsBelow, id, paths }
 }
 
 export type PathsChange = {

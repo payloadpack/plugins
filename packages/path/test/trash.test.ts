@@ -3,7 +3,7 @@ import { beforeEach, expect, it } from 'vitest'
 import { findByPath } from '../src/index.js'
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
-import { catchFieldErrors, create, readPath, update } from './support/documents.js'
+import { catchFieldErrors, create, named, readPath, update } from './support/documents.js'
 
 // A collection whose deleted documents go to the trash first. Trashing is a save that sets deletedAt,
 // and taking a document out of the trash is one that clears it, so the plugin's save hooks see both.
@@ -155,7 +155,16 @@ describeEachSetup(
       expect(await readPath(payload, 'articles', part.id)).toBe('/part')
       // The site heard of the path when the document went to the trash.
       expect(changes).toEqual([
-        { lifted: { collection: 'articles', documentsBelow: 1, id: series.id, paths: fromTo('/series', '') }, paths: [] }
+        {
+          lifted: {
+            collection: 'articles',
+            documents: [named(setup, part, '/series/part', '/part')],
+            documentsBelow: 1,
+            id: series.id,
+            paths: fromTo('/series', '')
+          },
+          paths: []
+        }
       ])
     })
 

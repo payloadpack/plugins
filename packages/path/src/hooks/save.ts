@@ -250,10 +250,7 @@ export const setPathAfterSave: CollectionAfterChangeHook = async ({ collection, 
   if (!hasSamePathAndAncestors(built, storedInDocument)) await setPathAndAncestors(slug, document, built, req)
   if (setsDraft) await setDraftPathAndAncestors(slug, version, builtDraft, req)
   if (branchMove) await moveBranch(branchMove, req)
-  const moved =
-    branchMove &&
-    before &&
-    getBranchChange({ collection: slug, documentsBelow: branchMove.documentsBelow, id: doc.id }, before.paths, built.paths)
+  const moved = branchMove && before && getBranchChange(branchMove, doc.id, before.paths, built.paths, payload)
   if (changedPaths.length > 0 || moved) {
     await getPathConfig(payload).onPathsChanged?.({ ...(moved ? { moved } : {}), paths: changedPaths }, req)
   }

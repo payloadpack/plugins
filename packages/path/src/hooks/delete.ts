@@ -37,7 +37,7 @@ export const liftBranchBeforeDelete: CollectionBeforeDeleteHook = async ({ colle
   // What the paths of the lifted documents start with now: the parent's path, or the base path.
   const basePath = getBasePath(slug, getPathConfig(payload))
   const liftedTo = parent ? parent.paths : Object.fromEntries(getLocales(payload).map((locale) => [locale, basePath]))
-  change.lifted = getBranchChange({ collection: slug, documentsBelow: branchMove.documentsBelow, id }, paths, liftedTo)
+  change.lifted = getBranchChange(branchMove, id, paths, liftedTo, payload)
 }
 
 // The site hears what changed once the document is gone.

@@ -87,6 +87,16 @@ export async function store(
   return id as Id
 }
 
+/**
+ * A document below as onPathsChanged names it, with the path it was at and the one it is at. One
+ * made by create is published in English only, so with localization it is named in that locale
+ * only, also where its Swedish path moved along.
+ */
+export const named = ({ localized }: Setup, { id }: Document, from: string, to: string) => ({
+  id,
+  paths: [localized ? { from, locale: 'en', to } : { from, to }]
+})
+
 export function remove(payload: Payload, collection: CollectionSlug, id: Id) {
   return payload.delete({ collection, id, overrideAccess: true })
 }

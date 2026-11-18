@@ -3,7 +3,7 @@ import { beforeEach, expect, it } from 'vitest'
 import { findByPath } from '../src/index.js'
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup } from './support/boot-payload.js'
-import { create, readPath, remove, update } from './support/documents.js'
+import { create, named, readPath, remove, update } from './support/documents.js'
 
 describeEachSetup('', {}, (test, setup) => {
   beforeEach(() => {
@@ -34,13 +34,15 @@ describeEachSetup('', {}, (test, setup) => {
     expect(changes).toEqual([])
   })
 
-  it('reports where a move took a document from and to, with how many documents sit below it, in any collection', async () => {
+  it('reports where a move took a document and each published document below it from and to, in any collection', async () => {
     const { changes, payload } = test
     const blog = await create(payload, 'pages', { slug: 'blog', title: 'Blog' })
     const archive = await create(payload, 'pages', { parent: blog.id, slug: 'archive', title: 'Archive' })
-    await create(payload, 'pages', { parent: archive.id, slug: 'older', title: 'Older' })
+    const older = await create(payload, 'pages', { parent: archive.id, slug: 'older', title: 'Older' })
+    // A document below that isn't published counts among the documents below, and is not named.
+    await create(payload, 'pages', { parent: blog.id, slug: 'notes', title: 'Notes' }, { draft: true })
     const series = await create(payload, 'posts', { slug: 'series', title: 'Series' })
-    await create(payload, 'posts', { parent: series.id, slug: 'part-one', title: 'Part one' })
+    const partOne = await create(payload, 'posts', { parent: series.id, slug: 'part-one', title: 'Part one' })
     const vault = await create(payload, 'pages', { slug: 'vault', title: 'Vault' })
     changes.length = 0
 
@@ -50,15 +52,36 @@ describeEachSetup('', {}, (test, setup) => {
 
     expect(changes).toEqual([
       {
-        moved: { collection: 'pages', documentsBelow: 2, id: blog.id, paths: fromTo('/blog', '/journal') },
+        moved: {
+          collection: 'pages',
+          documents: [
+            named(setup, archive, '/blog/archive', '/journal/archive'),
+            named(setup, older, '/blog/archive/older', '/journal/archive/older')
+          ],
+          documentsBelow: 3,
+          id: blog.id,
+          paths: fromTo('/blog', '/journal')
+        },
         paths: [at('/journal'), at('/blog')]
       },
       {
-        moved: { collection: 'posts', documentsBelow: 1, id: series.id, paths: fromTo('/series', '/saga') },
+        moved: {
+          collection: 'posts',
+          documents: [named(setup, partOne, '/series/part-one', '/saga/part-one')],
+          documentsBelow: 1,
+          id: series.id,
+          paths: fromTo('/series', '/saga')
+        },
         paths: [at('/saga'), at('/series')]
       },
       {
-        moved: { collection: 'pages', documentsBelow: 1, id: archive.id, paths: fromTo('/journal/archive', '/vault/archive') },
+        moved: {
+          collection: 'pages',
+          documents: [named(setup, older, '/journal/archive/older', '/vault/archive/older')],
+          documentsBelow: 1,
+          id: archive.id,
+          paths: fromTo('/journal/archive', '/vault/archive')
+        },
         paths: [at('/vault/archive'), at('/journal/archive')]
       }
     ])
@@ -73,7 +96,7 @@ describeEachSetup('', {}, (test, setup) => {
 
     expect(changes).toEqual([
       {
-        moved: { collection: 'posts', documentsBelow: 0, id: contact.id, paths: fromTo('/contact', '/reach-us') },
+        moved: { collection: 'posts', documents: [], documentsBelow: 0, id: contact.id, paths: fromTo('/contact', '/reach-us') },
         paths: [at('/reach-us'), at('/contact')]
       }
     ])
@@ -87,7 +110,10 @@ describeEachSetup('', {}, (test, setup) => {
     await update(payload, 'pages', sketch.id, { slug: 'outline' }, { draft: true })
 
     expect(changes).toEqual([
-      { moved: { collection: 'pages', documentsBelow: 0, id: sketch.id, paths: fromTo('/sketch', '/outline') }, paths: [] }
+      {
+        moved: { collection: 'pages', documents: [], documentsBelow: 0, id: sketch.id, paths: fromTo('/sketch', '/outline') },
+        paths: []
+      }
     ])
   })
 
@@ -113,12 +139,12 @@ describeEachSetup('', {}, (test, setup) => {
     expect(changes).toEqual([{ paths: [at('/forecast')] }])
   })
 
-  it('reports the path of a deleted document, and where the documents below it were lifted from and to', async () => {
+  it('reports the path of a deleted document, and where each document below it was lifted from and to', async () => {
     const { changes, payload } = test
     const lab = await create(payload, 'pages', { slug: 'lab', title: 'Lab' })
     const bench = await create(payload, 'pages', { parent: lab.id, slug: 'bench', title: 'Bench' })
     const tools = await create(payload, 'pages', { parent: bench.id, slug: 'tools', title: 'Tools' })
-    await create(payload, 'pages', { parent: tools.id, slug: 'pliers', title: 'Pliers' })
+    const pliers = await create(payload, 'pages', { parent: tools.id, slug: 'pliers', title: 'Pliers' })
     changes.length = 0
 
     await remove(payload, 'pages', bench.id)
@@ -126,11 +152,29 @@ describeEachSetup('', {}, (test, setup) => {
 
     expect(changes).toEqual([
       {
-        lifted: { collection: 'pages', documentsBelow: 2, id: bench.id, paths: fromTo('/lab/bench', '/lab') },
+        lifted: {
+          collection: 'pages',
+          documents: [
+            named(setup, tools, '/lab/bench/tools', '/lab/tools'),
+            named(setup, pliers, '/lab/bench/tools/pliers', '/lab/tools/pliers')
+          ],
+          documentsBelow: 2,
+          id: bench.id,
+          paths: fromTo('/lab/bench', '/lab')
+        },
         paths: [at('/lab/bench')]
       },
       // At the root the lifted documents' paths start with nothing but the slash.
-      { lifted: { collection: 'pages', documentsBelow: 2, id: lab.id, paths: fromTo('/lab', '') }, paths: [at('/lab')] }
+      {
+        lifted: {
+          collection: 'pages',
+          documents: [named(setup, tools, '/lab/tools', '/tools'), named(setup, pliers, '/lab/tools/pliers', '/tools/pliers')],
+          documentsBelow: 2,
+          id: lab.id,
+          paths: fromTo('/lab', '')
+        },
+        paths: [at('/lab')]
+      }
     ])
   })
 

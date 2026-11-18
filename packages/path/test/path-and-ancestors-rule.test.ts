@@ -5,7 +5,7 @@ import { findByPath } from '../src/index.js'
 import { findDocumentAndLatestVersion, findParentAndBuildPathAndAncestors } from '../src/database/versions.js'
 import { getStoredPathAndAncestors, type Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup } from './support/boot-payload.js'
-import { catchFieldErrors, create, readDocument, restoreVersion, update } from './support/documents.js'
+import { catchFieldErrors, create, named, readDocument, restoreVersion, update } from './support/documents.js'
 
 // Where a document is published, it is where it was published, and a draft's new slug or parent there
 // is a pending move. Where it isn't published, it is where its latest draft says, at once.
@@ -57,9 +57,12 @@ describeEachSetup('', {}, (test, setup) => {
       document: { ancestors: [loft.id], paths: paths('/attic/beams') },
       draft: { ancestors: [loft.id], paths: paths('/attic/beams') }
     })
-    // Nothing published changed, and the site hears that the page below moved.
+    // Nothing published changed: the site hears that a page below moved, and no page is named.
     expect(changes).toEqual([
-      { moved: { collection: 'pages', documentsBelow: 1, id: loft.id, paths: fromTo('/loft', '/attic') }, paths: [] }
+      {
+        moved: { collection: 'pages', documents: [], documentsBelow: 1, id: loft.id, paths: fromTo('/loft', '/attic') },
+        paths: []
+      }
     ])
     // The old path is free for another document, and the new one is taken.
     expect((await create(payload, 'pages', { slug: 'loft', title: 'New loft' })).path).toBe('/loft')
@@ -88,7 +91,10 @@ describeEachSetup('', {}, (test, setup) => {
       draft: { ancestors: [roof.id, tiles.id], paths: paths('/roof/tiles/moss') }
     })
     expect(changes).toEqual([
-      { moved: { collection: 'pages', documentsBelow: 1, id: tiles.id, paths: fromTo('/tiles', '/roof/tiles') }, paths: [] }
+      {
+        moved: { collection: 'pages', documents: [], documentsBelow: 1, id: tiles.id, paths: fromTo('/tiles', '/roof/tiles') },
+        paths: []
+      }
     ])
     expect((await create(payload, 'pages', { slug: 'tiles', title: 'New tiles' })).path).toBe('/tiles')
   })
@@ -122,7 +128,13 @@ describeEachSetup('', {}, (test, setup) => {
     expect((await readPathAndAncestors(payload, 'pages', lunch.id)).document.paths).toEqual(paths('/food/lunch'))
     expect(changes).toEqual([
       {
-        moved: { collection: 'pages', documentsBelow: 1, id: menu.id, paths: fromTo('/menu', '/food') },
+        moved: {
+          collection: 'pages',
+          documents: [named(setup, lunch, '/menu/lunch', '/food/lunch')],
+          documentsBelow: 1,
+          id: menu.id,
+          paths: fromTo('/menu', '/food')
+        },
         paths: [at('/food'), at('/menu')]
       }
     ])
@@ -205,8 +217,10 @@ describeEachSetup('', {}, (test, setup) => {
     expect(await readPaths(casks.id)).toEqual(both('/cellar/casks', '/kallare/casks'))
     expect(changes).toEqual([
       {
+        // The page below is published in English only, so its Swedish path is no published path.
         moved: {
           collection: 'pages',
+          documents: [],
           documentsBelow: 1,
           id: cellar.id,
           paths: [{ from: '/cellar', locale: 'sv', to: '/kallare' }]

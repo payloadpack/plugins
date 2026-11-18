@@ -78,6 +78,7 @@ describeEachSetup(
         {
           moved: {
             collection: 'articles',
+            documents: [],
             documentsBelow: 0,
             id: strike.id,
             paths: fromTo('/news/strike', '/news/walkout')

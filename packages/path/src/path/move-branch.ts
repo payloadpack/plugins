@@ -8,14 +8,14 @@ import { hasDrafts } from '../utils/published-locales.js'
 import { findTakenPath } from '../validation/find-taken-path.js'
 import {
   buildPathAndAncestors,
-  getPaths,
   getSlugsAndParent,
   getStoredPathAndAncestors,
   hasSamePathAndAncestors,
   HOME_PAGE_PATH,
   type Id,
   type ParentPathAndAncestors,
-  type PathAndAncestors
+  type PathAndAncestors,
+  type Paths
 } from './build-path-and-ancestors.js'
 
 type BranchMoveRequest = {
@@ -28,11 +28,11 @@ type BranchMoveRequest = {
   req: PayloadRequest
 }
 
-// The rows of a branch that get another path or other ancestors than they store, top-down, and how
-// many documents the branch holds below its first.
+// The rows of a branch that get another path or other ancestors than they store, top-down, each
+// document with the paths its row stores, and how many documents the branch holds below its first.
 export type BranchMove = {
   collection: string
-  documents: { document: StoredDocument; pathAndAncestors: PathAndAncestors }[]
+  documents: { document: StoredDocument; pathAndAncestors: PathAndAncestors; storedPaths: Paths }[]
   documentsBelow: number
   versions: { pathAndAncestors: PathAndAncestors; version: StoredVersion }[]
 }
@@ -78,8 +78,9 @@ export async function findBranchMove({ collection, document: moved, parent, req 
     if (above === undefined) continue
     const pathAndAncestors = buildPathAndAncestors(slugsAndParent, above, collection, payload)
     parents.set(String(document.id), { ...pathAndAncestors, id: document.id })
-    if (!hasSamePathAndAncestors(pathAndAncestors, getStoredPathAndAncestors(document, slug, payload))) {
-      move.documents.push({ document, pathAndAncestors })
+    const stored = getStoredPathAndAncestors(document, slug, payload)
+    if (!hasSamePathAndAncestors(pathAndAncestors, stored)) {
+      move.documents.push({ document, pathAndAncestors, storedPaths: stored.paths })
     }
   }
   for (const version of versions.values()) {
@@ -96,12 +97,11 @@ export async function findBranchMove({ collection, document: moved, parent, req 
       move.versions.push({ pathAndAncestors, version })
     }
   }
-  const landings = move.documents.flatMap(({ document, pathAndAncestors }) => {
-    const storedPaths = getPaths(document.path, slug, payload)
-    return Object.entries(pathAndAncestors.paths).flatMap(([pathLocale, path]) =>
+  const landings = move.documents.flatMap(({ document, pathAndAncestors, storedPaths }) =>
+    Object.entries(pathAndAncestors.paths).flatMap(([pathLocale, path]) =>
       path === null || path === storedPaths[pathLocale] ? [] : [{ document, locale: pathLocale, path }]
     )
-  })
+  )
   for (const { document, locale: pathLocale, path } of landings) {
     // A top-level document with the root slug answers /, which a lifted document would not have before.
     const refusal =
