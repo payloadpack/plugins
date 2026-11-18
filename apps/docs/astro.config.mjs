@@ -77,20 +77,10 @@ export default defineConfig({
               { slug: 'path/configuration', attrs: { 'data-icon': 'settings-2' } },
               { slug: 'path/speed', attrs: { 'data-icon': 'gauge' } },
               {
-                label: 'Features',
-                items: [
-                  'path/features/paths',
-                  'path/features/taken-paths',
-                  'path/features/reserved-slugs',
-                  'path/features/home-page',
-                  'path/features/moves',
-                  'path/features/deletes',
-                  'path/features/drafts',
-                  'path/features/localization',
-                  'path/features/find-by-path',
-                  'path/features/paths-changed'
-                ]
-              }
+                label: 'How it works',
+                items: ['path/paths', 'path/moves-and-deletes', 'path/drafts', 'path/languages', 'path/refusals']
+              },
+              { label: 'API', items: ['path/api/find-by-path', 'path/api/on-paths-changed', 'path/api/backfill-paths'] }
             ]
           }
         ])

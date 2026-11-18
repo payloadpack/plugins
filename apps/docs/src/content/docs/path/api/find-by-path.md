@@ -17,27 +17,19 @@ It returns the document and the collection it is in, or `null` when nothing is p
 
 `found.collection` tells TypeScript which collection `found.document` belongs to, so a `switch` on it picks the right template with the right type.
 
-## Arguments
-
 | Argument      | What it is                                                                  | Default                  |
 | ------------- | --------------------------------------------------------------------------- | ------------------------ |
 | `payload`     | Your Payload instance                                                       |                          |
 | `path`        | The path, starting with `/`, without a locale                               |                          |
 | `locale`      | With localization, the locale the path is in                                | Payload's default locale |
-| `draft`       | Find the latest draft at the path, for previews                             | `false`                  |
+| `draft`       | Find the latest draft at the path, for [previews](/path/drafts/#previews)   | `false`                  |
 | `collections` | The collections to look in, among the plugin's                              | All of them              |
 | `depth`       | How deep the document's relationships are populated, as in Payload's `find` | `0`                      |
 
-`collections` narrows the type too, so with `collections: ['pages']` the result is a page or `null`. A collection the plugin wasn't given stops it with:
+- It runs one indexed query per collection it looks in, at the same time, and none for a path with a [reserved slug](/path/configuration/#reserved-slugs).
+- It reads as the server, so it ignores access control. Use it for what your site shows anyway.
+- It never returns a document in the trash.
+- A document of a collection given with [`localized: false`](/path/languages/#one-path-in-every-locale) is found at its one path under each locale it is published in.
+- `collections` narrows the type too, so with `collections: ['pages']` the result is a page or `null`. A collection the plugin wasn't given stops it with:
 
 > @payloadpack/path was asked for collections that pathPlugin() wasn't given: notices.
-
-A document of a collection given with [`localized: false`](/path/features/localization/#a-collection-that-isnt-localized) has one path for every locale, and is found at it under each locale it is published in.
-
-## What it costs
-
-One indexed query per collection it looks in, run at the same time, and none for a path with a [reserved segment](/path/features/reserved-slugs/).
-
-## What it reads
-
-It reads as the server, at depth 0 unless you pass `depth`, so it ignores access control and returns the document's own fields. Use it for what your site shows anyway, and pass `depth` for the relationships you need. It never returns a document in the [trash](/path/features/deletes/#trash).

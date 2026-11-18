@@ -1,0 +1,101 @@
+---
+title: Moves and deletes
+description: Rename or move a document, and its branch follows. Delete one, and the documents below it move up a level.
+---
+
+import PathChange from '../../../components/path/PathChange.astro'
+import PathDiagram from '../../../components/path/PathDiagram.astro'
+import PathTree from '../../../components/path/PathTree.astro'
+
+<PathDiagram>
+  <PathTree
+    label="Before"
+    documents={[
+      {
+        title: 'Harbour',
+        path: '/harbour',
+        documents: [
+          {
+            title: 'Ferries',
+            path: '/harbour/ferries',
+            documents: [{ title: 'Timetable', path: '/harbour/ferries/timetable' }]
+          }
+        ]
+      }
+    ]}
+  />
+  <PathChange>Harbour is published with the slug `port`</PathChange>
+  <PathTree
+    label="After"
+    documents={[
+      {
+        title: 'Harbour',
+        path: '/port',
+        mark: '/port',
+        documents: [
+          {
+            title: 'Ferries',
+            path: '/port/ferries',
+            mark: '/port',
+            documents: [{ title: 'Timetable', path: '/port/ferries/timetable', mark: '/port' }]
+          }
+        ]
+      }
+    ]}
+  />
+</PathDiagram>
+
+## Moves
+
+When a document is published with a new slug or parent, every document below it gets its new path, in its latest version too.
+
+- A branch stays in its own collection, so a move rewrites only that collection.
+- A move is never refused for its size. [Speed](/path/speed/) has what a branch of 1,000 pages takes.
+- Before anything is written, the plugin works out every new path in the branch, and [refuses](/path/refusals/#taken-paths) the move when one of them is taken or reserved.
+- Saving a draft of a published document moves nothing until it is published. See [Drafts](/path/drafts/).
+
+<PathDiagram>
+  <PathTree
+    label="Before"
+    documents={[
+      {
+        title: 'Company',
+        path: '/company',
+        documents: [
+          {
+            title: 'Team',
+            path: '/company/team',
+            documents: [{ title: 'People', path: '/company/team/people' }]
+          }
+        ]
+      }
+    ]}
+  />
+  <PathChange>An editor deletes Team</PathChange>
+  <PathTree
+    label="After"
+    documents={[
+      {
+        title: 'Company',
+        path: '/company',
+        documents: [{ title: 'People', path: '/company/people', mark: '/people', note: 'lifted' }]
+      }
+    ]}
+  />
+</PathDiagram>
+
+## Deletes
+
+Deleting a document lifts the documents right below it one level, to its parent or to the top level of its collection.
+
+- The delete is [refused](/path/refusals/), and nothing moves, when a lifted document would land on a taken path, a reserved slug or `/`.
+- In a collection given with `parent: false` nothing sits below a document, so a delete lifts nothing.
+- With Payload's `trash`, nothing is lifted until the document is deleted for good. In the trash it takes no path, so another document may take it, and then taking it out of the trash is refused.
+
+:::caution[With Payload's hierarchy]
+If the collection had documents with parents before you added the plugin, run [`backfillPaths`](/path/api/backfill-paths/) once before anything in it is deleted. Until then a delete also deletes the documents right below, as Payload does on its own. With `parent: false` as well, it always does.
+:::
+
+## A move that stops halfway
+
+With transactions, a failed move or delete leaves everything as it was. Without them, which is SQLite's default, some documents keep their old paths until you run [`backfillPaths`](/path/api/backfill-paths/).

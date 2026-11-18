@@ -1,0 +1,55 @@
+---
+title: Paths
+description: A path is the parent's path, a slash and the slug, stored on the document. One document is at each path.
+---
+
+import PathDiagram from '../../../components/path/PathDiagram.astro'
+import PathTree from '../../../components/path/PathTree.astro'
+
+<PathDiagram caption="Each document's own slug is marked, and the posts' base path has a dashed line." layout="columns">
+  <PathTree
+    label="pages"
+    documents={[
+      { title: 'Home', path: '/', mark: '/' },
+      { title: 'About', path: '/about', mark: '/about', documents: [{ title: 'Team', path: '/about/team', mark: '/team' }] }
+    ]}
+  />
+  <PathTree
+    label="posts, with basePath: '/blog'"
+    documents={[
+      {
+        title: 'Hello world',
+        path: '/blog/hello-world',
+        basePath: '/blog',
+        mark: '/hello-world',
+        documents: [{ title: 'Part two', path: '/blog/hello-world/part-two', mark: '/part-two' }]
+      }
+    ]}
+  />
+</PathDiagram>
+
+- A document's path is its parent's path, a slash and its slug. A top-level document starts at its collection's [base path](/path/configuration/#collections), or at the root.
+- A parent is a document of the same collection. Whether it comes from the plugin's own field, Payload's hierarchy or nowhere is set [per collection](/path/configuration/#collections).
+- The path is stored on the document and indexed. Only the plugin writes it, so a value a save sends for it is ignored.
+- The top-level page with the slug `home` is the [home page](/path/configuration/#home-page), at `/`.
+
+## One document per path
+
+- A path belongs to one document, whichever collection it is in and whatever its status, drafts too. Only a document in the trash takes no path.
+- Two documents may share a slug below different parents, such as `/north/contact` and `/south/contact`.
+- A taken path is [refused](/path/refusals/#taken-paths), and the refusal names the document that is at it.
+- A duplicate takes its original's slug with `-copy`, such as `/about-copy`, or `-copy-2` and up when that is taken below the same parent.
+- Each save checks the path before it writes, so two saves of the same path in the same instant can both pass. Both documents then stay at it, and `findByPath` returns one of them, until an editor gives one another slug or parent.
+
+## The slug
+
+| An editor types, or the title is   | The saved slug  |
+| ---------------------------------- | --------------- |
+| `Opening Hours`, as the title only | `opening-hours` |
+| `Summer Sale!`                     | `summer-sale`   |
+| `Vår historia`                     | `var-historia`  |
+| `Новости`                          | `новости`       |
+
+- A slug is cleaned on every save, by your own [`slugify`](/path/configuration/) when you give one. A typed slug with nothing left after cleaning, such as `!!!`, counts as no slug.
+- A save that clears the slug keeps the one it had, and a new title never changes it, so a published URL never moves on its own.
+- The field is Payload's own slug field: locked until the editor unlocks it, with a button that makes the slug from the title. A collection without `admin.useAsTitle` has nothing to make one from.

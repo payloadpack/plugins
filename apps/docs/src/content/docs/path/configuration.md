@@ -19,13 +19,13 @@ pathPlugin({
 })
 ```
 
-| Key                | What it sets                                                                                                                                                                               | Default                                       |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
-| `collections`      | The [collections](#collections) whose documents get a path, each by its slug or as `{ slug, basePath, parent, localized }`                                                                 |                                               |
-| `rootSlug`         | The slug that makes a top-level document the [home page](/path/features/home-page/)                                                                                                        | `home`                                        |
-| `reservedSegments` | [Segments your site serves itself](/path/features/reserved-slugs/), as a list or each with why                                                                                             | Payload's admin and API routes                |
-| `slugify`          | What makes [a slug](/path/features/paths/#the-slug) from a title, from what an editor typed and for the slug field's button, as the `slugify` of Payload's own slug field. It may be async | Accents off Latin letters, other scripts kept |
-| `onPathsChanged`   | A function that [hears which paths changed](/path/features/paths-changed/)                                                                                                                 | none                                          |
+| Key                | What it sets                                                                                                                                                                      | Default                                       |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `collections`      | The [collections](#collections) whose documents get a path, each by its slug or as `{ slug, basePath, parent, localized }`                                                        |                                               |
+| `rootSlug`         | The slug that makes a top-level document the [home page](#home-page)                                                                                                              | `home`                                        |
+| `reservedSegments` | [Segments your site serves itself](#reserved-slugs), as a list or each with why                                                                                                   | Payload's admin and API routes                |
+| `slugify`          | What makes [a slug](/path/paths/#the-slug) from a title, from what an editor typed and for the slug field's button, as the `slugify` of Payload's own slug field. It may be async | Accents off Latin letters, other scripts kept |
+| `onPathsChanged`   | A function that [hears which paths changed](/path/api/on-paths-changed/)                                                                                                          | none                                          |
 
 ## Collections
 
@@ -48,7 +48,7 @@ pathPlugin({
 | `parent`    | `false` when its documents have no parent                                             | Its documents have a parent                     |
 | `localized` | `false` when its documents have [one path in every locale](#one-path-in-every-locale) | With localization, a slug and a path per locale |
 
-With `basePath: '/blog'` a top-level post is at `/blog/my-post`. Leave it out and the collection's top-level documents sit at the root, like pages. See [Paths](/path/features/paths/#base-paths).
+With `basePath: '/blog'` a top-level post is at `/blog/my-post`. Leave it out and the collection's top-level documents sit at the root, like pages. A base path is no document of its own, so a page may sit at `/blog` beside the posts.
 
 A parent is always a document of the same collection: a page sits below a page and a topic below a topic, and a post below a page isn't supported. A path still belongs to one document across all your collections.
 
@@ -86,8 +86,8 @@ Your site gets Payload's tree in the admin, and an editor moves a document with 
 A few things are good to know before you start:
 
 - Give `hierarchy` as `true`, or as an object with `parentFieldName`. In Payload 4.0.0-beta.9 an object without it breaks every delete in the collection, with or without the plugin.
-- A [delete](/path/features/deletes/#with-payloads-hierarchy) lifts the documents right below one level, as in any collection. On its own, Payload deletes them.
-- Where the collection already has documents with parents, run [`backfillPaths`](/path/installation/#documents-you-already-have) once after you add the plugin, before anything in the collection is deleted. Until then a delete also deletes the documents right below, as Payload does on its own.
+- A [delete](/path/moves-and-deletes/#deletes) lifts the documents right below one level, as in any collection. On its own, Payload deletes them.
+- Where the collection already has documents with parents, run [`backfillPaths`](/path/api/backfill-paths/) once after you add the plugin, before anything in the collection is deleted. Until then a delete also deletes the documents right below, as Payload does on its own.
 - Payload's hierarchy has no parent field in the form, so a refused parent, such as a document below itself, shows on the slug field.
 - With `parent: false` as well, the collection keeps Payload's tree in the admin and gets paths without a parent in them. The plugin lifts nothing there, so a delete deletes the documents right below, as Payload does.
 
@@ -95,7 +95,36 @@ A few things are good to know before you start:
 
 With localization in your Payload config, a collection's documents have a slug and a path per locale. With `localized: false`, they have one slug and one path, the same in every locale. It fits a collection whose documents should be at the same path in every language.
 
-`false` is the only value `localized` takes, and it goes together with `basePath`, `parent: false` and Payload's hierarchy. In a site without localization it changes nothing. See [Languages](/path/features/localization/#a-collection-that-isnt-localized) for what it means for publishing and taken paths, and what to do in a collection that already has documents.
+`false` is the only value `localized` takes, and it goes together with `basePath`, `parent: false` and Payload's hierarchy. In a site without localization it changes nothing. See [Languages](/path/languages/#one-path-in-every-locale) for what it means for publishing and taken paths, and what to do in a collection that already has documents.
+
+## Home page
+
+```ts title="payload.config.ts"
+pathPlugin({ collections: ['pages', 'posts'], rootSlug: 'start' })
+```
+
+- The top-level document with this slug is the home page, and its path is `/`. Without `rootSlug`, the slug is `home`.
+- Only a top-level document in a collection without a base path can be it. A page below another page with the slug `start` sits at `/about/start`, and with posts at `/blog`, a post with it sits at `/blog/start`.
+- The home page holds no documents, since their paths would start with `/start/`, which the home page doesn't answer.
+- With localization it is checked per locale, so a page is the home page in the locales where its slug is the root slug.
+
+## Reserved slugs
+
+```ts title="payload.config.ts"
+pathPlugin({
+  collections: ['pages', 'posts'],
+  reservedSegments: {
+    root: { admin: 'the CMS', api: "the CMS's API" },
+    anyDepth: { '-': 'starts the page and filters of a listing' }
+  }
+})
+```
+
+- A segment in `root` is refused as a path's first segment, base path included. Below a parent it is free, so `/docs/api` is fine.
+- A segment in `anyDepth` is refused anywhere in a path, such as the `-` in `/journal/-/page/2`.
+- Without `root`, the plugin reserves the first segment of Payload's `routes.admin` and `routes.api`. A `root` you give is the whole list, so name those two in it, as above.
+- Each also takes a list, such as `root: ['admin', 'api', 'shop']`, and the [refusal](/path/refusals/#reserved-slugs) then gives no reason.
+- A move or a delete that would put a document on a reserved slug is refused too, and `findByPath` answers a path with one with `null`, without asking the database.
 
 ## The fields it adds
 
