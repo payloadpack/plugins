@@ -2,10 +2,8 @@ import type { CollectionBeforeDeleteHook } from 'payload'
 
 import { findParentPathAndAncestors } from '../database/documents.js'
 import { findDocumentAndLatestVersion } from '../database/versions.js'
-import { getStoredPathAndAncestors } from '../path/build-path-and-ancestors.js'
+import { getParentPaths, getStoredPathAndAncestors } from '../path/build-path-and-ancestors.js'
 import { findBranchMove, getLandings, moveBranch } from '../path/move-branch.js'
-import { getBasePath } from '../plugin/options.js'
-import { getLocales } from '../utils/locales.js'
 import { getShownLocales } from '../utils/published-locales.js'
 import { checkBranchMove } from '../validation/check-branch-move.js'
 import { freePaths, takePaths } from '../validation/take-paths.js'
@@ -60,7 +58,5 @@ export const liftBranchBeforeDelete: CollectionBeforeDeleteHook = async ({ colle
   // For the hook after the delete: where the lifted documents went.
   if (branchMove.below.length === 0) return
   // What the paths of the lifted documents start with now: the parent's path, or the base path.
-  const basePath = getBasePath(slug, payload)
-  const liftedTo = parent ? parent.paths : Object.fromEntries(getLocales(payload).map((locale) => [locale, basePath]))
-  change.lifted = getBranchChange(branchMove, id, paths, liftedTo, payload)
+  change.lifted = getBranchChange(branchMove, id, paths, getParentPaths(parent, slug, payload), payload)
 }

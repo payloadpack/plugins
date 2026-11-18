@@ -91,6 +91,14 @@ export function getSlugsAndParent(
   return { parentId, slugs: Object.fromEntries(slugs) }
 }
 
+// What the paths of the documents right below a parent start with, in each locale: the parent's
+// path, or at the top level the collection's base path.
+export function getParentPaths(parent: PathAndAncestors | null, collectionSlug: string, payload: Payload): Paths {
+  if (parent) return parent.paths
+  const basePath = getBasePath(collectionSlug, payload)
+  return Object.fromEntries(getLocales(payload).map((locale) => [locale, basePath]))
+}
+
 /**
  * The one rule of a path and its ancestors: the parent's path, a slash and the slug, below the
  * parent's ancestors and the parent. A top-level document starts at its collection's base path, and
@@ -104,15 +112,15 @@ export function buildPathAndAncestors(
   collection: CollectionConfig,
   payload: Payload
 ): PathAndAncestors {
-  const pathConfig = getPathConfig(payload)
-  const basePath = getBasePath(collection.slug, payload)
+  const { rootSlug } = getPathConfig(payload)
+  const parentPaths = getParentPaths(parent, collection.slug, payload)
   const paths = getLocales(payload).map((locale) => {
     const slug = (hasDraftsEnabled(collection) ? getFallbackLocales(payload, locale) : [locale])
       .map((slugLocale) => slugs[slugLocale])
       .find(isSlug)
-    const parentPath = parent ? parent.paths[locale] : basePath
+    const parentPath = parentPaths[locale]
     if (slug === undefined || parentPath === null || parentPath === undefined) return [locale, null]
-    const isHomePage = !parent && basePath === NO_BASE_PATH && slug === pathConfig.rootSlug
+    const isHomePage = !parent && parentPath === NO_BASE_PATH && slug === rootSlug
     return [locale, isHomePage ? HOME_PAGE_PATH : `${parentPath}/${slug}`]
   })
   return { ancestors: parent ? [...parent.ancestors, parent.id] : [], paths: Object.fromEntries(paths) as Paths }
