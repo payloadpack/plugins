@@ -1,12 +1,12 @@
 import type { CollectionSlug, Payload, PayloadRequest, SanitizedCollectionConfig } from 'payload'
-import { hasDraftsEnabled, hasLocalizeStatusEnabled } from 'payload/shared'
+import { hasDraftsEnabled } from 'payload/shared'
 
 import type { DocumentAndLatestVersion } from '../database/versions.js'
 import type { Id, PathAndAncestors, Paths } from '../path/build-path-and-ancestors.js'
 import type { BranchMove } from '../path/move-branch.js'
 import { isLocalized } from '../plugin/options.js'
 import { getSaved, NO_LOCALE } from '../utils/locales.js'
-import { getPublishedLocales, getShownLocales } from '../utils/published-locales.js'
+import { getPublishedLocales, getShownLocales, hasStatusPerLocale } from '../utils/published-locales.js'
 import type { PathAndAncestorsBefore } from './context.js'
 
 /** A path that shows something else, in the locale it belongs to. Without localization there is no locale. */
@@ -100,9 +100,7 @@ export function getChangedPaths(
   const { payload } = req
   // A save publishes in the locales it holds a status of, and in a collection without drafts, which
   // has none, in the ones it holds a slug of.
-  const publishesPerLocale = hasDraftsEnabled(collection)
-    ? hasLocalizeStatusEnabled(collection)
-    : isLocalized(collection.slug, payload)
+  const publishesPerLocale = hasDraftsEnabled(collection) ? hasStatusPerLocale(collection) : isLocalized(collection.slug, payload)
   const savedLocales = new Set(getSaved(req, publishesPerLocale).savedLocales)
   const publishedLocales = new Set(getPublishedLocales(stored.version?.version ?? stored.document, collection, payload))
   const shownLocales = new Set(getShownLocales(stored.document, collection, payload))

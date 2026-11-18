@@ -5,14 +5,19 @@ import type { StoredDocument } from '../database/documents.js'
 import { getLocales, valueInLocale } from './locales.js'
 
 /**
+ * Whether a row of a collection holds a status per locale. Payload decides it per collection: one
+ * per locale where the collection has a localized field, and one for every locale where it has
+ * none, which a collection given with localized: false can be.
+ */
+export const hasStatusPerLocale = (collection: Pick<CollectionConfig, 'versions'>) => hasLocalizeStatusEnabled(collection)
+
+/**
  * The locales a stored document, or a latest version, is published in. A collection without drafts
- * has no status, and everything in it counts as published. Payload decides per collection how a row
- * holds its status: one per locale where the collection has a localized field, and one for every
- * locale where it has none, which a collection given with localized: false can be.
+ * has no status, and everything in it counts as published.
  */
 export function getPublishedLocales(row: Pick<StoredDocument, '_status'>, collection: CollectionConfig, payload: Payload) {
   if (!hasDraftsEnabled(collection)) return getLocales(payload)
-  const perLocale = hasLocalizeStatusEnabled(collection)
+  const perLocale = hasStatusPerLocale(collection)
   return getLocales(payload).filter((locale) => valueInLocale(row._status, locale, perLocale) === 'published')
 }
 
