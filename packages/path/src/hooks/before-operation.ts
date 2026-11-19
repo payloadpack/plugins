@@ -5,19 +5,18 @@ import type { Id } from '../path/build-path-and-ancestors.js'
 import { documentKey, getBulkOperation, getPathContext, startBulkOperation } from './context.js'
 
 /**
- * Starts what the documents of a bulk update or a bulk delete hand each other on its request, and
- * marks a document that an operation by id saves while one is there as saved on its own. It runs in
- * Payload's beforeOperation because that runs once for each operation, before any of its documents,
- * and is where a bulk operation, which names no id, is told from one by id. It is also the only hook
- * Payload tells whether an update or a restore was sent as a draft, which the check before the write
- * needs: an unpublish has the status of a draft save and writes the document itself, and so does a
- * draft version restored as the document.
+ * Runs in beforeOperation because it runs once for each operation, before any of its documents, tells
+ * a bulk operation (no id) from one by id, and is the only hook told whether an update or a restore
+ * was sent as a draft.
  *
- * A bulk operation starts fresh, in place of whatever one that failed as a whole left behind: Payload
- * skips the afterOperation of an operation that throws. A document saved on its own neither takes
- * paths nor looks at the ones taken, so what a bulk operation took never refuses a save by id on the
- * same request, also not after that bulk operation failed. A restore names the version, so the
- * document is read off it.
+ * - Bulk update or delete: starts what its documents hand each other on its request, fresh, since
+ *   Payload skips afterOperation when an operation throws and so leaves a failed one's behind.
+ * - Update or restore by id: notes whether Payload writes the document itself, for the check before
+ *   the write. An unpublish and a draft version restored as the document have a draft save's status
+ *   and still write it. A restore names the version, so the document is read off it.
+ * - By id while a bulk operation is there: marks the document as saved on its own, so it neither
+ *   takes paths nor looks at the ones taken, and what the bulk operation took never refuses it, also
+ *   after that one failed.
  */
 export const startBulkOperationBeforeOperation: CollectionBeforeOperationHook = async ({ args, collection, operation, req }) => {
   if (operation !== 'update' && operation !== 'delete' && operation !== 'restoreVersion') return

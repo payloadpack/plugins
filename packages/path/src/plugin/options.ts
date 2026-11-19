@@ -213,10 +213,9 @@ export function getParentFieldName(collectionSlug: string, payload: Payload) {
 
 /**
  * Whether a collection's documents have a slug and a path per locale, which resolveCollection alone
- * decides. Where they don't, in a site without localization or in a collection given without
- * localized: true, a row holds one slug and one path, and the document is at that path in every
- * locale of the site. What reads a slug or a path off a row, writes one to a row or names one in a
- * query asks here, and nothing else knows the difference.
+ * decides. Where they don't, a row holds one slug and one path, and the document is at that path in
+ * every locale of the site. What reads a slug or a path off a row, writes one to a row or names one
+ * in a query asks here, and nothing else knows the difference.
  */
 export const isLocalized = (collectionSlug: string, payload: Payload) =>
   Boolean(getCollection(collectionSlug, getPathConfig(payload))?.localized)

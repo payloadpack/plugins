@@ -66,8 +66,6 @@ export async function findBranchMove({ collection, id, parent, req }: BranchMove
   if (getParentFieldName(slug, payload) === undefined) return move
   if ((await countBelow(slug, id, req)) > 0) move.below = await findDocumentsBelow(slug, id, req)
   const { below } = move
-  // The latest versions of those documents, and the ones whose draft would put their document below
-  // the document while the document itself is elsewhere.
   const versions = hasDraftsEnabled(collection)
     ? await findLatestVersionsBelow(
         slug,
@@ -121,21 +119,22 @@ export const getLandings = ({ collection, documents }: BranchMove): TakenPath[] 
  * Stores a branch move, top-down: the documents first, and then the latest versions. A move of a big
  * branch takes a while, and a save of a document below may land meanwhile, so each row is read again
  * right before its write: a document with its latest version, and a latest version found again,
- * since a save may have made a newer one. A row that is gone is skipped, and so is one whose slugs or
- * parent are no longer the ones its path and ancestors were built from: the save that changed them
- * gave the document a path in its own hooks, and a write here would undo that save. The rows below a
- * document skipped so are skipped too, since the move built their paths from its old ones and its
- * save gave them theirs. Every other row is written as it is now, with the path and ancestors the
- * move built. A document's row is written only while it is as it was read here, so a save that lands
- * between the read and the write is kept: the row is read again and decided again, as many times as a
- * save comes first.
+ * since a save may have made a newer one.
  *
- * This narrows what two requests at once can do to each other, and closes none of it. A latest
- * version is written by its id, so a save between its read here and its write is written over. A row
- * deleted in the moment the move writes it comes back on Postgres, and by the adapter's source on
- * SQLite too, where the write is an insert that updates the row when it is there. And a save that changed a row's slugs or parent
- * before the move wrote that row's parent built its path from the parent's old one, so the skipped
- * row is left at a path below where its parent was, until a run of backfillPaths.
+ * - A row that is gone is skipped, and so is one whose slugs or parent are no longer the ones its
+ *   path and ancestors were built from: the save that changed them gave the document a path in its
+ *   own hooks, and a write here would undo that save. The rows below a document skipped so are
+ *   skipped too, since the move built their paths from its old ones and its save gave them theirs.
+ * - Every other row is written as it is now, with the path and ancestors the move built: a document's
+ *   row with ifUnchanged, so a save between the read and the write is kept, and the row is read and
+ *   decided again as many times as a save comes first.
+ *
+ * This narrows what two requests at once can do to each other, and closes none of it. A save of a
+ * latest version between its read here and its write is written over, and a row deleted in the moment
+ * the move writes it comes back: see setDraftPathAndAncestors and setPathAndAncestors. And a save
+ * that changed a row's slugs or parent before the move wrote that row's parent built its path from
+ * the parent's old one, so the skipped row is left at a path below where its parent was, until a run
+ * of backfillPaths.
  */
 export async function moveBranch({ collection, documents, versions }: BranchMove, req: PayloadRequest) {
   const { config } = req.payload.collections[collection as CollectionSlug]

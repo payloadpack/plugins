@@ -121,26 +121,24 @@ const isNoDate = (timestamp: unknown) => timestamp != null && Number.isNaN(new D
  * row since it was read. The row keeps its updatedAt, because each adapter stamps a new one on a write
  * without it, so a save is what changes it.
  *
- * A write that comes long after its read, as a move's or a backfill's does, asks for ifUnchanged: it
- * lands only while the row still has the updatedAt it was read with, and says whether it landed, so
- * the caller reads the row again and decides again when a save came first. Without transactions on
- * Postgres and SQLite only the first statement of the write carries that condition. A row that holds
- * no updatedAt, as in a collection with timestamps: false, has nothing to compare and is written by its
- * id, as is every row without ifUnchanged.
- *
- * A write on the condition can also miss a row nobody saved: one whose updatedAt Payload didn't
- * write, such as text an import left on SQLite or a string on MongoDB, which the value Payload reads
- * back doesn't find in a where. So a miss reads the row again. A save stamps a new updatedAt, so a row
- * that still has the one it was read with wasn't saved since, and is written by its id as it is now.
- * A row that is gone, or has another updatedAt, says the write didn't land. That can't loop: the
- * caller tries again only after a save changed the row. A miss costs one more read, and such a row
- * the write by id that every row got before the condition.
- *
- * On MongoDB such text may be no date at all, in createdAt too. Payload reads that row as it is and
- * can save it, and the adapter refuses the text in a write. So a timestamp that is no date is not
- * sent back, and the row keeps it: an updatedAt of null tells each adapter to leave the one the row
- * holds, and a createdAt that isn't sent isn't written. That row has no updatedAt to compare, and is
- * written by its id.
+ * - With ifUnchanged, for a write long after its read, as a move's or a backfill's: it lands only
+ *   while the row still has the updatedAt it was read with, and says whether it landed, so the caller
+ *   reads the row again and decides again when a save came first. Without transactions on Postgres
+ *   and SQLite only the first statement of the write carries that condition.
+ * - Without it, or with no updatedAt to compare, as with timestamps: false: written by its id.
+ * - A miss on a row nobody saved, whose updatedAt Payload didn't write, such as text an import left
+ *   on SQLite or a string on MongoDB, which the value Payload reads back doesn't find in a where: the
+ *   row is read again. A save stamps a new updatedAt, all but a draft save of a document that was
+ *   never published, so a row that still has the one it was read with is taken as not saved since,
+ *   and is written by its id as it is now. One that is gone, or has another, says the write didn't
+ *   land. That can't loop: the caller tries again only after a save changed the row. A miss costs
+ *   one more read, and such a row the write by id that every row got before the condition.
+ * - A timestamp that is no date, as such text may be on MongoDB, in createdAt too: Payload reads that
+ *   row as it is and can save it, and the adapter refuses the text in a write. So it is not sent back
+ *   and the row keeps it: an updatedAt of null tells each adapter to leave the one the row holds, and
+ *   a createdAt that isn't sent isn't written. With no updatedAt to compare, it is written by its id.
+ * - A row deleted in the moment of the write comes back on Postgres, and by the adapter's source on
+ *   SQLite too, where the write is an insert that updates the row when it is there.
  */
 export async function setPathAndAncestors(
   collection: string,

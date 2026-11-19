@@ -317,10 +317,8 @@ describeEachSetup(
   }
 )
 
-// A row whose updatedAt Payload didn't write, as an import may leave one, isn't found by a where on
-// the value Payload reads back from it, so a move's write of it on the condition never lands.
-// Postgres is left out: it keeps updatedAt in a timestamp column, so every value reads back as what
-// finds the row.
+// A move's write on the condition never lands on a row whose updatedAt Payload didn't write.
+// setUpdatedAtNotWrittenByPayload says what such a row is and why Postgres is left out.
 describeEachSetup(
   'a document whose updatedAt Payload did not write',
   { setups: SETUPS.filter(({ database }) => database !== 'postgres') },
@@ -348,10 +346,9 @@ describeEachSetup(
   }
 )
 
-// On MongoDB a row may hold text that is no date as its createdAt or updatedAt, as an import may leave
-// it. Payload reads such a row as it is and can save it, and the adapter refuses that text in a write,
-// so a move leaves both as the row holds them. SQLite and Postgres are left out: Payload can't read
-// such a row on SQLite, and Postgres keeps both in timestamp columns.
+// A move leaves a createdAt and an updatedAt that are no dates as the row holds them, since the
+// adapter refuses that text in a write. setTimestampsThatAreNoDates says what such a row is and why
+// only MongoDB has one.
 describeEachSetup(
   'a document whose timestamps are no dates',
   { setups: SETUPS.filter(({ database }) => database === 'mongodb') },

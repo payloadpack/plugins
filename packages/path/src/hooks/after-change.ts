@@ -24,10 +24,8 @@ import { getBranchChange, getChangedPaths } from './paths-change.js'
  * document holds. And the documents below need writes of their own, which a hook before the write
  * can't make.
  *
- * It looks at what the database holds: it finds the document and its latest version, builds the
- * path and ancestors of each by the one rule, and stores them where the row stores other ones. When
- * the document's path or ancestors are other ones than before the write, the documents below follow.
- * Every check runs before the first write, and the site hears which paths changed after the last.
+ * It looks at what the database holds, in the steps below. Every check runs before the first write,
+ * and the site hears which paths changed after the last.
  */
 export const setPathAfterChange: CollectionAfterChangeHook = async ({ collection, doc, operation, req }) => {
   const { payload } = req

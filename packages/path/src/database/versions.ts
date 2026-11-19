@@ -120,7 +120,9 @@ export async function findParentAndBuildPathAndAncestors(
   return buildPathAndAncestors(slugsAndParent.slugs, parent, collection, req.payload)
 }
 
-// MongoDB changes the object it is given, so the row it is made from is not read again afterwards.
+// Writes a latest version's row whole, as setPathAndAncestors says, and by its id, so a save of that
+// version between its read and this write is written over. MongoDB changes the object it is given, so
+// the row it is made from is not read again afterwards.
 export async function setDraftPathAndAncestors(
   collection: string,
   version: StoredVersion,

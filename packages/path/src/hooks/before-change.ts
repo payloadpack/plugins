@@ -80,17 +80,17 @@ function getSavedPaths(
  * Checks the path a save would give its document, and puts it in the data. It runs in Payload's
  * beforeChange because that is the last point where a refusal stops the write, and the only one
  * where the path, the slug and the ancestors can go into the data Payload writes: into the latest
- * version always, and into the document itself when Payload writes that. Of that write it knows one
- * thing: whether Payload writes the document itself, which a publish does, and so does an update or
- * a restore that wasn't sent as a draft, such as an unpublish. Everything else of it the hook after
- * it looks at.
+ * version always, and into the document itself when Payload writes that.
  *
- * It refuses what the data itself shows, in this order: a publish without a slug to make a path
- * from in any locale, a parent the document can't sit below, a path the document can't be at, and a
- * landing of a document below it. It stores nothing, because Payload's dry-run validate runs this
- * hook too. A document of a bulk update takes its paths before it asks the database, because Payload
- * runs the documents of a bulk update at once. What it took is kept by that bulk update only, so a
- * save that fails after this hook can't leave a path taken for anything after it.
+ * - Of that write it knows one thing: whether Payload writes the document itself, see DocumentWrite.
+ *   Everything else of it the hook after it looks at.
+ * - It refuses what the data itself shows, in this order: a publish without a slug to make a path
+ *   from in any locale, a parent the document can't sit below, a path the document can't be at, and
+ *   a landing of a document below it.
+ * - It stores nothing, because Payload's dry-run validate runs this hook too.
+ * - A document of a bulk update takes its paths before it asks the database, see takePaths. What it
+ *   took is kept by that bulk update only, so a save that fails after this hook can't leave a path
+ *   taken for anything after it.
  */
 export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collection, data, operation, originalDoc, req }) => {
   const { payload } = req

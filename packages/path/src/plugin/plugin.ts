@@ -31,8 +31,8 @@ import {
 // field unless Payload's own hierarchy brings one. Only that field takes what the site sets on a
 // parent field. The plugin's hooks go ahead of the collection's own, so those see the path and a
 // refused save or delete stops before them. Two go after them: the lift of a delete, so a delete the
-// collection's own hooks refuse moves nothing, and the start of a bulk operation, which then sees the
-// operation as it runs.
+// collection's own hooks refuse moves nothing, and startBulkOperationBeforeOperation, which then
+// sees the operation as it runs.
 function withPath(
   collection: CollectionConfig,
   {

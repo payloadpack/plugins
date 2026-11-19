@@ -14,8 +14,7 @@ export const getNewPaths = (pathAndAncestors: PathAndAncestors, ...known: (PathA
 
 /**
  * Refuses the paths a document can't be at: one with a reserved segment, the home page's for a
- * document with others below it, and one another document is at, which the refusal names with where
- * it is: the path, or what an editor who is saving at that path reads instead.
+ * document with others below it, and one another document is at, see checkTakenPaths.
  */
 export async function checkNewPaths(slug: string, id: Id | undefined, paths: LocalePath[], req: PayloadRequest, here?: string) {
   for (const [locale, path] of paths) {

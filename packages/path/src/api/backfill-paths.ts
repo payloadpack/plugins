@@ -61,8 +61,7 @@ async function findParentAndBuildCheckedPathAndAncestors(
 // Stores a document's path and ancestors, and the ones its latest draft would give it, where its rows
 // store other ones, as a move stores them, and says whether it stored any, or nothing for a document
 // that is gone. Refused as a save is, and where another document is at a path it stores, before
-// either write. The document's row is written only while it is as it was read here, so when a save
-// lands in between, the document is read again and taken again from its rows as that save left them.
+// either write. Written with ifUnchanged: after a save in between, it is read and taken again.
 async function backfillDocument(collection: CollectionConfig, id: Id, req: PayloadRequest): Promise<boolean | undefined> {
   const stored = await findDocumentAndLatestVersion(collection, id, req)
   if (!stored) return
@@ -113,15 +112,16 @@ async function findIdsTopDown(collection: CollectionConfig, req: PayloadRequest)
  * slugs and its parent make by the one rule, for a site that had documents before it added the plugin
  * and for a move that stopped halfway. Parents come before the documents below them, and only a row
  * that stores another path or other ancestors is written, as a move writes it: without a new version
- * and without the collection's hooks. A document a save would refuse, and one without a slug in any
- * locale, is left as it is and listed with the refusal. So is a document at a path another document
- * is at too. A site may be live while it runs, so each document is read again when the run gets to
- * it, and its path and ancestors are built from its rows as they are then: a save that landed since
- * the run began is kept, and a document deleted since is skipped. The document's row is written only
- * while it is as it was read then, so a save that lands between that read and the write is kept too,
- * and the document is read and taken again. Its latest version is written by its id, so a save
- * between its read and its write is written over, and a document deleted in the moment the run
- * writes its row comes back on Postgres, and by the adapter's source on SQLite too.
+ * and without the collection's hooks.
+ *
+ * - Left as it is and listed with the refusal: a document a save would refuse, one without a slug in
+ *   any locale, and one at a path another document is at too.
+ * - A site may be live while it runs: each document is read again when the run gets to it, and its
+ *   path and ancestors are built from its rows as they are then. A save that lands before the write
+ *   of its row is kept, and a document deleted since the run began is skipped.
+ * - A save of its latest version between its read and its write is written over, and a document
+ *   deleted in the moment the run writes its row comes back on Postgres, and by the adapter's source
+ *   on SQLite too.
  */
 export async function backfillPaths({
   collections,

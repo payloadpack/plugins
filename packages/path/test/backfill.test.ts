@@ -238,10 +238,8 @@ describeEachSetup(
   }
 )
 
-// A row whose updatedAt Payload didn't write, as an import may leave one, isn't found by a where on
-// the value Payload reads back from it, so a backfill's write of it on the condition never lands.
-// Postgres is left out: it keeps updatedAt in a timestamp column, so every value reads back as what
-// finds the row.
+// A backfill's write on the condition never lands on a row whose updatedAt Payload didn't write.
+// setUpdatedAtNotWrittenByPayload says what such a row is and why Postgres is left out.
 describeEachSetup(
   'a document whose updatedAt Payload did not write',
   { setups: SETUPS.filter(({ database }) => database !== 'postgres') },
