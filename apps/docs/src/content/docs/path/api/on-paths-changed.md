@@ -1,6 +1,6 @@
 ---
 title: onPathsChanged
-description: Hear which paths changed after a publish, a move or a delete, so your site can purge its cache.
+description: Hear where your site finds each document after a publish, a move or a delete, so it can purge its cache and keep its redirects.
 ---
 
 ```ts title="payload.config.ts"
@@ -8,77 +8,94 @@ import { revalidatePath } from 'next/cache'
 
 pathPlugin({
   collections: ['pages', 'posts'],
-  onPathsChanged: ({ paths, moved, lifted }) => {
-    for (const { path } of paths) revalidatePath(path)
-    // Each published document below a moved or deleted one has a new path too.
-    for (const document of (moved ?? lifted)?.documents ?? []) {
-      for (const { from, to } of document.paths) {
-        revalidatePath(from)
-        revalidatePath(to)
-      }
+  onPathsChanged: ({ changedPaths }) => {
+    for (const { from, to } of changedPaths) {
+      if (from) revalidatePath(from)
+      if (to) revalidatePath(to)
     }
   }
 })
 ```
 
-## What it hears
+## What it is given
 
 ```ts
-type PathsChange = {
-  paths: { path: string; locale?: string }[]
-  moved?: BranchChange
-  lifted?: BranchChange
+type PathsChangedArgs = {
+  changedPaths: ChangedPath[]
+  payload: Payload
+  req: PayloadRequest
 }
 
-type BranchChange = {
+type ChangedPath = {
   collection: string
   id: number | string
-  documentsBelow: number
-  paths: { from: string; to: string; locale?: string }[]
-  documents: { id: number | string; paths: { from: string; to: string; locale?: string }[] }[]
+  locale?: string
+  from: string | null
+  to: string | null
 }
 ```
 
-| After                    | `paths`                                                                             | `moved` or `lifted`                                    |
-| ------------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| A publish                | The path it published at, and the one it left if it moved                           | `moved`, if it moved                                   |
-| A move                   | The document's new path and old path                                                | `moved`                                                |
-| An unpublish             | The path it was unpublished at                                                      | `moved`, if it moved                                   |
-| A delete                 | The path it was published at                                                        | `lifted`, when documents below it were lifted          |
-| Into or out of the trash | The path of a published document sent to the trash, or taken out of it as published |                                                        |
-| A draft save             | Nothing                                                                             | `moved`, when it moved a document that isn't published |
+Each entry of `changedPaths` is one published document in one locale: `from` is the path your site found it at before, and `to` the path it finds it at now.
 
-- `moved` names the document a save moved, and `lifted` the document a delete removed when documents below it were lifted. Both name the collection as well as the id, since a page and a post may share an id on Postgres and SQLite.
-- In both, every path that started with `from` and a slash now starts with `to` and a slash. For `lifted`, `to` is the parent's path, the collection's base path, or an empty string at the root.
-- `documents` names each document below that your site finds at another path now, top-down, with the path it left and the one it is at, in each locale it is published in. A document below that isn't published is not listed, so there can be fewer than `documentsBelow`.
-- A bulk delete that deletes a document and one below it reports each delete with its own `lifted`, and they may come in either order. `documents` names where each document ended up. The rules in `paths` hold when your site follows them one after the other, as redirects do.
-- A document that a move left as it was, because a save gave it a new slug or parent meanwhile, is still named with the path the move meant for it. See [Limits](/path/limits/#a-document-stays-at-its-old-path-after-the-document-above-it-moved).
-- A rename of a document with nothing below it reports `moved` with `documentsBelow: 0`, and a publish that keeps the slug and the parent reports none.
-- It isn't called when there is nothing to report. A delete of a document in the trash reports no `paths`, since your site heard them when it went there, and still reports `lifted`.
-- With localization, each path has its `locale`, and only the locales the save changed are listed, which usually includes the ones that fall back to a renamed slug.
-- A collection with one path in every locale is reported in the same shape: its one path is listed once for each locale your site finds the document in, and a move's `from` and `to` come per locale.
+| After                                     | `from`       | `to`          |
+| ----------------------------------------- | ------------ | ------------- |
+| A publish                                 | `null`       | The path      |
+| A publish that keeps the path             | The path     | The same path |
+| An unpublish, a delete, or into the trash | The path     | `null`        |
+| Out of the trash, as published            | `null`       | The path      |
+| A move                                    | The old path | The new path  |
+| A move or a delete of a document above it | The old path | The new path  |
+
+- The saved or deleted document comes first, then each document below it, top-down. Each entry names the collection as well as the id, since a page and a post may share an id on Postgres and SQLite.
+- Only what your site shows is listed. A draft save of a published document lists nothing, and neither does a document that isn't published. When a document that isn't published moves, the published documents below it are still listed.
+- It isn't called when there is nothing to list. A delete of a document in the trash lists no path of its own, since your site heard it when it went there, and still lists the documents below that were lifted.
+- A move of a big branch lists every published document below it, so a branch of thousands gives thousands of entries.
+- A bulk delete that deletes a document and one below it reports each delete on its own, and they may come in either order. Each lifted document is listed with where it ended up. A document that was lifted and then deleted in the same bulk delete is listed by both: with a `to` by the delete above it, and without one by its own.
+- A document that a move left as it was, because a save gave it a new slug or parent meanwhile, is still listed with the path the move meant for it. See [Limits](/path/limits/#a-document-stays-at-its-old-path-after-the-document-above-it-moved).
+- With localization, each entry has its `locale`, and only the locales the save changed are listed, which usually includes the ones that fall back to a renamed slug.
+- A collection with one path in every locale is listed in the same shape: its one path once for each locale your site finds the document in.
+
+## What is yours to purge
+
+`onPathsChanged` names the documents your site finds somewhere else. Three things it leaves to you:
+
+- **The locale in your URLs.** A path never holds the locale, so with a prefix such as `/sv` you put it in front yourself:
+
+  ```ts
+  for (const { locale, from, to } of changedPaths) {
+    for (const path of [from, to]) {
+      if (path) revalidatePath(`/${locale}${path === '/' ? '' : path}`)
+    }
+  }
+  ```
+
+- **Pages that show another document.** A menu, a page that lists the documents below it, breadcrumbs, a sitemap. The plugin knows which paths changed, and not which pages link to them or show their titles. Purge those by a tag, or all of them with `revalidatePath('/', 'layout')`.
+- **A run of `backfillPaths`.** It doesn't call `onPathsChanged`, so purge everything once after a run that updated documents.
 
 ## Redirects
 
-`moved` and `lifted` hold what a redirect needs: the moved document's own paths, and those of each published document below it.
+An entry with a `from` and another `to` is a document that moved, which is what a redirect needs.
 
 ```ts title="payload.config.ts"
 pathPlugin({
   collections: ['pages', 'posts'],
-  onPathsChanged: async ({ moved, lifted }) => {
-    // A moved document is at its new path. A deleted one is gone, so only the documents below it get a redirect.
-    const own = moved?.paths ?? []
-    const below = (moved ?? lifted)?.documents.flatMap((document) => document.paths) ?? []
-    for (const { from, to, locale } of [...own, ...below]) {
-      // saveRedirect is yours.
-      await saveRedirect({ from, to, locale })
+  onPathsChanged: async ({ changedPaths, payload, req }) => {
+    for (const { from, to, locale } of changedPaths) {
+      // A document that is new has no from, and one that is gone has no to. Neither gets a redirect.
+      if (!from || !to || from === to) continue
+      // redirects is a collection of yours. With req, the redirect is undone when the save fails.
+      await payload.create({ collection: 'redirects', data: { from, to, locale }, overrideAccess: true, req })
     }
   }
 })
 ```
 
-For a branch too big to keep a redirect per document, `paths` on `moved` or `lifted` gives one rule per locale instead: every path that starts with `from` and a slash goes to the same path below `to`. After a delete at the root `to` is an empty string, so `/about/team` goes to `/team`.
+A document that moves back to where it was leaves two redirects that point at each other. Before you save one, remove the redirects whose `from` is its `to`.
 
 ## When it runs
 
-After the plugin's own work, inside the save's request, with `req` as its second argument. A throw fails the save, so catch what shouldn't stop an editor from publishing.
+After the plugin's own work, inside the save's request. It may be async, and the save waits for it. Beside what changed, it is given `payload`, your Payload instance, and `req`, the request of the save or the delete.
+
+- A throw fails the save, so catch what shouldn't stop an editor from publishing.
+- `revalidatePath` throws outside a request of Next, such as in a seed script or a job, and every save there would fail with it. Catch it, or skip the purge on a flag of your own in `req.context`.
+- With transactions it runs before the save is committed. Pass `req` to what you write, as the redirects above do, so it is undone with a save that fails. A page a visitor asks for between your purge and the commit is cached as it was, which holds for any hook of Payload that purges, and the next publish of the page puts it right.

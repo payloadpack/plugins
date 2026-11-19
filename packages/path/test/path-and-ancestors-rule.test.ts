@@ -5,7 +5,7 @@ import { findByPath } from '../src/index.js'
 import { findDocumentAndLatestVersion, findParentAndBuildPathAndAncestors } from '../src/database/versions.js'
 import { getStoredPathAndAncestors, type Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup } from './support/boot-payload.js'
-import { catchFieldErrors, create, named, readDocument, restoreVersion, update } from './support/documents.js'
+import { catchFieldErrors, changed, create, readDocument, restoreVersion, update } from './support/documents.js'
 
 // Where a document is published, it is where it was published, and a draft's new slug or parent there
 // is a pending move. Where it isn't published, it is where its latest draft says, at once.
@@ -33,10 +33,6 @@ describeEachSetup('', {}, (test, setup) => {
 
   // The paths of every locale: without localization there is one, under no locale.
   const paths = (english: string, swedish = english) => (setup.localized ? { en: english, sv: swedish } : { '': english })
-  const at = (path: string) => (setup.localized ? { locale: 'en', path } : { path })
-  // Where a branch went. With localization Swedish falls back to the English slug, so it went there too.
-  const fromTo = (from: string, to: string) =>
-    setup.localized ? ['en', 'sv'].map((locale) => ({ from, locale, to })) : [{ from, to }]
   const takenBy = (document: string) => [
     { message: `${document} is already at this path, so change the slug or the parent.`, path: 'slug' }
   ]
@@ -57,13 +53,8 @@ describeEachSetup('', {}, (test, setup) => {
       document: { ancestors: [loft.id], paths: paths('/attic/beams') },
       draft: { ancestors: [loft.id], paths: paths('/attic/beams') }
     })
-    // Nothing published changed: the site hears that a page below moved, and no page is named.
-    expect(changes).toEqual([
-      {
-        moved: { collection: 'pages', documents: [], documentsBelow: 1, id: loft.id, paths: fromTo('/loft', '/attic') },
-        paths: []
-      }
-    ])
+    // Nothing published changed, so the site hears nothing.
+    expect(changes).toEqual([])
     // The old path is free for another document, and the new one is taken.
     expect((await create(payload, 'pages', { slug: 'loft', title: 'New loft' })).path).toBe('/loft')
     expect(await catchFieldErrors(create(payload, 'pages', { slug: 'attic', title: 'New attic' }))).toMatchObject(
@@ -90,12 +81,7 @@ describeEachSetup('', {}, (test, setup) => {
       document: { ancestors: [roof.id, tiles.id], paths: paths('/roof/tiles/moss') },
       draft: { ancestors: [roof.id, tiles.id], paths: paths('/roof/tiles/moss') }
     })
-    expect(changes).toEqual([
-      {
-        moved: { collection: 'pages', documents: [], documentsBelow: 1, id: tiles.id, paths: fromTo('/tiles', '/roof/tiles') },
-        paths: []
-      }
-    ])
+    expect(changes).toEqual([])
     expect((await create(payload, 'pages', { slug: 'tiles', title: 'New tiles' })).path).toBe('/tiles')
   })
 
@@ -127,16 +113,7 @@ describeEachSetup('', {}, (test, setup) => {
     expect((await readPathAndAncestors(payload, 'pages', menu.id)).document.paths).toEqual(paths('/food'))
     expect((await readPathAndAncestors(payload, 'pages', lunch.id)).document.paths).toEqual(paths('/food/lunch'))
     expect(changes).toEqual([
-      {
-        moved: {
-          collection: 'pages',
-          documents: [named(setup, lunch, '/menu/lunch', '/food/lunch')],
-          documentsBelow: 1,
-          id: menu.id,
-          paths: fromTo('/menu', '/food')
-        },
-        paths: [at('/food'), at('/menu')]
-      }
+      [changed(setup, 'pages', menu, '/menu', '/food'), changed(setup, 'pages', lunch, '/menu/lunch', '/food/lunch')]
     ])
   })
 
@@ -215,19 +192,9 @@ describeEachSetup('', {}, (test, setup) => {
 
     expect(await readPaths(cellar.id)).toEqual(both('/cellar', '/kallare'))
     expect(await readPaths(casks.id)).toEqual(both('/cellar/casks', '/kallare/casks'))
-    expect(changes).toEqual([
-      {
-        // The page below is published in English only, so its Swedish path is no published path.
-        moved: {
-          collection: 'pages',
-          documents: [],
-          documentsBelow: 1,
-          id: cellar.id,
-          paths: [{ from: '/cellar', locale: 'sv', to: '/kallare' }]
-        },
-        paths: []
-      }
-    ])
+    // The page and the page below it are published in English only, so a Swedish path is no
+    // published path, and the site hears nothing.
+    expect(changes).toEqual([])
   })
 
   it('changes no Swedish path when a page with a Swedish draft slug is published in English again', async () => {
@@ -242,7 +209,7 @@ describeEachSetup('', {}, (test, setup) => {
 
     expect(await readPaths(pantry.id)).toEqual(both('/pantry', '/skafferi'))
     expect(await readPaths(jars.id)).toEqual(both('/pantry/jars', '/skafferi/jars'))
-    expect(changes).toEqual([{ paths: [{ locale: 'en', path: '/pantry' }] }])
+    expect(changes).toEqual([[changed(setup, 'pages', pantry, '/pantry', '/pantry')]])
   })
 
   it('keeps a Swedish rename pending on a page published in both locales, until Swedish is published', async () => {
@@ -259,7 +226,7 @@ describeEachSetup('', {}, (test, setup) => {
     await update(payload, 'pages', dairy.id, { title: 'The dairy' })
     expect(await readPaths(dairy.id)).toEqual(pending)
     expect(await readPaths(churn.id)).toEqual(both('/dairy/churn', '/mejeri/churn'))
-    expect(changes).toEqual([{ paths: [{ locale: 'en', path: '/dairy' }] }])
+    expect(changes).toEqual([[changed(setup, 'pages', dairy, '/dairy', '/dairy')]])
 
     await update(payload, 'pages', dairy.id, {}, inSwedish)
     expect(await readPaths(dairy.id)).toEqual(both('/dairy', '/ysteri'))

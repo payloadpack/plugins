@@ -8,14 +8,14 @@ import {
 import { getStoredPathAndAncestors, hasSamePathAndAncestors } from '../path/build-path-and-ancestors.js'
 import { findBranchMove, moveBranch } from '../path/move-branch.js'
 import { THIS_PATH } from '../plugin/messages.js'
-import { getPathConfig, isLocalized } from '../plugin/options.js'
+import { isLocalized } from '../plugin/options.js'
 import { getSaved } from '../utils/locales.js'
 import { checkBranchMove } from '../validation/check-branch-move.js'
 import { checkNewPaths, getNewPaths } from '../validation/check-new-paths.js'
 import { checkPublishedPaths } from '../validation/check-published-paths.js'
 import { freePaths } from '../validation/take-paths.js'
 import { documentKey, getBulkOperation, getPathContext } from './context.js'
-import { getBranchChange, getChangedPaths } from './paths-change.js'
+import { getChangedPaths, getChangedPathsBelow, reportChangedPaths } from './paths-change.js'
 
 /**
  * Stores the path and ancestors a save gave its document, moves the documents below it, and tells
@@ -70,11 +70,8 @@ export const setPathAfterChange: CollectionAfterChangeHook = async ({ collection
     const wrote = await setDocumentAndDraftPathAndAncestors(slug, stored, { document: built, draft: builtDraft }, req)
     if (branchMove) await moveBranch(branchMove, req)
 
-    // The site hears what changed.
-    const moved = branchMove && before && getBranchChange(branchMove, before.paths, built.paths, payload)
-    if (changedPaths.length > 0 || moved) {
-      await getPathConfig(payload).onPathsChanged?.({ ...(moved ? { moved } : {}), paths: changedPaths }, req)
-    }
+    // The site hears what changed: the document's own paths, then those of the documents below.
+    await reportChangedPaths([...changedPaths, ...(branchMove ? getChangedPathsBelow(branchMove, payload) : [])], req)
 
     // Payload made the saved document before this hook wrote, so it gets the path the hook built.
     const { inData } = getSaved(req, isLocalized(slug, payload))

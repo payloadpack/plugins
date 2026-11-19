@@ -1,4 +1,4 @@
-export type { BranchChange, ChangedPath, PathsChange } from './hooks/paths-change.js'
+export type { ChangedPath, PathsChangedArgs } from './hooks/paths-change.js'
 export type { PathCollection, PathPluginOptions, ReservedSegments } from './plugin/options.js'
 export { pathPlugin } from './plugin/plugin.js'
 export { defaultSlugify } from './plugin/slugify.js'

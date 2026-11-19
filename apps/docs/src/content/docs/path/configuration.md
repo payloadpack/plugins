@@ -13,7 +13,7 @@ pathPlugin({
   },
   // makeSlug is yours.
   slugify: ({ valueToSlugify }) => makeSlug(valueToSlugify),
-  onPathsChanged: ({ paths, moved }, req) => {
+  onPathsChanged: ({ changedPaths, payload, req }) => {
     // Purge your cache here.
   }
 })

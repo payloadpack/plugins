@@ -103,7 +103,7 @@ export function getSlugsAndParent(
 
 // What the paths of the documents right below a parent start with, in each locale: the parent's
 // path, or at the top level the collection's base path.
-export function getParentPaths(parent: PathAndAncestors | null, collectionSlug: string, payload: Payload): Paths {
+function getParentPaths(parent: PathAndAncestors | null, collectionSlug: string, payload: Payload): Paths {
   if (parent) return parent.paths
   const basePath = getBasePath(collectionSlug, payload)
   return Object.fromEntries(getLocales(payload).map((locale) => [locale, basePath]))

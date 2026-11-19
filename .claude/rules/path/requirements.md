@@ -53,7 +53,7 @@ What the package does, as its owner confirmed it. Build to this list, and ask hi
   - With them, a failed save, move or delete leaves everything as it was.
   - Without them, a move that stops halfway is put right by `backfillPaths`.
 - `findByPath` finds the document at a path in one indexed query per collection.
-- `onPathsChanged` hears every published path that changed, and where a branch moved from and to.
+- `onPathsChanged` hears every published path that changed, and where each document moved from and to.
 - `backfillPaths` gives the documents a site already has their paths.
 - It reads and writes through Payload's own database API, with no SQL or database code of its own.
 - It runs on Payload 4.0.0-beta.10 or later, with MongoDB, Postgres or SQLite.

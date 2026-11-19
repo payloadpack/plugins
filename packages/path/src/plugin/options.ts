@@ -3,14 +3,13 @@ import type {
   CollectionSlug,
   Config,
   Payload,
-  PayloadRequest,
   SingleRelationshipField,
   TextField,
   TextFieldSingleValidation
 } from 'payload'
 import type { Slugify } from 'payload/shared'
 
-import type { PathsChange } from '../hooks/paths-change.js'
+import type { PathsChangedArgs } from '../hooks/paths-change.js'
 import {
   BASE_PATH_IS_ROOT,
   BASE_PATH_WITH_EMPTY_SEGMENT,
@@ -95,10 +94,10 @@ export type PathPluginOptions = {
    */
   slugify?: Slugify
   /**
-   * Runs after a save or a delete that changed a published path or moved a branch, so a site purges
-   * its own cache and keeps its redirects.
+   * Runs after a save or a delete that changed where a site finds a published document, so a site
+   * purges its own cache and keeps its redirects.
    */
-  onPathsChanged?: (change: PathsChange, req: PayloadRequest) => Promise<void> | void
+  onPathsChanged?: (args: PathsChangedArgs) => Promise<void> | void
 }
 
 // The options with every default filled in, as the plugin stores them on the Payload config.

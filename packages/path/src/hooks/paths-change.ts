@@ -4,104 +4,83 @@ import { hasDraftsEnabled } from 'payload/shared'
 import type { DocumentAndLatestVersion } from '../database/versions.js'
 import type { Id, PathAndAncestors, Paths } from '../path/build-path-and-ancestors.js'
 import type { BranchMove } from '../path/move-branch.js'
-import { isLocalized } from '../plugin/options.js'
-import { getSaved, NO_LOCALE } from '../utils/locales.js'
+import { getPathConfig, isLocalized } from '../plugin/options.js'
+import { getSaved, inLocale, NO_LOCALE } from '../utils/locales.js'
 import { getPublishedLocales, getShownLocales, hasStatusPerLocale } from '../utils/published-locales.js'
 import type { PathAndAncestorsBefore } from './context.js'
 
-/** A path that shows something else, in the locale it belongs to. Without localization there is no locale. */
-export type ChangedPath = { locale?: string; path: string }
-
-/** Where the documents below a document went, so a site can redirect them. */
-export type BranchChange = {
+/**
+ * Where a site finds one document, before and now, in the locale the paths belong to. Without
+ * localization there is no locale.
+ */
+export type ChangedPath = {
   /** The collection the document is in. */
   collection: string
-  /** The document that moved, or the deleted document whose documents below were lifted. */
+  /** The document's id. */
   id: Id
-  /** How many documents sit below it. */
-  documentsBelow: number
-  /**
-   * Per locale that changed: every path that started with from and a slash now starts with to and a
-   * slash. For a move they are the document's own paths. For a lift, from is the deleted document's
-   * path and to what was above it: its parent's path, the base path, or nothing at the root. When a
-   * bulk delete deletes a document and one below it, the two lifts' paths hold followed one after
-   * the other.
-   */
-  paths: { from: string; locale?: string; to: string }[]
-  /**
-   * Each document below that a site finds at another path now, top-down: the path it was at and the
-   * path it is at, per locale it is published in and has another path in. A document below that is
-   * published in no locale is not among them.
-   */
-  documents: { id: Id; paths: { from: string; locale?: string; to: string }[] }[]
+  locale?: string
+  /** The path a site found the document at before, or null when it found it at none. */
+  from: null | string
+  /** The path a site finds the document at now, or null when it finds it at none. */
+  to: null | string
 }
 
-/** What onPathsChanged hears after a save or a delete. */
-export type PathsChange = {
+/** What onPathsChanged is given after a save or a delete. */
+export type PathsChangedArgs = {
   /**
-   * Each published path that shows something else: the path of a publish, the path a document was
-   * published at and left or was unpublished at, and the path of a deleted or trashed document.
+   * Each document a site finds at another path than before, per locale: the saved or deleted
+   * document first, then each published document below it, top-down. A publish has no from, an
+   * unpublish, a delete and a document sent to the trash have no to, and a publish that keeps the
+   * path has the same from and to.
    */
-  paths: ChangedPath[]
-  /** A save that moved a document with a path, also with nothing below it. */
-  moved?: BranchChange
-  /** A delete that lifted the documents below the deleted document. */
-  lifted?: BranchChange
-}
-
-const inLocale = (locale: string) => (locale === NO_LOCALE ? {} : { locale })
-
-export const changedPath = (locale: string, path: string): ChangedPath => ({ ...inLocale(locale), path })
-
-// The paths of these locales that are other ones now. A locale without a path before or now has none.
-const getMovedPaths = (locales: string[], from: Paths, to: Paths) =>
-  locales.flatMap((locale) => {
-    const [path, newPath] = [from[locale], to[locale]]
-    return typeof path === 'string' && typeof newPath === 'string' && newPath !== path
-      ? [{ ...inLocale(locale), from: path, to: newPath }]
-      : []
-  })
-
-// Where a branch went and each document below with it, from the rows the move held before it wrote
-// them, or nothing when the branch starts with another path in no locale.
-export function getBranchChange(
-  { below: { length: documentsBelow }, collection, documents, id }: BranchMove,
-  from: Paths,
-  to: Paths,
+  changedPaths: ChangedPath[]
+  /** The Payload instance. */
   payload: Payload
-): BranchChange | undefined {
-  const paths = getMovedPaths(Object.keys(from), from, to)
-  if (paths.length === 0) return undefined
+  /** The request of the save or the delete, to pass on to what the function writes. */
+  req: PayloadRequest
+}
+
+export const changedPath = (collection: string, id: Id, locale: string, from: null | string, to: null | string): ChangedPath => ({
+  collection,
+  id,
+  ...inLocale(locale),
+  from,
+  to
+})
+
+// Where each document below a moved or deleted document went, top-down, from the rows the move held
+// before it wrote them. Only the locales a site finds a document in count, by the rule a save's own
+// paths follow, and of those the ones with a path before and another one now.
+export function getChangedPathsBelow({ collection, documents }: BranchMove, payload: Payload): ChangedPath[] {
   const { config } = payload.collections[collection as CollectionSlug]
-  // Only the locales a site finds a document in count, by the rule a save's own paths follow.
-  const below = documents.flatMap(({ document, pathAndAncestors, storedPaths }) => {
-    const movedPaths = getMovedPaths(getShownLocales(document, config, payload), storedPaths, pathAndAncestors.paths)
-    return movedPaths.length > 0 ? [{ id: document.id, paths: movedPaths }] : []
-  })
-  return { collection, documents: below, documentsBelow, id, paths }
+  return documents.flatMap(({ document, pathAndAncestors, storedPaths }) =>
+    getShownLocales(document, config, payload).flatMap((locale) => {
+      const [from, to] = [storedPaths[locale], pathAndAncestors.paths[locale]]
+      return typeof from === 'string' && typeof to === 'string' && to !== from
+        ? [changedPath(collection, document.id, locale, from, to)]
+        : []
+    })
+  )
 }
 
 /**
- * A lift's documents below with the paths the last lift of the same bulk delete put each at. A lift
- * of a document further up can move a document again after another lift moved it, and Payload starts
- * the hooks after the deletes all at once, so the site may hear the lifts in any order. A document
- * that is back where it was is left out.
+ * A delete's changed paths with where the last lift of the same bulk delete put each lifted document.
+ * A lift of a document further up can move a document again after another lift moved it, and Payload
+ * starts the hooks after the deletes all at once, so the site may hear the lifts in any order. A
+ * document that is back where it was is left out. The deleted document's own paths have no to, and
+ * stay as they are: an earlier lift may have moved that document too.
  */
-export function buildBranchChangeToLastLandings(lifted: BranchChange, landings: Map<string, Paths>): BranchChange {
-  const documents = lifted.documents.flatMap(({ id, paths }) => {
-    const landed = landings.get(String(id))
-    const lastPaths = paths.flatMap((path) => {
-      const to = landed?.[path.locale ?? NO_LOCALE] ?? path.to
-      return to === path.from ? [] : [{ ...path, to }]
-    })
-    return lastPaths.length > 0 ? [{ id, paths: lastPaths }] : []
+export function withLastLandings(changedPaths: ChangedPath[], landings: Map<string, Paths>): ChangedPath[] {
+  return changedPaths.flatMap((changed) => {
+    if (changed.to === null) return [changed]
+    const to = landings.get(String(changed.id))?.[changed.locale ?? NO_LOCALE] ?? changed.to
+    return to === changed.from ? [] : [{ ...changed, to }]
   })
-  return { ...lifted, documents }
 }
 
-// Which paths show something else after a save, from where a site found the document before the write
-// and where it finds it after: each path it finds it at now and didn't before, or that the save
-// published it at, and each path it found it at before and doesn't now.
+// Where a site found a saved document before the write and where it finds it after, per locale it
+// found it in before or finds it in now: each locale with another path now, and each the save
+// published the document in.
 export function getChangedPaths(
   {
     collection,
@@ -115,7 +94,7 @@ export function getChangedPaths(
     stored: DocumentAndLatestVersion
   },
   before: PathAndAncestorsBefore | undefined
-) {
+): ChangedPath[] {
   const { payload } = req
   // A save publishes in the locales it holds a status of, and in a collection without drafts, which
   // has none, in the ones it holds a slug of.
@@ -126,16 +105,16 @@ export function getChangedPaths(
   const shownLocalesBefore = new Set(before?.shownLocales)
   const shownBefore = (locale: string) => (shownLocalesBefore.has(locale) ? before?.paths[locale] : null) ?? null
   const shownNow = (locale: string) => (shownLocales.has(locale) ? pathAndAncestors.paths[locale] : null) ?? null
-  const changedPaths: ChangedPath[] = []
-  for (const locale of shownLocales) {
-    const path = shownNow(locale)
+  return [...new Set([...shownLocales, ...shownLocalesBefore])].flatMap((locale) => {
+    const [from, to] = [shownBefore(locale), shownNow(locale)]
     // The save published the document in a locale it publishes in when it left no draft there.
-    const published = savedLocales.has(locale) && publishedLocales.has(locale)
-    if (path && (published || shownBefore(locale) !== path)) changedPaths.push(changedPath(locale, path))
-  }
-  for (const locale of shownLocalesBefore) {
-    const path = shownBefore(locale)
-    if (path && path !== shownNow(locale)) changedPaths.push(changedPath(locale, path))
-  }
-  return changedPaths
+    const published = to !== null && savedLocales.has(locale) && publishedLocales.has(locale)
+    return from !== to || published ? [changedPath(collection.slug, stored.document.id, locale, from, to)] : []
+  })
+}
+
+// Tells the site which paths changed, when any did.
+export async function reportChangedPaths(changedPaths: ChangedPath[], req: PayloadRequest) {
+  if (changedPaths.length === 0) return
+  await getPathConfig(req.payload).onPathsChanged?.({ changedPaths, payload: req.payload, req })
 }

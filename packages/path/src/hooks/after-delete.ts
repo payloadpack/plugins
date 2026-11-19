@@ -1,8 +1,7 @@
 import type { CollectionAfterDeleteHook } from 'payload'
 
-import { getPathConfig } from '../plugin/options.js'
 import { documentKey, getBulkOperation, getPathContext } from './context.js'
-import { buildBranchChangeToLastLandings } from './paths-change.js'
+import { reportChangedPaths, withLastLandings } from './paths-change.js'
 
 /**
  * Tells the site which paths a delete changed: the document's own, and where the documents below it
@@ -15,8 +14,7 @@ export const reportPathsAfterDelete: CollectionAfterDeleteHook = async ({ collec
   const key = documentKey(collection.slug, id)
   const kept = deleted.get(key)
   deleted.delete(key)
-  if (!kept || (kept.paths.length === 0 && !kept.lifted)) return
+  if (!kept) return
   const landings = getBulkOperation(req, collection.slug)?.landings
-  const change = kept.lifted && landings ? { ...kept, lifted: buildBranchChangeToLastLandings(kept.lifted, landings) } : kept
-  await getPathConfig(req.payload).onPathsChanged?.(change, req)
+  await reportChangedPaths(landings ? withLastLandings(kept, landings) : kept, req)
 }

@@ -2,7 +2,7 @@ import { beforeEach, expect, it } from 'vitest'
 
 import { backfillPaths, findByPath } from '../src/index.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
-import { catchFieldErrors, create, readDocument, readPath, remove, store, update } from './support/documents.js'
+import { catchFieldErrors, changed, create, readDocument, readPath, remove, store, update } from './support/documents.js'
 
 describeEachSetup(
   '',
@@ -29,12 +29,6 @@ describeEachSetup(
     beforeEach(() => {
       test.changes.length = 0
     })
-
-    // Without localization a changed path has no locale; with it, the locale it belongs to.
-    const at = (path: string) => (setup.localized ? { locale: 'en', path } : { path })
-    // Where a document went. With localization Swedish falls back to the English slug, so it went there too.
-    const fromTo = (from: string, to: string) =>
-      setup.localized ? ['en', 'sv'].map((locale) => ({ from, locale, to })) : [{ from, to }]
 
     it('puts a document at the base path, a slash and its slug, whatever parent a save sends', async () => {
       const { payload } = test
@@ -74,18 +68,7 @@ describeEachSetup(
 
       expect(await readPath(payload, 'articles', strike.id)).toBe('/news/walkout')
       expect(await readPath(payload, 'articles', strike.id, { draft: true })).toBe('/news/walkout')
-      expect(changes).toEqual([
-        {
-          moved: {
-            collection: 'articles',
-            documents: [],
-            documentsBelow: 0,
-            id: strike.id,
-            paths: fromTo('/news/strike', '/news/walkout')
-          },
-          paths: [at('/news/walkout'), at('/news/strike')]
-        }
-      ])
+      expect(changes).toEqual([[changed(setup, 'articles', strike, '/news/strike', '/news/walkout')]])
     })
 
     it('refuses a path a document of a collection with parents is at, and the other way round', async () => {
@@ -109,7 +92,7 @@ describeEachSetup(
 
       await remove(payload, 'articles', recall.id)
 
-      expect(changes).toEqual([{ paths: [at('/news/recall')] }])
+      expect(changes).toEqual([[changed(setup, 'articles', recall, '/news/recall', null)]])
       expect(await findByPath({ path: '/news/recall', payload })).toBeNull()
     })
 

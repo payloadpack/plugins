@@ -2,7 +2,7 @@ import type { PayloadRequest } from 'payload'
 
 import type { Id, PathAndAncestors, Paths } from '../path/build-path-and-ancestors.js'
 import type { TakenPaths } from '../validation/take-paths.js'
-import type { PathsChange } from './paths-change.js'
+import type { ChangedPath } from './paths-change.js'
 
 /**
  * Whether Payload writes the document itself in a save, as far as its operation says. An update that
@@ -17,8 +17,8 @@ export type PathAndAncestorsBefore = PathAndAncestors & { shownLocales: string[]
 
 // What the plugin's hooks hand each other on one request, by document.
 type PathContext = {
-  // What each delete changes, from after its lift until after the delete.
-  deleted: Map<string, PathsChange>
+  // The paths each delete changes, from after its lift until after the delete.
+  deleted: Map<string, ChangedPath[]>
   // Where each saved document was, from before its write until after it.
   saved: Map<string, PathAndAncestorsBefore>
   // Whether the operation by id that saves each document writes the document itself, from before

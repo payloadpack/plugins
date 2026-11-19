@@ -193,18 +193,18 @@ describeEachSetup(
 
     it('reports the path of a publish in each locale it publishes the document in', async () => {
       const { changes, payload } = test
-      await create(payload, 'products', { slug: 'lamp', title: 'Lamp' })
+      const lamp = await create(payload, 'products', { slug: 'lamp', title: 'Lamp' })
       const reef = await create(payload, 'topics', { slug: 'reef', title: 'Reef' })
       await update(payload, 'topics', reef.id, { title: 'Rev' }, inSwedish)
 
       expect(changes).toEqual([
-        { paths: each({ path: '/products/lamp' }) },
-        { paths: [{ locale: 'en', path: '/topics/reef' }] },
-        { paths: [{ locale: 'sv', path: '/topics/reef' }] }
+        each({ collection: 'products', from: null, id: lamp.id, to: '/products/lamp' }),
+        [{ collection: 'topics', from: null, id: reef.id, locale: 'en', to: '/topics/reef' }],
+        [{ collection: 'topics', from: null, id: reef.id, locale: 'sv', to: '/topics/reef' }]
       ])
     })
 
-    it('reports where a move and a lift took each locale from and to, with the paths a site found the document and each document below at', async () => {
+    it('reports where a move and a delete took the document and each document below it from and to, in each locale a site finds them in', async () => {
       const { changes, payload } = test
       const dune = await create(payload, 'topics', { slug: 'dune', title: 'Dune' })
       const grass = await create(payload, 'topics', { parent: dune.id, slug: 'grass', title: 'Grass' })
@@ -216,38 +216,33 @@ describeEachSetup(
       await remove(payload, 'topics', dune.id)
       await update(payload, 'products', shelf.id, { slug: 'hylla' })
 
-      const branch = { collection: 'topics', documentsBelow: 1, id: dune.id }
+      const duneAt = (locale: string, from: null | string, to: null | string) => ({
+        collection: 'topics',
+        from,
+        id: dune.id,
+        locale,
+        to
+      })
       // The topic below is published in English only, so its one path is named in that locale only.
-      const grassAt = (from: string, to: string) => [{ id: grass.id, paths: [{ from, locale: 'en', to }] }]
+      const grassAt = (from: string, to: string) => ({ collection: 'topics', from, id: grass.id, locale: 'en', to })
       expect(changes).toEqual([
-        {
-          moved: {
-            ...branch,
-            documents: grassAt('/topics/dune/grass', '/topics/sanddyn/grass'),
-            paths: each({ from: '/topics/dune', to: '/topics/sanddyn' })
-          },
-          // The move published the topic in Swedish, and it left the path it was published at in English.
-          paths: [...each({ path: '/topics/sanddyn' }), { locale: 'en', path: '/topics/dune' }]
-        },
-        {
-          lifted: {
-            ...branch,
-            documents: grassAt('/topics/sanddyn/grass', '/topics/grass'),
-            paths: each({ from: '/topics/sanddyn', to: '/topics' })
-          },
-          paths: each({ path: '/topics/sanddyn' })
-        },
-        // A product has one status for every locale, so the one below is named in each locale.
-        {
-          moved: {
-            collection: 'products',
-            documents: [{ id: bracket.id, paths: each({ from: '/products/shelf/bracket', to: '/products/hylla/bracket' }) }],
-            documentsBelow: 1,
-            id: shelf.id,
-            paths: each({ from: '/products/shelf', to: '/products/hylla' })
-          },
-          paths: [...each({ path: '/products/hylla' }), ...each({ path: '/products/shelf' })]
-        }
+        // The move published the topic in Swedish, where a site found it at no path before, and in
+        // English it left the path it was published at.
+        [
+          duneAt('en', '/topics/dune', '/topics/sanddyn'),
+          duneAt('sv', null, '/topics/sanddyn'),
+          grassAt('/topics/dune/grass', '/topics/sanddyn/grass')
+        ],
+        [
+          duneAt('en', '/topics/sanddyn', null),
+          duneAt('sv', '/topics/sanddyn', null),
+          grassAt('/topics/sanddyn/grass', '/topics/grass')
+        ],
+        // A product has one status for every locale, so it and the one below are named in each locale.
+        [
+          ...each({ collection: 'products', from: '/products/shelf', id: shelf.id, to: '/products/hylla' }),
+          ...each({ collection: 'products', from: '/products/shelf/bracket', id: bracket.id, to: '/products/hylla/bracket' })
+        ]
       ])
       expect(await readPaths('topics', grass.id)).toEqual(inEveryLocale('/topics/grass'))
     })
@@ -345,7 +340,7 @@ describeEachSetup(
       const { changes, payload } = test
       const closing = await createIn('sv', 'memos', { slug: 'closing', title: 'Closing' })
       // A save publishes it in every locale, where a site finds it at once.
-      expect(changes).toEqual([{ paths: each({ path: '/memos/closing' }) }])
+      expect(changes).toEqual([each({ collection: 'memos', from: null, id: closing.id, to: '/memos/closing' })])
       const hours = await createIn('en', 'memos', { parent: closing.id, slug: 'hours', title: 'Hours' })
       for (const locale of LOCALES) {
         expect(await findByPath({ locale, path: '/memos/closing/hours', payload })).toMatchObject({
@@ -402,16 +397,10 @@ describeEachSetup(
       expect(await readPath(payload, 'topics', gravel.id)).toBe('/topics/pit/gravel')
       expect(await findByPath({ path: '/topics/pit', payload })).toMatchObject({ document: { id: quarry.id } })
       expect(changes).toEqual([
-        {
-          moved: {
-            collection: 'topics',
-            documents: [{ id: gravel.id, paths: [{ from: '/topics/quarry/gravel', to: '/topics/pit/gravel' }] }],
-            documentsBelow: 1,
-            id: quarry.id,
-            paths: [{ from: '/topics/quarry', to: '/topics/pit' }]
-          },
-          paths: [{ path: '/topics/pit' }, { path: '/topics/quarry' }]
-        }
+        [
+          { collection: 'topics', from: '/topics/quarry', id: quarry.id, to: '/topics/pit' },
+          { collection: 'topics', from: '/topics/quarry/gravel', id: gravel.id, to: '/topics/pit/gravel' }
+        ]
       ])
     })
   }

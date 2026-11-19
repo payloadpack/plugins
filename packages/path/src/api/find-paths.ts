@@ -3,10 +3,9 @@ import { hasDraftsEnabled } from 'payload/shared'
 
 import { findDocumentById } from '../database/documents.js'
 import { findDocumentAndLatestVersion, type DocumentAndLatestVersion } from '../database/versions.js'
-import { changedPath } from '../hooks/paths-change.js'
 import { getStoredPathAndAncestors, type Id } from '../path/build-path-and-ancestors.js'
 import { getPathConfig, pickCollections } from '../plugin/options.js'
-import { getLocales } from '../utils/locales.js'
+import { getLocales, inLocale } from '../utils/locales.js'
 import { getShownLocales, isInTrash } from '../utils/published-locales.js'
 
 /** A path a document is at, in the locale it is the document's path in. Without localization there is no locale. */
@@ -45,6 +44,6 @@ export async function findPaths({
   const locales = readsDraft ? getLocales(payload) : getShownLocales(document, config, payload)
   return locales.flatMap((locale) => {
     const path = paths[locale]
-    return path ? [changedPath(locale, path)] : []
+    return path ? [{ ...inLocale(locale), path }] : []
   })
 }

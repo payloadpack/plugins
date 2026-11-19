@@ -3,7 +3,7 @@ import { beforeEach, expect, it } from 'vitest'
 import { backfillPaths, findByPath } from '../src/index.js'
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
-import { catchFieldErrors, create, named, readDocument, readPath, remove, store, update } from './support/documents.js'
+import { catchFieldErrors, changed, create, readDocument, readPath, remove, store, update } from './support/documents.js'
 
 // Payload's own hierarchy holds a topic's parent in a field Payload names, or one the site names.
 const HIERARCHIES = [
@@ -29,11 +29,6 @@ for (const { hierarchy, label, parentField } of HIERARCHIES) {
         test.changes.length = 0
       })
 
-      // Without localization a changed path has no locale; with it, the locale it belongs to.
-      const at = (path: string) => (setup.localized ? { locale: 'en', path } : { path })
-      // Where a branch went. With localization Swedish falls back to the English slug, so it went there too.
-      const fromTo = (from: string, to: string) =>
-        setup.localized ? ['en', 'sv'].map((locale) => ({ from, locale, to })) : [{ from, to }]
       // A topic's parent, in the field Payload's hierarchy holds it in.
       const below = ({ id }: { id: Id }) => ({ [parentField]: id })
 
@@ -74,20 +69,12 @@ for (const { hierarchy, label, parentField } of HIERARCHIES) {
           path: '/arts/crafts/pottery/glazing'
         })
         expect(changes).toEqual([
-          {
+          [
+            changed(setup, 'topics', crafts, '/crafts', '/arts/crafts'),
+            changed(setup, 'topics', pottery, '/crafts/pottery', '/arts/crafts/pottery'),
             // The topic with a renamed draft is named at the path it is published at.
-            moved: {
-              collection: 'topics',
-              documents: [
-                named(setup, pottery, '/crafts/pottery', '/arts/crafts/pottery'),
-                named(setup, glazes, '/crafts/pottery/glazes', '/arts/crafts/pottery/glazes')
-              ],
-              documentsBelow: 2,
-              id: crafts.id,
-              paths: fromTo('/crafts', '/arts/crafts')
-            },
-            paths: [at('/arts/crafts'), at('/crafts')]
-          }
+            changed(setup, 'topics', glazes, '/crafts/pottery/glazes', '/arts/crafts/pottery/glazes')
+          ]
         ])
       })
 
@@ -173,21 +160,13 @@ for (const { hierarchy, label, parentField } of HIERARCHIES) {
         expect(draft.path).toBe('/sports/links')
         expect(String(draft[parentField])).toBe(String(sports.id))
         expect(changes).toEqual([
-          {
-            // The topics right below first, then the one deeper.
-            lifted: {
-              collection: 'topics',
-              documents: [
-                named(setup, tennis, '/sports/ball-games/tennis', '/sports/tennis'),
-                named(setup, golf, '/sports/ball-games/golf', '/sports/golf'),
-                named(setup, serve, '/sports/ball-games/tennis/serve', '/sports/tennis/serve')
-              ],
-              documentsBelow: 3,
-              id: ballGames.id,
-              paths: fromTo('/sports/ball-games', '/sports')
-            },
-            paths: [at('/sports/ball-games')]
-          }
+          [
+            // The deleted topic, then the topics right below it, then the one deeper.
+            changed(setup, 'topics', ballGames, '/sports/ball-games', null),
+            changed(setup, 'topics', tennis, '/sports/ball-games/tennis', '/sports/tennis'),
+            changed(setup, 'topics', golf, '/sports/ball-games/golf', '/sports/golf'),
+            changed(setup, 'topics', serve, '/sports/ball-games/tennis/serve', '/sports/tennis/serve')
+          ]
         ])
       })
 

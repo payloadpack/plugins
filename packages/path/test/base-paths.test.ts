@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 
 import { findByPath } from '../src/index.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
-import { catchFieldErrors, create, readDocument, readPath, remove, update } from './support/documents.js'
+import { catchFieldErrors, changed, create, readDocument, readPath, remove, update } from './support/documents.js'
 
 describeEachSetup(
   '',
@@ -13,7 +13,7 @@ describeEachSetup(
       options: { collections: ['pages', { basePath: '/blog', slug: 'posts' }, { basePath: '/api/feeds', slug: 'feeds' }] }
     })
   },
-  (test) => {
+  (test, setup) => {
     it('puts a top-level post at the base path, a slash and its slug, and finds it there', async () => {
       const { payload } = test
       const hello = await create(payload, 'posts', { slug: 'hello', title: 'Hello' })
@@ -106,15 +106,13 @@ describeEachSetup(
       test.changes.length = 0
       await remove(payload, 'posts', series.id)
       expect(await readPath(payload, 'posts', part.id)).toBe('/blog/part-one')
-      // The lifted posts' paths start with the base path now.
-      expect(test.changes).toMatchObject([
-        {
-          lifted: {
-            documentsBelow: 2,
-            id: series.id,
-            paths: expect.arrayContaining([expect.objectContaining({ from: '/blog/saga', to: '/blog' })])
-          }
-        }
+      // The lifted posts are right below the base path now.
+      expect(test.changes).toEqual([
+        [
+          changed(setup, 'posts', series, '/blog/saga', null),
+          changed(setup, 'posts', part, '/blog/saga/part-one', '/blog/part-one'),
+          changed(setup, 'posts', notes, '/blog/saga/part-one/notes', '/blog/part-one/notes')
+        ]
       ])
       expect(await readPath(payload, 'posts', notes.id)).toBe('/blog/part-one/notes')
       expect((await readDocument(payload, 'posts', notes.id)).ancestors).toEqual([part.id])

@@ -149,22 +149,8 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
 
     await update(payload, 'pages', careers.id, { slug: 'jobb' }, inSwedish)
 
-    expect(changes).toEqual([
-      {
-        // The page below is published in English only, so its Swedish path is no published path.
-        moved: {
-          collection: 'pages',
-          documents: [],
-          documentsBelow: 1,
-          id: careers.id,
-          paths: [{ from: '/karriar', locale: 'sv', to: '/jobb' }]
-        },
-        paths: [
-          { locale: 'sv', path: '/jobb' },
-          { locale: 'sv', path: '/karriar' }
-        ]
-      }
-    ])
+    // The page below is published in English only, so its Swedish path is no published path.
+    expect(changes).toEqual([[{ collection: 'pages', from: '/karriar', id: careers.id, locale: 'sv', to: '/jobb' }]])
   })
 
   it('finds a document by the path of the locale asked for, and a draft only in the locale it was saved in', async () => {
@@ -372,18 +358,13 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
 
     expect(await readPath(payload, 'pages', hay.id)).toBe('/barn-door/hay')
     expect(await readPath(payload, 'pages', hay.id, inSwedish)).toBe('/stall/ho')
-    // The page below is published in both locales and moved in English only, so it is named there only.
+    // The page is unpublished in English, so a site finds it at no path there, where it moved too. The
+    // page below is published in both locales and moved in English only, so it is named there only.
     expect(changes).toEqual([
-      {
-        moved: {
-          collection: 'pages',
-          documents: [{ id: hay.id, paths: [{ from: '/stable/hay', locale: 'en', to: '/barn-door/hay' }] }],
-          documentsBelow: 1,
-          id: stable.id,
-          paths: [{ from: '/stable', locale: 'en', to: '/barn-door' }]
-        },
-        paths: [{ locale: 'en', path: '/stable' }]
-      }
+      [
+        { collection: 'pages', from: '/stable', id: stable.id, locale: 'en', to: null },
+        { collection: 'pages', from: '/stable/hay', id: hay.id, locale: 'en', to: '/barn-door/hay' }
+      ]
     ])
   })
 
@@ -405,21 +386,13 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
 
     expect(await readPath(payload, 'pages', sacks.id, inSwedish)).toBe('/spannmal/sacks')
     expect(await readPath(payload, 'pages', sacks.id)).toBe('/granary/sacks')
-    // English keeps its path and is unpublished there, and Swedish leaves the path it was published at.
+    // Unpublished in both locales, a site finds the page at no path in either, also in Swedish, where
+    // it moved. The page below is published in English only, where it didn't move.
     expect(changes).toEqual([
-      {
-        moved: {
-          collection: 'pages',
-          documents: [],
-          documentsBelow: 1,
-          id: granary.id,
-          paths: [{ from: '/magasin', locale: 'sv', to: '/spannmal' }]
-        },
-        paths: [
-          { locale: 'en', path: '/granary' },
-          { locale: 'sv', path: '/magasin' }
-        ]
-      }
+      [
+        { collection: 'pages', from: '/granary', id: granary.id, locale: 'en', to: null },
+        { collection: 'pages', from: '/magasin', id: granary.id, locale: 'sv', to: null }
+      ]
     ])
   })
 
@@ -436,33 +409,13 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
     await restoreVersion(payload, 'pages', bridge.id, { version: 1 })
 
     expect(changes).toEqual([
-      {
+      [
+        { collection: 'pages', from: '/viaduct', id: bridge.id, locale: 'en', to: '/bridge' },
+        { collection: 'pages', from: '/viadukt', id: bridge.id, locale: 'sv', to: '/bro' },
         // The page below has a slug per locale, and is named with each locale's own paths.
-        moved: {
-          collection: 'pages',
-          documents: [
-            {
-              id: toll.id,
-              paths: [
-                { from: '/viaduct/toll', locale: 'en', to: '/bridge/toll' },
-                { from: '/viadukt/tull', locale: 'sv', to: '/bro/tull' }
-              ]
-            }
-          ],
-          documentsBelow: 1,
-          id: bridge.id,
-          paths: [
-            { from: '/viaduct', locale: 'en', to: '/bridge' },
-            { from: '/viadukt', locale: 'sv', to: '/bro' }
-          ]
-        },
-        paths: [
-          { locale: 'en', path: '/bridge' },
-          { locale: 'sv', path: '/bro' },
-          { locale: 'en', path: '/viaduct' },
-          { locale: 'sv', path: '/viadukt' }
-        ]
-      }
+        { collection: 'pages', from: '/viaduct/toll', id: toll.id, locale: 'en', to: '/bridge/toll' },
+        { collection: 'pages', from: '/viadukt/tull', id: toll.id, locale: 'sv', to: '/bro/tull' }
+      ]
     ])
   })
 
@@ -478,21 +431,8 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
 
     expect(await readPath(payload, 'pages', ferry.id, inSwedish)).toBe('/farja')
     expect(await readPath(payload, 'pages', deck.id, inSwedish)).toBe('/farja/deck')
-    expect(changes).toEqual([
-      {
-        moved: {
-          collection: 'pages',
-          documents: [],
-          documentsBelow: 1,
-          id: ferry.id,
-          paths: [{ from: '/batfarja', locale: 'sv', to: '/farja' }]
-        },
-        paths: [
-          { locale: 'sv', path: '/farja' },
-          { locale: 'sv', path: '/batfarja' }
-        ]
-      }
-    ])
+    // The page below is published in English only, where its path stays.
+    expect(changes).toEqual([[{ collection: 'pages', from: '/batfarja', id: ferry.id, locale: 'sv', to: '/farja' }]])
   })
 
   it("leaves the other locale published in the latest version when a draft renames one locale's slug, and when a draft follows its publish", async () => {
@@ -608,7 +548,7 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
 
     expect(await readStoredPaths(payload, bakehouse.id)).toEqual({ en: '/bakehouse', sv: '/bagarstuga' })
     expect(await readStoredPaths(payload, ovens.id)).toEqual({ en: '/bakehouse/ovens', sv: '/bagarstuga/ovens' })
-    expect(changes).toEqual([{ paths: [{ locale: 'en', path: '/bakehouse' }] }])
+    expect(changes).toEqual([[{ collection: 'pages', from: '/bakehouse', id: bakehouse.id, locale: 'en', to: '/bakehouse' }]])
     expect(await readLatestVersion(payload, 'pages', bakehouse.id)).toMatchObject({
       path: { en: '/bakehouse', sv: '/bagarstuga' }
     })
@@ -630,7 +570,7 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
 
     expect(await readStoredPaths(payload, dairy.id)).toEqual({ en: '/dairy', sv: '/mejeri' })
     expect(await readStoredPaths(payload, churn.id)).toEqual({ en: '/dairy/churn', sv: '/mejeri/churn' })
-    expect(changes).toEqual([{ paths: [{ locale: 'en', path: '/dairy' }] }])
+    expect(changes).toEqual([[{ collection: 'pages', from: '/dairy', id: dairy.id, locale: 'en', to: '/dairy' }]])
   })
 
   it("keeps every locale's path when a publish that keeps the slug and the parent is sent with a select that leaves the status out", async () => {
@@ -647,7 +587,7 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
     })
 
     expect(await readStoredPaths(payload, icehouse.id)).toEqual({ en: '/icehouse', sv: '/icehouse' })
-    expect(changes).toEqual([{ paths: [{ locale: 'en', path: '/icehouse' }] }])
+    expect(changes).toEqual([[{ collection: 'pages', from: '/icehouse', id: icehouse.id, locale: 'en', to: '/icehouse' }]])
   })
 
   it('gives a document of a collection without drafts the path of each locale it is saved in, and moves it with its parent', async () => {

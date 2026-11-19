@@ -1,12 +1,12 @@
 import type { CollectionBeforeDeleteHook, CollectionConfig, PayloadRequest } from 'payload'
 
 import { findDocumentById, findParentPathAndAncestors } from '../database/documents.js'
-import { getParentPaths, getStoredPathAndAncestors, type Id } from '../path/build-path-and-ancestors.js'
+import { getStoredPathAndAncestors, type Id } from '../path/build-path-and-ancestors.js'
 import { findBranchMove, moveBranch } from '../path/move-branch.js'
 import { getShownLocales } from '../utils/published-locales.js'
 import { checkBranchMove } from '../validation/check-branch-move.js'
 import { documentKey, getBulkOperation, getPathContext, type BulkOperation } from './context.js'
-import { changedPath, getBranchChange, type PathsChange } from './paths-change.js'
+import { changedPath, getChangedPathsBelow } from './paths-change.js'
 
 // Where the documents below a document go once it is deleted, refused where one of them can't land,
 // as the database holds them now. The document hangs from the last of its ancestors, and so do they
@@ -18,7 +18,7 @@ async function findLift(collection: CollectionConfig, id: Id, req: PayloadReques
   const parent = await findParentPathAndAncestors(collection.slug, ancestors.at(-1) ?? null, req)
   const branchMove = await findBranchMove({ collection, id, parent, req })
   await checkBranchMove(branchMove, req)
-  return { branchMove, document, parent, paths }
+  return { branchMove, document, paths }
 }
 
 /**
@@ -36,22 +36,17 @@ async function liftBranch(collection: CollectionConfig, id: Id, req: PayloadRequ
   const { slug } = collection
   const lift = await findLift(collection, id, req)
   if (!lift) return
-  const { branchMove, document, parent, paths } = lift
+  const { branchMove, document, paths } = lift
   await moveBranch(branchMove, req)
 
-  // For the hook after the delete: the paths a site found the document at, and where the lifted
-  // documents went. Their paths now start with the parent's path, or the base path. A bulk delete
-  // also keeps where each lifted document is now, since a later lift of it may move it again.
-  const change: PathsChange = {
-    paths: getShownLocales(document, collection, payload).flatMap((locale) => {
-      const path = paths[locale]
-      return path ? [changedPath(locale, path)] : []
-    })
-  }
-  if (branchMove.below.length > 0) {
-    change.lifted = getBranchChange(branchMove, paths, getParentPaths(parent, slug, payload), payload)
-  }
-  getPathContext(req).deleted.set(documentKey(slug, id), change)
+  // For the hook after the delete: the paths a site found the document at, which it finds it at no
+  // more, and where the lifted documents went. A bulk delete also keeps where each lifted document
+  // is now, since a later lift of it may move it again.
+  const ownPaths = getShownLocales(document, collection, payload).flatMap((locale) => {
+    const path = paths[locale]
+    return path ? [changedPath(slug, document.id, locale, path, null)] : []
+  })
+  getPathContext(req).deleted.set(documentKey(slug, id), [...ownPaths, ...getChangedPathsBelow(branchMove, payload)])
   for (const { document: lifted, pathAndAncestors } of branchMove.documents) {
     bulkOperation?.landings.set(String(lifted.id), pathAndAncestors.paths)
   }

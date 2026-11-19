@@ -132,9 +132,9 @@ describeEachSetup('', {}, (test) => {
     const lifted = await readDocument(payload, 'pages', crane.id)
     // Each path the site was told the document went to, in the order it was told.
     const reportedTo = changes
-      .flatMap((change) => change.lifted?.documents ?? [])
+      .flat()
       .filter(({ id }) => String(id) === String(crane.id))
-      .flatMap(({ paths }) => paths.map(({ to }) => to))
+      .map(({ to }) => to)
     const found = await findByPath({ path: '/crane', payload })
     expect({
       ancestors: lifted.ancestors,

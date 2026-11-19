@@ -13,7 +13,7 @@ import { ancestorsField } from '../../src/fields/ancestors.js'
 import { parentField } from '../../src/fields/parent.js'
 import { pathField } from '../../src/fields/path.js'
 import { slugField } from '../../src/fields/slug.js'
-import { pathPlugin, type PathCollection, type PathPluginOptions, type PathsChange } from '../../src/index.js'
+import { pathPlugin, type ChangedPath, type PathCollection, type PathPluginOptions } from '../../src/index.js'
 import { defaultSlugify } from '../../src/plugin/slugify.js'
 import { buildAdapter, recordQueries } from './adapters.js'
 import { LOCALES, SETUPS, type Setup } from './setups.js'
@@ -56,7 +56,8 @@ const notices = (localized: boolean, fields: Field[]): CollectionConfig => ({
 })
 
 export type TestPayload = {
-  changes: PathsChange[]
+  // The changed paths of each call of onPathsChanged, in the order of the calls.
+  changes: ChangedPath[][]
   countQueries: ReturnType<typeof recordQueries>['countQueries']
   payload: Payload
 }
@@ -97,14 +98,14 @@ export async function startPayload(
   }: StartOptions = {}
 ): Promise<TestPayload & { database: string }> {
   const name = database ?? `path_${process.pid}_${databaseCount++}`
-  const changes: PathsChange[] = []
+  const changes: ChangedPath[][] = []
   const { countQueries, record } = recordQueries()
   const withLocalized = (collection: PathCollection): PathCollection => {
     const given = typeof collection === 'string' ? { slug: collection } : collection
     return setup.localized && !notLocalized.includes(given.slug) ? { ...given, localized: true } : collection
   }
   const pluginOptions: PathPluginOptions = {
-    onPathsChanged: (change) => void changes.push(change),
+    onPathsChanged: ({ changedPaths }) => void changes.push(changedPaths),
     reservedSegments: RESERVED_SEGMENTS,
     ...options,
     collections: (options.collections ?? STANDARD_COLLECTIONS).map(withLocalized)

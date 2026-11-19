@@ -3,6 +3,9 @@ import type { Payload, PayloadRequest } from 'payload'
 // The key paths are stored under without localization.
 export const NO_LOCALE = ''
 
+// What names a locale beside a path a site is given, which is nothing without localization.
+export const inLocale = (locale: string) => (locale === NO_LOCALE ? {} : { locale })
+
 export function getLocales(payload: Payload) {
   return payload.config.localization ? payload.config.localization.localeCodes : [NO_LOCALE]
 }

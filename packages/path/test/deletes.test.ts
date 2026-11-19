@@ -205,9 +205,9 @@ for (const transactions of [true, false]) {
 
           const lifted = await readDocument(payload, 'guides', low.id)
           const reportedTo = changes
-            .flatMap((change) => change.lifted?.documents ?? [])
+            .flat()
             .filter(({ id }) => String(id) === String(low.id))
-            .flatMap(({ paths }) => paths.map(({ to }) => to))
+            .map(({ to }) => to)
           expect({
             ancestors: lifted.ancestors,
             draftPath: await readPath(payload, 'guides', low.id, { draft: true }),
@@ -223,6 +223,13 @@ for (const transactions of [true, false]) {
             parent: null,
             path: `/${name}-low`
           })
+          // The delete above lifted the parent and its own delete removed it, so the site hears both.
+          const reportedOfParent = changes
+            .flat()
+            .filter(({ id }) => String(id) === String(middle.id))
+            .map(({ to }) => to)
+          expect(reportedOfParent).toHaveLength(2)
+          expect(reportedOfParent).toEqual(expect.arrayContaining([null, `/${name}-middle`]))
         })
       }
     }

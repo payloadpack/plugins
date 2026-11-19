@@ -88,14 +88,17 @@ export async function store(
 }
 
 /**
- * A document below as onPathsChanged names it, with the path it was at and the one it is at. One
- * made by create is published in English only, so with localization it is named in that locale
- * only, also where its Swedish path moved along.
+ * A document as onPathsChanged names it, with the path a site found it at before and the one it
+ * finds it at now, either of which may be none. One made by create is published in English only, so
+ * with localization it is named in that locale only, also where its Swedish path moved along.
  */
-export const named = ({ localized }: Setup, { id }: Document, from: string, to: string) => ({
-  id,
-  paths: [localized ? { from, locale: 'en', to } : { from, to }]
-})
+export const changed = (
+  { localized }: Setup,
+  collection: CollectionSlug,
+  { id }: Document,
+  from: null | string,
+  to: null | string
+) => ({ collection, id, ...(localized ? { locale: 'en' } : {}), from, to })
 
 export function remove(payload: Payload, collection: CollectionSlug, id: Id) {
   return payload.delete({ collection, id, overrideAccess: true })

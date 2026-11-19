@@ -2,7 +2,7 @@ import { beforeEach, expect, it } from 'vitest'
 
 import { findByPath } from '../src/index.js'
 import { describeEachSetup } from './support/boot-payload.js'
-import { catchFieldErrors, create, named, readDocument, readPath, restoreVersion, update } from './support/documents.js'
+import { catchFieldErrors, changed, create, readDocument, readPath, restoreVersion, update } from './support/documents.js'
 
 const takenBy = (document: string) => [
   { message: `${document} is already at this path, so change the slug or the parent.`, path: 'slug' }
@@ -12,12 +12,6 @@ describeEachSetup('', {}, (test, setup) => {
   beforeEach(() => {
     test.changes.length = 0
   })
-
-  // Without localization a changed path has no locale; with it, the locale it belongs to.
-  const at = (path: string) => (setup.localized ? { locale: 'en', path } : { path })
-  // Where a branch went. With localization Swedish falls back to the English slug, so it went there too.
-  const fromTo = (from: string, to: string) =>
-    setup.localized ? ['en', 'sv'].map((locale) => ({ from, locale, to })) : [{ from, to }]
 
   it('moves the documents below a page when its rename is published, not when it is saved as a draft', async () => {
     const { payload } = test
@@ -102,17 +96,9 @@ describeEachSetup('', {}, (test, setup) => {
 
     expect(await readPath(payload, 'pages', stage.id)).toBe('/platform')
     expect(await readPath(payload, 'pages', lights.id)).toBe('/platform/lights')
+    // The page is published no more, so a site finds it at no path, and the page below at its new one.
     expect(changes).toEqual([
-      {
-        moved: {
-          collection: 'pages',
-          documents: [named(setup, lights, '/stage/lights', '/platform/lights')],
-          documentsBelow: 1,
-          id: stage.id,
-          paths: fromTo('/stage', '/platform')
-        },
-        paths: [at('/stage')]
-      }
+      [changed(setup, 'pages', stage, '/stage', null), changed(setup, 'pages', lights, '/stage/lights', '/platform/lights')]
     ])
 
     await update(payload, 'pages', stage.id, {})
@@ -170,16 +156,7 @@ describeEachSetup('', {}, (test, setup) => {
 
     expect(await readPath(payload, 'pages', crates.id)).toBe('/store/crates')
     expect(changes).toEqual([
-      {
-        moved: {
-          collection: 'pages',
-          documents: [named(setup, crates, '/depot/crates', '/store/crates')],
-          documentsBelow: 1,
-          id: depot.id,
-          paths: fromTo('/depot', '/store')
-        },
-        paths: [at('/store'), at('/depot')]
-      }
+      [changed(setup, 'pages', depot, '/depot', '/store'), changed(setup, 'pages', crates, '/depot/crates', '/store/crates')]
     ])
   })
 
@@ -197,7 +174,8 @@ describeEachSetup('', {}, (test, setup) => {
     // result of the second holds no path either.
     await save({ _status: 'published', title: 'The annexe' }, false, { path: true })
     await save({ _status: 'published', title: 'Annexe' }, false, { title: true })
-    expect(changes).toEqual([{ paths: [at('/annexe')] }, { paths: [at('/annexe')] }])
+    const kept = [changed(setup, 'pages', annexe, '/annexe', '/annexe')]
+    expect(changes).toEqual([kept, kept])
   })
 
   it('lets the drafts of two published pages both rename to one free path, and refuses the second publish', async () => {

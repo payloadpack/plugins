@@ -3,25 +3,20 @@ import { beforeEach, expect, it } from 'vitest'
 import { findByPath } from '../src/index.js'
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup } from './support/boot-payload.js'
-import { create, named, readPath, remove, update } from './support/documents.js'
+import { changed, create, readPath, remove, update } from './support/documents.js'
 
 describeEachSetup('', {}, (test, setup) => {
   beforeEach(() => {
     test.changes.length = 0
   })
 
-  // Without localization a changed path has no locale; with it, the locale it belongs to.
-  const at = (path: string) => (setup.localized ? { locale: 'en', path } : { path })
-  // Where a branch went. With localization Swedish falls back to the English slug, so it went there too.
-  const fromTo = (from: string, to: string) =>
-    setup.localized ? ['en', 'sv'].map((locale) => ({ from, locale, to })) : [{ from, to }]
   const unpublish = (id: Id) => test.payload.update({ collection: 'pages', data: { _status: 'draft' }, id, overrideAccess: true })
 
-  it('reports the path of a publish', async () => {
+  it('reports the path of a publish, with none before', async () => {
     const { changes, payload } = test
-    await create(payload, 'pages', { slug: 'news', title: 'News' })
+    const news = await create(payload, 'pages', { slug: 'news', title: 'News' })
 
-    expect(changes).toEqual([{ paths: [at('/news')] }])
+    expect(changes).toEqual([[changed(setup, 'pages', news, null, '/news')]])
   })
 
   it('reports nothing for a draft save', async () => {
@@ -34,12 +29,12 @@ describeEachSetup('', {}, (test, setup) => {
     expect(changes).toEqual([])
   })
 
-  it('reports where a move took a document and each published document below it from and to, in any collection', async () => {
+  it('reports where a move took a document and then each published document below it from and to, in any collection', async () => {
     const { changes, payload } = test
     const blog = await create(payload, 'pages', { slug: 'blog', title: 'Blog' })
     const archive = await create(payload, 'pages', { parent: blog.id, slug: 'archive', title: 'Archive' })
     const older = await create(payload, 'pages', { parent: archive.id, slug: 'older', title: 'Older' })
-    // A document below that isn't published counts among the documents below, and is not named.
+    // A document below that isn't published is not named.
     await create(payload, 'pages', { parent: blog.id, slug: 'notes', title: 'Notes' }, { draft: true })
     const series = await create(payload, 'posts', { slug: 'series', title: 'Series' })
     const partOne = await create(payload, 'posts', { parent: series.id, slug: 'part-one', title: 'Part one' })
@@ -51,39 +46,19 @@ describeEachSetup('', {}, (test, setup) => {
     await update(payload, 'pages', archive.id, { parent: vault.id })
 
     expect(changes).toEqual([
-      {
-        moved: {
-          collection: 'pages',
-          documents: [
-            named(setup, archive, '/blog/archive', '/journal/archive'),
-            named(setup, older, '/blog/archive/older', '/journal/archive/older')
-          ],
-          documentsBelow: 3,
-          id: blog.id,
-          paths: fromTo('/blog', '/journal')
-        },
-        paths: [at('/journal'), at('/blog')]
-      },
-      {
-        moved: {
-          collection: 'posts',
-          documents: [named(setup, partOne, '/series/part-one', '/saga/part-one')],
-          documentsBelow: 1,
-          id: series.id,
-          paths: fromTo('/series', '/saga')
-        },
-        paths: [at('/saga'), at('/series')]
-      },
-      {
-        moved: {
-          collection: 'pages',
-          documents: [named(setup, older, '/journal/archive/older', '/vault/archive/older')],
-          documentsBelow: 1,
-          id: archive.id,
-          paths: fromTo('/journal/archive', '/vault/archive')
-        },
-        paths: [at('/vault/archive'), at('/journal/archive')]
-      }
+      [
+        changed(setup, 'pages', blog, '/blog', '/journal'),
+        changed(setup, 'pages', archive, '/blog/archive', '/journal/archive'),
+        changed(setup, 'pages', older, '/blog/archive/older', '/journal/archive/older')
+      ],
+      [
+        changed(setup, 'posts', series, '/series', '/saga'),
+        changed(setup, 'posts', partOne, '/series/part-one', '/saga/part-one')
+      ],
+      [
+        changed(setup, 'pages', archive, '/journal/archive', '/vault/archive'),
+        changed(setup, 'pages', older, '/journal/archive/older', '/vault/archive/older')
+      ]
     ])
   })
 
@@ -94,30 +69,21 @@ describeEachSetup('', {}, (test, setup) => {
 
     await update(payload, 'posts', contact.id, { slug: 'reach-us' })
 
-    expect(changes).toEqual([
-      {
-        moved: { collection: 'posts', documents: [], documentsBelow: 0, id: contact.id, paths: fromTo('/contact', '/reach-us') },
-        paths: [at('/reach-us'), at('/contact')]
-      }
-    ])
+    expect(changes).toEqual([[changed(setup, 'posts', contact, '/contact', '/reach-us')]])
   })
 
-  it('reports the move of a document that is not published, with no published path', async () => {
+  it('reports nothing for the move of a document that is not published, with nothing published below it', async () => {
     const { changes, payload } = test
     const sketch = await create(payload, 'pages', { slug: 'sketch', title: 'Sketch' }, { draft: true })
+    await create(payload, 'pages', { parent: sketch.id, slug: 'doodle', title: 'Doodle' }, { draft: true })
     changes.length = 0
 
     await update(payload, 'pages', sketch.id, { slug: 'outline' }, { draft: true })
 
-    expect(changes).toEqual([
-      {
-        moved: { collection: 'pages', documents: [], documentsBelow: 0, id: sketch.id, paths: fromTo('/sketch', '/outline') },
-        paths: []
-      }
-    ])
+    expect(changes).toEqual([])
   })
 
-  it('reports no move for a publish that keeps the slug and the parent', async () => {
+  it('reports a publish that keeps the slug and the parent with the same path before and now, and no document below', async () => {
     const { changes, payload } = test
     const terms = await create(payload, 'pages', { slug: 'terms', title: 'Terms' })
     await create(payload, 'pages', { parent: terms.id, slug: 'privacy', title: 'Privacy' })
@@ -125,10 +91,10 @@ describeEachSetup('', {}, (test, setup) => {
 
     await update(payload, 'pages', terms.id, { title: 'Our terms' })
 
-    expect(changes).toEqual([{ paths: [at('/terms')] }])
+    expect(changes).toEqual([[changed(setup, 'pages', terms, '/terms', '/terms')]])
   })
 
-  it('reports the path an unpublish left, and nothing for a save of the draft after it', async () => {
+  it('reports the path an unpublish left, with none now, and nothing for a save of the draft after it', async () => {
     const { changes, payload } = test
     const forecast = await create(payload, 'pages', { slug: 'forecast', title: 'Forecast' })
     changes.length = 0
@@ -136,10 +102,10 @@ describeEachSetup('', {}, (test, setup) => {
     await unpublish(forecast.id)
     await update(payload, 'pages', forecast.id, { title: 'The forecast' }, { draft: true })
 
-    expect(changes).toEqual([{ paths: [at('/forecast')] }])
+    expect(changes).toEqual([[changed(setup, 'pages', forecast, '/forecast', null)]])
   })
 
-  it('reports the path of a deleted document, and where each document below it was lifted from and to', async () => {
+  it('reports the path of a deleted document, with none now, and where each document below it was lifted from and to', async () => {
     const { changes, payload } = test
     const lab = await create(payload, 'pages', { slug: 'lab', title: 'Lab' })
     const bench = await create(payload, 'pages', { parent: lab.id, slug: 'bench', title: 'Bench' })
@@ -151,30 +117,16 @@ describeEachSetup('', {}, (test, setup) => {
     await remove(payload, 'pages', lab.id)
 
     expect(changes).toEqual([
-      {
-        lifted: {
-          collection: 'pages',
-          documents: [
-            named(setup, tools, '/lab/bench/tools', '/lab/tools'),
-            named(setup, pliers, '/lab/bench/tools/pliers', '/lab/tools/pliers')
-          ],
-          documentsBelow: 2,
-          id: bench.id,
-          paths: fromTo('/lab/bench', '/lab')
-        },
-        paths: [at('/lab/bench')]
-      },
-      // At the root the lifted documents' paths start with nothing but the slash.
-      {
-        lifted: {
-          collection: 'pages',
-          documents: [named(setup, tools, '/lab/tools', '/tools'), named(setup, pliers, '/lab/tools/pliers', '/tools/pliers')],
-          documentsBelow: 2,
-          id: lab.id,
-          paths: fromTo('/lab', '')
-        },
-        paths: [at('/lab')]
-      }
+      [
+        changed(setup, 'pages', bench, '/lab/bench', null),
+        changed(setup, 'pages', tools, '/lab/bench/tools', '/lab/tools'),
+        changed(setup, 'pages', pliers, '/lab/bench/tools/pliers', '/lab/tools/pliers')
+      ],
+      [
+        changed(setup, 'pages', lab, '/lab', null),
+        changed(setup, 'pages', tools, '/lab/tools', '/tools'),
+        changed(setup, 'pages', pliers, '/lab/tools/pliers', '/tools/pliers')
+      ]
     ])
   })
 
@@ -187,9 +139,46 @@ describeEachSetup('', {}, (test, setup) => {
     await remove(payload, 'pages', flyer.id)
     await remove(payload, 'pages', draft.id)
 
-    expect(changes).toEqual([{ paths: [at('/flyer')] }])
+    expect(changes).toEqual([[changed(setup, 'pages', flyer, '/flyer', null)]])
   })
 })
+
+// A site keeps its redirects in a collection of its own, which the plugin isn't given.
+describeEachSetup(
+  'with an onPathsChanged that writes',
+  {
+    boot: {
+      collections: [
+        {
+          slug: 'redirects',
+          fields: [
+            { name: 'from', type: 'text' },
+            { name: 'to', type: 'text' }
+          ]
+        }
+      ],
+      options: {
+        onPathsChanged: async ({ changedPaths, payload, req }) => {
+          for (const { from, to } of changedPaths) {
+            if (!from || !to || from === to) continue
+            await payload.create({ collection: 'redirects', data: { from, to }, overrideAccess: true, req })
+          }
+        }
+      }
+    }
+  },
+  (test) => {
+    it('gives it Payload and the request of the save, so it stores a redirect for a moved document', async () => {
+      const { payload } = test
+      const depot = await create(payload, 'pages', { slug: 'depot', title: 'Depot' })
+
+      await update(payload, 'pages', depot.id, { slug: 'store' })
+
+      const { docs } = await payload.find({ collection: 'redirects', overrideAccess: true })
+      expect(docs).toMatchObject([{ from: '/depot', to: '/store' }])
+    })
+  }
+)
 
 // The context a save passes to make the site's onPathsChanged below fail.
 const PURGE_FAILS = { purgeFails: true }
@@ -199,7 +188,7 @@ describeEachSetup(
   {
     boot: {
       options: {
-        onPathsChanged: (_change, req) => {
+        onPathsChanged: ({ req }) => {
           if (req.context.purgeFails) throw new Error('The purge failed.')
         }
       }

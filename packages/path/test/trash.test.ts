@@ -3,7 +3,7 @@ import { beforeEach, expect, it } from 'vitest'
 import { backfillPaths, findByPath } from '../src/index.js'
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
-import { catchFieldErrors, create, named, readPath, update } from './support/documents.js'
+import { catchFieldErrors, changed, create, readPath, update } from './support/documents.js'
 
 // A collection whose deleted documents go to the trash first. Trashing is a save that sets deletedAt,
 // and taking a document out of the trash is one that clears it, so the plugin's save hooks see both.
@@ -20,9 +20,6 @@ describeEachSetup(
       test.changes.length = 0
     })
 
-    const at = (path: string) => (setup.localized ? { locale: 'en', path } : { path })
-    const fromTo = (from: string, to: string) =>
-      setup.localized ? ['en', 'sv'].map((locale) => ({ from, locale, to })) : [{ from, to }]
     const takenAt = (document: string, path: string) => [
       { message: `${document} is already at ${path}, so change the slug or the parent.`, path: 'slug' }
     ]
@@ -82,7 +79,7 @@ describeEachSetup(
       await trash(notice.id)
       await trash(sketch.id)
 
-      expect(changes).toEqual([{ paths: [at('/notice')] }])
+      expect(changes).toEqual([[changed(setup, 'articles', notice, '/notice', null)]])
       expect(await readPath(payload, 'articles', detail.id)).toBe('/notice/detail')
     })
 
@@ -101,7 +98,7 @@ describeEachSetup(
       expect(await findByPath({ path: '/brief', payload })).toBeNull()
       expect(await findByPath({ draft: true, path: '/brief', payload })).toMatchObject({ document: { id: brief.id } })
       // Only the published one shows at its path again.
-      expect(changes).toEqual([{ paths: [at('/memo')] }])
+      expect(changes).toEqual([[changed(setup, 'articles', memo, null, '/memo')]])
       // Both take their paths again.
       expect(await catchFieldErrors(create(payload, 'pages', { slug: 'brief', title: 'Brief page' }))).toMatchObject([
         { message: 'Article "Brief" is already at this path, so change the slug or the parent.', path: 'slug' }
@@ -175,19 +172,8 @@ describeEachSetup(
       await payload.delete({ collection: 'articles', id: series.id, overrideAccess: true, trash: true })
 
       expect(await readPath(payload, 'articles', part.id)).toBe('/part')
-      // The site heard of the path when the document went to the trash.
-      expect(changes).toEqual([
-        {
-          lifted: {
-            collection: 'articles',
-            documents: [named(setup, part, '/series/part', '/part')],
-            documentsBelow: 1,
-            id: series.id,
-            paths: fromTo('/series', '')
-          },
-          paths: []
-        }
-      ])
+      // The site heard of the document's own path when it went to the trash, so only the lifted one is named.
+      expect(changes).toEqual([[changed(setup, 'articles', part, '/series/part', '/part')]])
     })
 
     it('leaves neither a document in the trash nor the document at its path out of a backfill', async () => {
