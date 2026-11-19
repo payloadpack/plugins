@@ -80,7 +80,10 @@ export default defineConfig({
                 label: 'How it works',
                 items: ['path/paths', 'path/moves-and-deletes', 'path/drafts', 'path/languages', 'path/refusals']
               },
-              { label: 'API', items: ['path/api/find-by-path', 'path/api/on-paths-changed', 'path/api/backfill-paths'] }
+              {
+                label: 'API',
+                items: ['path/api/find-by-path', 'path/api/find-paths', 'path/api/on-paths-changed', 'path/api/backfill-paths']
+              }
             ]
           }
         ])
