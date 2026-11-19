@@ -53,9 +53,9 @@ export default buildConfig({
       // below a topic by the parent of Payload's hierarchy. With localization, a page and a post have
       // a slug and a path per locale, and a topic has one slug and one path, the same in every locale.
       collections: [
-        'pages',
-        { basePath: '/blog', parent: false, slug: 'posts' },
-        { basePath: '/topics', localized: false, slug: 'topics' }
+        { localized: true, slug: 'pages' },
+        { basePath: '/blog', localized: true, parent: false, slug: 'posts' },
+        { basePath: '/topics', slug: 'topics' }
       ],
       reservedSegments: {
         anyDepth: { '-': 'starts the page and filters of a listing' },

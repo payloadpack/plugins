@@ -27,7 +27,7 @@ A document sits below a parent of its own collection, held in the plugin's own p
     The top-level page named `home` answers `/`, and your site keeps `/admin` and `/api` for itself.
   </Card>
   <Card title="A path per language">
-    Each locale has a path of its own, or a collection keeps one for all of them, and the locale stays out of it.
+    A collection keeps one path for every locale, or has one per locale when you ask for it, and the locale stays out of it.
   </Card>
   <Card title="One query per lookup">
     `findByPath` asks each collection once, on its index, and asks nothing for a reserved path.

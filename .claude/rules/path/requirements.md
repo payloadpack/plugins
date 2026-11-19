@@ -41,11 +41,12 @@ What the package does, as its owner confirmed it. Build to this list, and ask hi
   - The home page has no documents below it.
 - Reserved segments are refused, at the root or at any depth.
   - Payload's admin and API routes are reserved by default.
-- With localization, each locale has its own slug and path.
-  - A collection can have one slug and one path for every locale instead, with `localized: false`.
-  - A locale without a slug uses the one it falls back to.
+- With localization, a collection has one slug and one path for every locale.
+  - A site that gets localization later keeps its paths.
+  - A collection can have a slug and a path per locale instead, with `localized: true`.
+  - There, a locale without a slug uses the one it falls back to.
+  - There, publishing one locale never moves another that has a slug of its own.
   - The locale is never part of the path.
-  - Publishing one locale never moves another that has a slug of its own.
 - A refusal comes before anything is written.
   - It names what is in the way and what to change.
 - It works with transactions and without.

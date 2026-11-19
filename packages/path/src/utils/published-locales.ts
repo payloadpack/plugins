@@ -7,7 +7,7 @@ import { getLocales, valueInLocale } from './locales.js'
 /**
  * Whether a row of a collection holds a status per locale. Payload decides it per collection: one
  * per locale where the collection has a localized field, and one for every locale where it has
- * none, which a collection given with localized: false can be.
+ * none, which a collection that isn't localized can be.
  */
 export const hasStatusPerLocale = (collection: Pick<CollectionConfig, 'versions'>) => hasLocalizeStatusEnabled(collection)
 

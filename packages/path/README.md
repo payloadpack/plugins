@@ -85,15 +85,19 @@ Every option and every message an editor can meet are in the [docs](https://docs
 
 ## Languages
 
-With localization, each locale has a path of its own, made from its own slug, or from the slug it falls back to when it has none. The locale is never part of the path, so your routes decide where it goes:
+With localization, a collection's documents keep one slug and one path for every language, so a site that gets localization later keeps the paths it has. A collection given with `localized: true` has a path per locale instead, made from each locale's own slug, or from the slug it falls back to when it has none:
+
+```ts title="payload.config.ts"
+pathPlugin({ collections: [{ slug: 'pages', localized: true }] })
+```
+
+The locale is never part of the path, so your routes decide where it goes:
 
 ```ts title="app/[locale]/[[...segments]]/page.tsx"
 const found = await findByPath({ locale, path: `/${(segments ?? []).join('/')}`, payload })
 ```
 
-The same path may show different documents in different languages, and each language is published on its own.
-
-A collection given with `localized: false` has one slug and one path for every language instead, which fits documents such as products that keep the same address everywhere.
+With a path per locale, the same path may show different documents in different languages, and each language is published on its own.
 
 ## Speed
 

@@ -8,8 +8,8 @@ import { catchFieldErrors, create, readPath, remove, store, update } from './sup
 import { listIndexes, readSqlitePlan } from './support/raw-access.js'
 import { LOCALES, SETUPS } from './support/setups.js'
 
-// A collection given with localized: false has one slug and one path, the same in every locale, in a
-// site with localization. Pages stay localized, with a slug and a path per locale.
+// In a site with localization, a collection given without localized: true has one slug and one path,
+// the same in every locale. Pages are given with it, so they have a slug and a path per locale.
 
 const inSwedish = { locale: 'sv' }
 
@@ -32,18 +32,20 @@ const COLLECTIONS: CollectionConfig[] = [
 
 const GIVEN: PathCollection[] = [
   'pages',
-  { basePath: '/topics', localized: false, slug: 'topics' },
-  { basePath: '/products', localized: false, slug: 'products' },
-  { basePath: '/sections', localized: false, slug: 'sections' },
-  { localized: false, parent: false, slug: 'offers' },
-  { basePath: '/memos', localized: false, slug: 'memos' },
-  { basePath: '/topics/brygga', localized: false, slug: 'berths' }
+  { basePath: '/topics', slug: 'topics' },
+  { basePath: '/products', slug: 'products' },
+  { basePath: '/sections', slug: 'sections' },
+  { parent: false, slug: 'offers' },
+  { basePath: '/memos', slug: 'memos' },
+  { basePath: '/topics/brygga', slug: 'berths' }
 ]
+
+const NOT_LOCALIZED: CollectionSlug[] = ['topics', 'products', 'sections', 'offers', 'memos', 'berths']
 
 describeEachSetup(
   'with collections that are not localized',
   {
-    boot: { collections: COLLECTIONS, options: { collections: GIVEN } },
+    boot: { collections: COLLECTIONS, notLocalized: NOT_LOCALIZED, options: { collections: GIVEN } },
     setups: SETUPS.filter(({ localized }) => localized)
   },
   (test, setup) => {
@@ -380,11 +382,11 @@ describeEachSetup(
 )
 
 describeEachSetup(
-  'with a collection given with localized: false in a site without localization',
+  'with a collection given with localized: true in a site without localization',
   {
     boot: {
       collections: [titled('topics', false)],
-      options: { collections: ['pages', { basePath: '/topics', localized: false, slug: 'topics' }] }
+      options: { collections: ['pages', { basePath: '/topics', localized: true, slug: 'topics' }] }
     },
     setups: SETUPS.filter(({ localized }) => !localized)
   },

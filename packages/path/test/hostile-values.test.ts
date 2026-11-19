@@ -22,7 +22,7 @@ describeEachSetup(
     boot: (setup) => ({
       // Labels and stickers take the ids they are given, so an id holds whatever a site makes it from.
       collections: ['labels', 'stickers'].map((slug) => titled(slug, setup.localized, [{ name: 'id', type: 'text' }])),
-      localization: { defaultLocale: 'en', fallback: true, locales: ['en', LOCALE] },
+      localization: setup.localized ? { defaultLocale: 'en', fallback: true, locales: ['en', LOCALE] } : undefined,
       options: {
         collections: ['pages', { basePath: BASE_PATH, slug: 'labels' }, { basePath: `${BASE_PATH}/rack`, slug: 'stickers' }],
         rootSlug: `home ${HOSTILE}`

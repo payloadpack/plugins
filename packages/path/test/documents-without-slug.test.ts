@@ -7,7 +7,7 @@ import { catchFieldErrors, create, readDocument, readLatestVersion, update } fro
 
 const MISSING_SLUG = [{ message: 'Give this document a slug, or a title to make one from.', path: 'slug' }]
 
-// Guides have a title that isn't localized, beside the slug, which is localized with the site.
+// Guides have a title that isn't localized, beside the slug, which a localized setup has one of per locale.
 const GUIDES = { collections: [titled('guides', false)], options: { collections: ['pages', 'posts', 'notices', 'guides'] } }
 
 describeEachSetup('', { boot: GUIDES }, (test, setup) => {

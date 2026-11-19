@@ -13,7 +13,7 @@ import { ancestorsField } from '../../src/fields/ancestors.js'
 import { parentField } from '../../src/fields/parent.js'
 import { pathField } from '../../src/fields/path.js'
 import { slugField } from '../../src/fields/slug.js'
-import { pathPlugin, type PathPluginOptions, type PathsChange } from '../../src/index.js'
+import { pathPlugin, type PathCollection, type PathPluginOptions, type PathsChange } from '../../src/index.js'
 import { defaultSlugify } from '../../src/plugin/slugify.js'
 import { buildAdapter, recordQueries } from './adapters.js'
 import { LOCALES, SETUPS, type Setup } from './setups.js'
@@ -27,6 +27,10 @@ const RESERVED_SEGMENTS = {
 const STANDARD_COLLECTIONS = ['pages', 'posts', 'notices']
 
 let databaseCount = 0
+let startCount = 0
+
+// The two locales of a localized setup, falling back to English.
+const LOCALIZATION = { defaultLocale: 'en', fallback: true, locales: LOCALES }
 
 // The fields the plugin adds to a collection, for one that holds them without the plugin.
 const pathFields = (collection: CollectionSlug, localized: boolean): Field[] => [
@@ -61,8 +65,12 @@ type StartOptions = {
   // MongoDB only: each document of a bulk operation gets a transaction of its own.
   bulkOperationsSingleTransaction?: boolean
   collections?: CollectionConfig[]
-  // The localization of a localized setup, in place of the two locales falling back to English.
+  // The site's localization: in a localized setup in place of the two locales falling back to
+  // English, and in a setup without, a site that has locales and localizes nothing of its own.
   localization?: Exclude<Config['localization'], false | undefined>
+  // The collections a localized setup gives the plugin without localized: true, so they have one slug
+  // and one path, the same in every locale. It gives every other one with it.
+  notLocalized?: CollectionSlug[]
   options?: Partial<PathPluginOptions>
   // Payload's own routes, in place of /admin and /api.
   routes?: Config['routes']
@@ -80,7 +88,8 @@ export async function startPayload(
     bulkOperationsSingleTransaction = false,
     collections = [],
     database,
-    localization = { defaultLocale: 'en', fallback: true, locales: LOCALES },
+    localization,
+    notLocalized = [],
     options = {},
     plugin = true,
     routes,
@@ -90,11 +99,15 @@ export async function startPayload(
   const name = database ?? `path_${process.pid}_${databaseCount++}`
   const changes: PathsChange[] = []
   const { countQueries, record } = recordQueries()
+  const withLocalized = (collection: PathCollection): PathCollection => {
+    const given = typeof collection === 'string' ? { slug: collection } : collection
+    return setup.localized && !notLocalized.includes(given.slug) ? { ...given, localized: true } : collection
+  }
   const pluginOptions: PathPluginOptions = {
-    collections: STANDARD_COLLECTIONS,
     onPathsChanged: (change) => void changes.push(change),
     reservedSegments: RESERVED_SEGMENTS,
-    ...options
+    ...options,
+    collections: (options.collections ?? STANDARD_COLLECTIONS).map(withLocalized)
   }
   const given = plugin
     ? pluginOptions.collections.map((collection) => (typeof collection === 'string' ? collection : collection.slug))
@@ -108,7 +121,7 @@ export async function startPayload(
       ...collections
     ],
     db: buildAdapter(setup.database, name, record, { bulkOperationsSingleTransaction, transactions }) as Config['db'],
-    localization: setup.localized ? localization : undefined,
+    localization: localization ?? (setup.localized ? LOCALIZATION : undefined),
     // A test sees each refusal as the error it throws, so Payload's own logging of it is noise.
     logger: { options: { level: 'fatal' } },
     plugins: plugin ? [pathPlugin(pluginOptions)] : [],
@@ -116,7 +129,8 @@ export async function startPayload(
     secret: 'path-tests',
     telemetry: false
   })
-  const payload = await getPayload({ config, key: `${name}_${plugin ? 'plugin' : 'fields'}` })
+  // Payload keeps an instance per key, so each start gets its own, also of a database opened again.
+  const payload = await getPayload({ config, key: `${name}_${startCount++}` })
   return { changes, countQueries, database: name, payload }
 }
 

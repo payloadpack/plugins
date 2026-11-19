@@ -26,8 +26,11 @@ export type PathCollection =
   | {
       /** What the paths of its top-level documents start with, such as /blog. Without one they start at the root. */
       basePath?: string
-      /** false when, in a site with localization, its documents have one slug and one path, the same in every locale. */
-      localized?: false
+      /**
+       * true when, in a site with localization, its documents have a slug and a path per locale. Without
+       * it they have one slug and one path, the same in every locale.
+       */
+      localized?: true
       /** false when its documents have no parent, so each one's path is the base path, a slash and its slug. */
       parent?: false
       slug: CollectionSlug
@@ -90,11 +93,12 @@ function getBasePathFault(basePath: string) {
   if (basePath.split('/').slice(1).includes('')) return BASE_PATH_WITH_EMPTY_SEGMENT
 }
 
-// In a site with localization a collection's documents have a slug and a path per locale, unless
-// the collection is given with localized: false.
+// A collection's documents have one slug and one path, the same in every locale, unless the site
+// has localization and the collection is given with localized: true. So a site that gets
+// localization later keeps the slugs and paths it stores.
 function resolveCollection(collection: PathCollection, { localization }: Config): PathConfig['collections'][number] {
   const { basePath, localized, parent, slug } = typeof collection === 'string' ? { slug: collection } : collection
-  const resolved = { hasParent: parent !== false, localized: Boolean(localization) && localized !== false, slug }
+  const resolved = { hasParent: parent !== false, localized: Boolean(localization) && localized === true, slug }
   if (basePath === undefined) return { ...resolved, basePath: NO_BASE_PATH }
   const fault = getBasePathFault(basePath)
   if (fault) throw new Error(basePathError(basePath, slug, fault))
@@ -164,8 +168,8 @@ export function getParentFieldName(collectionSlug: string, payload: Payload) {
 
 /**
  * Whether a collection's documents have a slug and a path per locale, which resolveCollection alone
- * decides. Where they don't, in a site without localization or in a collection given with
- * localized: false, a row holds one slug and one path, and the document is at that path in every
+ * decides. Where they don't, in a site without localization or in a collection given without
+ * localized: true, a row holds one slug and one path, and the document is at that path in every
  * locale of the site. What reads a slug or a path off a row, writes one to a row or names one in a
  * query asks here, and nothing else knows the difference.
  */

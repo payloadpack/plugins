@@ -103,10 +103,10 @@ describe('pathPlugin', () => {
     expectTypeOf<Exclude<PathCollection, string>>().toHaveProperty('parent').toEqualTypeOf<false | undefined>()
   })
 
-  it('gives a collection given with localized: false one slug and one path, and the others one per locale', async () => {
+  it('gives a collection given with localized: true a slug and a path per locale, and the others one of each', async () => {
     const config = await configWith(
       [collection('pages'), collection('products')],
-      { collections: ['pages', { localized: false, slug: 'products' }] },
+      { collections: [{ localized: true, slug: 'pages' }, 'products'] },
       { defaultLocale: 'en', locales: ['en', 'sv'] }
     )
 
@@ -118,8 +118,8 @@ describe('pathPlugin', () => {
     expect(localizedOf('products')).toEqual([false, false])
   })
 
-  it('takes false alone as localized of a collection', () => {
-    expectTypeOf<Exclude<PathCollection, string>>().toHaveProperty('localized').toEqualTypeOf<false | undefined>()
+  it('takes true alone as localized of a collection', () => {
+    expectTypeOf<Exclude<PathCollection, string>>().toHaveProperty('localized').toEqualTypeOf<true | undefined>()
   })
 
   it("shows the slug as Payload's slug field, which makes a slug from the title with the site's own slugify", async () => {

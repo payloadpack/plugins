@@ -54,7 +54,7 @@ type BranchChange = {
 - A rename of a document with nothing below it reports `moved` with `documentsBelow: 0`, and a publish that keeps the slug and the parent reports none.
 - It isn't called when there is nothing to report. A delete of a document in the trash reports no `paths`, since your site heard them when it went there, and still reports `lifted`.
 - With localization, each path has its `locale`, and only the locales the save changed are listed, which usually includes the ones that fall back to a renamed slug.
-- A collection given with `localized: false` is reported in the same shape: its one path is listed once for each locale your site finds the document in, and a move's `from` and `to` come per locale.
+- A collection with one path in every locale is reported in the same shape: its one path is listed once for each locale your site finds the document in, and a move's `from` and `to` come per locale.
 
 ## Redirects
 

@@ -34,19 +34,19 @@ List a collection by its slug, or as an object when it needs more than that:
 ```ts title="payload.config.ts"
 pathPlugin({
   collections: [
-    'pages',
+    { slug: 'pages', localized: true },
     { slug: 'posts', basePath: '/blog', parent: false },
-    { slug: 'topics', basePath: '/topics', localized: false }
+    { slug: 'topics', basePath: '/topics' }
   ]
 })
 ```
 
-| Key         | What it sets                                                                          | Default                                         |
-| ----------- | ------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `slug`      | The collection                                                                        |                                                 |
-| `basePath`  | What the paths of its top-level documents start with, such as `/blog`                 | None, so they start at the root                 |
-| `parent`    | `false` when its documents have no parent                                             | Its documents have a parent                     |
-| `localized` | `false` when its documents have [one path in every locale](#one-path-in-every-locale) | With localization, a slug and a path per locale |
+| Key         | What it sets                                                           | Default                                         |
+| ----------- | ---------------------------------------------------------------------- | ----------------------------------------------- |
+| `slug`      | The collection                                                         |                                                 |
+| `basePath`  | What the paths of its top-level documents start with, such as `/blog`  | None, so they start at the root                 |
+| `parent`    | `false` when its documents have no parent                              | Its documents have a parent                     |
+| `localized` | `true` when its documents have [a path per locale](#a-path-per-locale) | One slug and one path, the same in every locale |
 
 With `basePath: '/blog'` a top-level post is at `/blog/my-post`. Leave it out and the collection's top-level documents sit at the root, like pages. A base path is no document of its own, so a page may sit at `/blog` beside the posts.
 
@@ -91,11 +91,11 @@ A few things are good to know before you start:
 - Payload's hierarchy has no parent field in the form, so a refused parent, such as a document below itself, shows on the slug field.
 - With `parent: false` as well, the collection keeps Payload's tree in the admin and gets paths without a parent in them. The plugin lifts nothing there, so a delete deletes the documents right below, as Payload does.
 
-### One path in every locale
+### A path per locale
 
-With localization in your Payload config, a collection's documents have a slug and a path per locale. With `localized: false`, they have one slug and one path, the same in every locale. It fits a collection whose documents should be at the same path in every language.
+A collection's documents have one slug and one path, the same in every locale, also when your Payload config has localization. With `localized: true`, they have a slug and a path per locale, so a page can be at `/about` in English and at `/om-oss` in Swedish.
 
-`false` is the only value `localized` takes, and it goes together with `basePath`, `parent: false` and Payload's hierarchy. In a site without localization it changes nothing. See [Languages](/path/languages/#one-path-in-every-locale) for what it means for publishing and taken paths, and what to do in a collection that already has documents.
+`true` is the only value `localized` takes, and it goes together with `basePath`, `parent: false` and Payload's hierarchy. In a site without localization it changes nothing. See [Languages](/path/languages/) for how each locale gets its path, and what to do in a collection that already has documents.
 
 ## Home page
 
@@ -106,7 +106,7 @@ pathPlugin({ collections: ['pages', 'posts'], rootSlug: 'start' })
 - The top-level document with this slug is the home page, and its path is `/`. Without `rootSlug`, the slug is `home`.
 - Only a top-level document in a collection without a base path can be it. A page below another page with the slug `start` sits at `/about/start`, and with posts at `/blog`, a post with it sits at `/blog/start`.
 - The home page holds no documents, since their paths would start with `/start/`, which the home page doesn't answer.
-- With localization it is checked per locale, so a page is the home page in the locales where its slug is the root slug.
+- In a collection with a path per locale it is checked per locale, so a page is the home page in the locales where its slug is the root slug.
 
 ## Reserved slugs
 
@@ -151,7 +151,7 @@ Each collection in `collections` gets these fields, after its own:
 | `path`      | The stored path, read-only and indexed                                                                                                                                | Every one                                                        |
 | `ancestors` | The ids of the documents above, top-down, an indexed relationship to the document's own collection. The API returns it and filters by it, and the admin leaves it out | One whose documents have a parent, the plugin's own or Payload's |
 
-With localization, `slug` and `path` are localized fields, except in a collection given with `localized: false`.
+In a collection given with `localized: true`, `slug` and `path` are localized fields.
 
 ## When the config is wrong
 

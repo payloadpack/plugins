@@ -69,7 +69,7 @@ A run of `backfillPaths`, which gives every document the path and ancestors its 
 _Avoid_: migrate, rebuild, reindex
 
 **Localized**:
-Said of a collection whose documents have a slug and a path per locale. In a site with localization every collection is, unless it is given with `localized: false`: then its documents have one slug and one path, the same in every locale. Config says `localized`.
+Said of a collection whose documents have a slug and a path per locale: one given with `localized: true`, in a site with localization. The documents of every other collection have one slug and one path, the same in every locale. Config says `localized`.
 _Avoid_: synced, shared path, per market
 
 **Home page**:
