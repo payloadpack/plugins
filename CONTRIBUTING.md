@@ -183,8 +183,7 @@ The theme's docs used to live on theme.payloadpack.com. A redirect rule in Cloud
    1. Merge the pull request that brings the package in without adding it to `release-please-config.json` or `.release-please-manifest.json`. The docs deploy on that merge, because it changes `apps/docs`.
    2. Tag the merge commit with a GitHub release: `gh release create <name>-v0.1.0 --target <merge commit sha> --title '<name>: v0.1.0' --notes 'First release.'`
    3. Publish that version by hand from the tag: check out `<name>-v0.1.0`, run `bun install --frozen-lockfile`, then `npm publish` in `packages/<name>`.
-   4. Add a trusted publisher on the package's Settings page on npmjs.com: GitHub Actions, organization `payloadpack`, repository `plugins`, workflow `release.yml`. A new trusted publisher expires unless a release uses it within 2 days.
-   5. In a second pull request, add the package to both Release Please files, with the version from its `package.json` and the folders that never ship to npm:
+   4. In a second pull request, add the package to both Release Please files, with the version from its `package.json` and the folders that never ship to npm:
 
       ```jsonc
       // release-please-config.json, under "packages"
@@ -199,6 +198,8 @@ The theme's docs used to live on theme.payloadpack.com. A redirect rule in Cloud
       ```
 
       On its merge, Release Please finds the `<name>-v0.1.0` release and counts the next version from the commits after it.
+
+   5. When Release Please has the package's first release pull request ready to merge, add a trusted publisher on the package's Settings page on npmjs.com: GitHub Actions, organization `payloadpack`, repository `plugins`, workflow `release.yml`, with `npm publish` allowed. Without that, a new trusted publisher can only stage a publish, and the workflow's `npm publish` is refused. Add it no earlier: a new trusted publisher expires unless a release uses it within 2 days.
 
    Keep this order. Release Please runs on every push to `main`, so a package that is in its files before the tag exists gets a release pull request at once: with no release to count from, Release Please treats the manifest's `0.1.0` as released and proposes the next version from every commit in the package's folder, before `0.1.0` is on npm.
 
