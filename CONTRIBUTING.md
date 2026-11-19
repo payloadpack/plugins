@@ -133,7 +133,7 @@ The jobs install Node, Bun and the dependencies through one local action, `.gith
 
 Each package has its own version, changelog and tags. Merge pull requests with a [Conventional Commits](https://www.conventionalcommits.org) title. A commit counts toward a package when it changes a file in that package's folder, outside the folders it lists under `exclude-paths` in `release-please-config.json`: those that never ship to npm, such as its `test` folder. The README and `package.json` ship with the package, so a change to them releases it too.
 
-Release Please keeps one release pull request open with the next version of every package that has changes. Merging it tags each released package as `<name>-v<version>`, such as `theme-v0.3.5`, publishes it to npm with provenance and deploys the docs site to GitHub Pages. To deploy the docs by hand, run the Docs workflow from the Actions tab. The Release workflow runs by hand from there too, on `main`, to run Release Please again without a push.
+Release Please keeps one release pull request open for each package that has changes, titled with the package and its next version, such as `chore(main): release theme 0.3.7`. Merging it tags the package as `<name>-v<version>`, such as `theme-v0.3.7`, publishes it to npm with provenance and deploys the docs site to GitHub Pages. To deploy the docs by hand, run the Docs workflow from the Actions tab. The Release workflow runs by hand from there too, on `main`, to run Release Please again without a push.
 
 The theme's tags up to `v0.3.4` come from before the repository held more than one package. `theme-v0.3.4` marks the same commit as `v0.3.4`, so Release Please continues from there.
 
