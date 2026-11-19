@@ -35,10 +35,12 @@ export default buildConfig({
     // Payload's own hierarchy gives a topic its parent, which an editor picks with the button in the header.
     { ...page('topics', 'Topic', 'Topics'), hierarchy: true }
   ],
-  // scripts/with-database.ts names the database; a build connects to none. The indexes are built
-  // before Payload's first transaction, which MongoDB refuses while they change.
+  // scripts/with-database.ts names the database; a build connects to none.
   db: mongooseAdapter({
-    // Payload's ensureIndexes doesn't wait for the index builds mongoose starts itself, which the seed's first save would meet.
+    // Only for this demo: an app that uses the plugin needs neither option. Every run of the demo
+    // starts on a fresh database that its seed writes to at once, in transactions, which MongoDB
+    // refuses while mongoose still builds the indexes it starts on connect. Payload's ensureIndexes
+    // doesn't wait for those builds, so the seed waits for each model's init.
     afterOpenConnection: async ({ collections, versions }) => {
       await Promise.all([...Object.values(collections), ...Object.values(versions)].map((model) => model.init()))
     },
