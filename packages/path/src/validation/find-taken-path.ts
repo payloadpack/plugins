@@ -28,13 +28,17 @@ export const pathKey = (locale: string, path: string) => `${locale} ${path}`
  * way in, the result names the one of the request, which an editor can act on, before another. One
  * query per collection and chunk of paths, one at a time, because inside a transaction MongoDB
  * refuses parallel operations. Of the documents below, a query leaves out the ones that store one of
- * its paths, the only ones it could find, so it never names a whole branch.
+ * its paths, so it never names a whole branch. A document below that it finds all the same was
+ * written after the branch was read, by a save of its own in the same bulk update, and moves along
+ * like the rest, so the query leaves it out too and asks again.
  */
 export async function findTakenPath(paths: LocalePath[], self: Self, req: PayloadRequest): Promise<TakenPath | undefined> {
   if (paths.length === 0) return
   const { payload } = req
+  const below = new Set<string>()
   const idsBelow = new Map<string, Id[]>()
   for (const { id, path: stored } of self.below ?? []) {
+    below.add(String(id))
     for (const [locale, path] of Object.entries(getPaths(stored, self.collection, payload))) {
       if (path === null) continue
       const key = pathKey(locale, path)
@@ -57,9 +61,14 @@ export async function findTakenPath(paths: LocalePath[], self: Self, req: Payloa
         collection === self.collection
           ? [...new Set([...self.ids, ...chunk.flatMap(([locale, path]) => idsBelow.get(pathKey(locale, path)) ?? [])])]
           : []
-      const notOwn: Where[] = own.length > 0 ? [{ id: { not_in: own } }] : []
       const notInTrash: Where[] = inTrash ? [{ deletedAt: { exists: false } }] : []
-      const document = await findDocument(collection, { and: [atPath, ...notOwn, ...notInTrash] }, req)
+      const findOther = () =>
+        findDocument(collection, { and: [atPath, ...(own.length > 0 ? [{ id: { not_in: own } }] : []), ...notInTrash] }, req)
+      let document = await findOther()
+      while (document && collection === self.collection && below.has(String(document.id))) {
+        own.push(document.id)
+        document = await findOther()
+      }
       if (!document) continue
       const documentPaths = getPaths(document.path, collection, payload)
       const taken = paths.filter(([pathLocale, takenPath]) => documentPaths[pathLocale] === takenPath)

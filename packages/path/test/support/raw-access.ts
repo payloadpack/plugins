@@ -131,3 +131,38 @@ export async function refuseWritesOf(
     for (const { name } of triggers) await drizzle.run(sqliteSql`DROP TRIGGER ${name}`)
   }
 }
+
+/**
+ * Holds a row of a collection on Postgres in a transaction of its own, so a write of it waits, until
+ * the returned function lets it go. A write of a row that names it as its parent doesn't wait.
+ */
+export async function holdRow(payload: Payload, collection: string, id: number | string) {
+  const { drizzle, tables } = postgresOf(payload)
+  let letGo = () => {}
+  const lettingGo = new Promise<void>((resolve) => (letGo = resolve))
+  let held = () => {}
+  const holding = new Promise<void>((resolve) => (held = resolve))
+  const transaction = drizzle.transaction(async (tx) => {
+    await tx.execute(postgresSql`SELECT id FROM ${tables[collection]} WHERE id = ${id} FOR NO KEY UPDATE`)
+    held()
+    await lettingGo
+  })
+  await holding
+  return async () => {
+    letGo()
+    await transaction
+  }
+}
+
+// Waits until a statement of this Postgres database waits for a row another transaction holds, or
+// gives up after a while, so work that doesn't wait doesn't hang the test.
+export async function waitForRowWait(payload: Payload) {
+  const { drizzle, schemaName } = postgresOf(payload)
+  for (const started = Date.now(); Date.now() - started < 10_000;) {
+    const { rows } = await drizzle.execute<{ waiting: number }>(
+      postgresSql`SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE ${`%${schemaName}%`}`
+    )
+    if (rows[0]!.waiting > 0) return
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+}

@@ -1,22 +1,25 @@
+import type { Payload } from 'payload'
 import { expect, it } from 'vitest'
 
 import { findByPath } from '../src/index.js'
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
-import { catchFieldErrors, create, readDocument, readLatestVersion, update } from './support/documents.js'
+import { catchFieldErrors, create, readDocument, readLatestVersion, readRows, update } from './support/documents.js'
+import { SETUPS } from './support/setups.js'
 
 const MISSING_SLUG = [{ message: 'Give this document a slug, or a title to make one from.', path: 'slug' }]
 
 // Guides have a title that isn't localized, beside the slug, which a localized setup has one of per locale.
 const GUIDES = { collections: [titled('guides', false)], options: { collections: ['pages', 'posts', 'notices', 'guides'] } }
 
-describeEachSetup('', { boot: GUIDES }, (test, setup) => {
-  // As the admin does the moment an editor opens "Create new" in a collection with autosave.
-  const createEmpty = () => test.payload.create({ collection: 'pages', data: {}, depth: 0, draft: true, overrideAccess: true })
+// As the admin does the moment an editor opens "Create new" in a collection with autosave.
+const createEmpty = (payload: Payload) =>
+  payload.create({ collection: 'pages', data: {}, depth: 0, draft: true, overrideAccess: true })
 
+describeEachSetup('', { boot: GUIDES }, (test, setup) => {
   it('creates a draft without a slug, which has no path yet, beside another one', async () => {
     const { payload } = test
-    const [first, second] = [await createEmpty(), await createEmpty()]
+    const [first, second] = [await createEmpty(payload), await createEmpty(payload)]
 
     for (const { id } of [first, second]) {
       expect(await readDocument(payload, 'pages', id, { draft: true })).toMatchObject({ ancestors: [], id })
@@ -28,7 +31,7 @@ describeEachSetup('', { boot: GUIDES }, (test, setup) => {
 
   it('gives a draft a slug from its title and a path in the autosave that gives it a title, and keeps the slug after that', async () => {
     const { payload } = test
-    const { id } = await createEmpty()
+    const { id } = await createEmpty(payload)
 
     const titled = await update(payload, 'pages', id, { title: 'Opening hours' }, { autosave: true, draft: true })
 
@@ -46,7 +49,7 @@ describeEachSetup('', { boot: GUIDES }, (test, setup) => {
 
   it('refuses to publish a document without a slug and without a title', async () => {
     const { payload } = test
-    const { id } = await createEmpty()
+    const { id } = await createEmpty(payload)
 
     expect(await catchFieldErrors(update(payload, 'pages', id, {}))).toMatchObject(MISSING_SLUG)
     expect((await readDocument(payload, 'pages', id, { draft: true }))._status).toBe('draft')
@@ -85,7 +88,7 @@ describeEachSetup('', { boot: GUIDES }, (test, setup) => {
 
     it('gives an empty draft first given a title in Swedish its slug from that title', async () => {
       const { payload } = test
-      const { id } = await createEmpty()
+      const { id } = await createEmpty(payload)
 
       const titled = await update(payload, 'pages', id, { title: 'Öppettider' }, { autosave: true, draft: true, locale: 'sv' })
 
@@ -151,7 +154,7 @@ describeEachSetup('', { boot: GUIDES }, (test, setup) => {
 
   it('refuses a document without a path as a parent, until it has one', async () => {
     const { payload } = test
-    const { id } = await createEmpty()
+    const { id } = await createEmpty(payload)
     const below = { parent: id, slug: 'below', title: 'Below' }
 
     expect(await catchFieldErrors(create(payload, 'pages', below, { draft: true }))).toMatchObject([
@@ -163,3 +166,44 @@ describeEachSetup('', { boot: GUIDES }, (test, setup) => {
     expect((await create(payload, 'pages', below, { draft: true })).path).toBe('/above/below')
   })
 })
+
+// In a localized collection a stored document may fall back to another locale's slug, so the hook
+// before the write reads the stored slugs before it refuses a publish without one. The refusal comes
+// before the write, so the document is left as it was, also in a bulk update, where Payload commits
+// the other documents in the same transaction, and without transactions.
+for (const transactions of [true, false]) {
+  describeEachSetup(
+    `a publish without a slug, transactions ${transactions ? 'on' : 'off'}`,
+    { boot: { transactions }, setups: SETUPS.filter(({ localized }) => localized) },
+    (test) => {
+      it('refuses to publish a draft without a slug and without a title in a bulk update, and leaves it as it was', async () => {
+        const { payload } = test
+        const empty = await createEmpty(payload)
+        const before = await readRows(payload, 'pages', [empty.id])
+
+        const { errors } = await payload.update({
+          collection: 'pages',
+          data: { _status: 'published' },
+          draft: true,
+          overrideAccess: true,
+          where: { id: { in: [empty.id] } }
+        })
+
+        // A bulk update lists a refusal by its ValidationError's message only.
+        expect(errors).toMatchObject([{ id: empty.id, message: 'The following field is invalid: slug' }])
+        expect(await readRows(payload, 'pages', [empty.id])).toEqual(before)
+      })
+
+      it('refuses to publish a draft without a slug and without a title, and leaves it as it was', async () => {
+        const { payload } = test
+        const empty = await createEmpty(payload)
+        const before = await readRows(payload, 'pages', [empty.id])
+
+        expect(await catchFieldErrors(update(payload, 'pages', empty.id, {}))).toMatchObject([
+          { message: 'Give this document a slug, or a title to make one from.' }
+        ])
+        expect(await readRows(payload, 'pages', [empty.id])).toEqual(before)
+      })
+    }
+  )
+}

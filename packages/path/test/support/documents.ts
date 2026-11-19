@@ -156,6 +156,16 @@ export async function readLatestVersion(payload: Payload, collection: Collection
   return docs[0]!.version
 }
 
+// How many latest versions a document has.
+export async function countLatestVersions(payload: Payload, collection: CollectionSlug, id: Id) {
+  const { docs } = await payload.db.findVersions({
+    collection,
+    pagination: false,
+    where: { and: [{ parent: { equals: id } }, { latest: { equals: true } }] }
+  })
+  return docs.length
+}
+
 // The paths of a document's versions, latest first.
 export async function readVersionPaths(payload: Payload, collection: CollectionSlug, id: Id, where: Where = {}) {
   const { docs } = await payload.findVersions({

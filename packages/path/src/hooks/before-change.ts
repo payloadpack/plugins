@@ -82,12 +82,12 @@ function getSavedPaths(
  * version always, and into the document itself when Payload writes that. It predicts nothing of that
  * write. The hook after it looks.
  *
- * It refuses what the data itself shows, in this order: a missing slug, a parent the document can't
- * sit below, a path the document can't be at, and a landing of a document below it. It stores nothing,
- * because Payload's dry-run validate runs this hook too. A document of a bulk update takes its paths
- * before it asks the database, because Payload runs the documents of a bulk update at once. What it
- * took is kept by that bulk update only, so a save that fails after this hook can't leave a path
- * taken for anything after it.
+ * It refuses what the data itself shows, in this order: a publish without a slug to make a path
+ * from in any locale, a parent the document can't sit below, a path the document can't be at, and a
+ * landing of a document below it. It stores nothing, because Payload's dry-run validate runs this
+ * hook too. A document of a bulk update takes its paths before it asks the database, because Payload
+ * runs the documents of a bulk update at once. What it took is kept by that bulk update only, so a
+ * save that fails after this hook can't leave a path taken for anything after it.
  */
 export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collection, data, operation, originalDoc, req }) => {
   const { payload } = req
@@ -98,16 +98,11 @@ export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collec
   const id: Id | undefined = operation === 'create' ? undefined : originalDoc?.id
   const publishes = !hasDraftsEnabled(collection) || data._status === 'published'
 
-  // The slug. A draft without one has no path yet, and a stored document may have a localized slug
-  // in another locale to fall back to, which only the hook after the write sees.
-  const slugs = await findSlugs({ collection, data, id, req })
-  const fallsBack = localized && hasDraftsEnabled(collection) && id !== undefined
-  if (publishes && !fallsBack) {
-    checkSlugs(
-      slug,
-      savedLocales.map((savedLocale) => slugs[savedLocale]),
-      req
-    )
+  // The slug. A draft without one has no path yet, and a publish needs one to make a path from in
+  // some locale: in the save, made from the title, or stored in a locale a saved locale falls back to.
+  const { fallbackSlugs, slugs } = await findSlugs({ collection, data, id, req })
+  if (publishes) {
+    checkSlugs(slug, [...savedLocales.map((savedLocale) => slugs[savedLocale]), ...fallbackSlugs], req)
   }
 
   // The parent, and the path and ancestors the slug and the parent make.

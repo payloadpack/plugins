@@ -24,7 +24,7 @@ export type PathAndAncestors = { ancestors: Id[]; paths: Paths }
 export type ParentPathAndAncestors = PathAndAncestors & { id: Id }
 
 // What a path and ancestors are made from: the parent, and each locale's own slug.
-type SlugsAndParent = { parentId: Id | null; slugs: Record<string, unknown> }
+export type SlugsAndParent = { parentId: Id | null; slugs: Record<string, unknown> }
 
 export const HOME_PAGE_PATH = '/'
 
@@ -56,6 +56,13 @@ export function hasSamePathAndAncestors(one: PathAndAncestors, other: PathAndAnc
   return (
     one.ancestors.join() === other.ancestors.join() &&
     Object.entries(one.paths).every(([locale, path]) => other.paths[locale] === path)
+  )
+}
+
+export function hasSameSlugsAndParent(one: SlugsAndParent, other: SlugsAndParent) {
+  return (
+    String(one.parentId) === String(other.parentId) &&
+    Object.entries(one.slugs).every(([locale, slug]) => other.slugs[locale] === slug)
   )
 }
 

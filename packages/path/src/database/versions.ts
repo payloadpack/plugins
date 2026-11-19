@@ -90,6 +90,12 @@ export async function findLatestVersionsBelow(collection: string, id: Id, below:
   return versions
 }
 
+// A document's latest version as the database holds it, or nothing for a document without one.
+export async function findLatestVersion(collection: string, id: Id, req: PayloadRequest): Promise<StoredVersion | undefined> {
+  const [version] = await findLatestVersions(collection, { parent: { equals: id } }, req)
+  return version
+}
+
 export async function findDocumentAndLatestVersion(
   collection: CollectionConfig,
   id: Id,
@@ -98,8 +104,7 @@ export async function findDocumentAndLatestVersion(
   const document = await findDocumentById(collection.slug, id, req)
   if (!document) return
   if (!hasDraftsEnabled(collection)) return { document }
-  const [version] = await findLatestVersions(collection.slug, { parent: { equals: id } }, req)
-  return { document, version }
+  return { document, version: await findLatestVersion(collection.slug, id, req) }
 }
 
 // A stored document's path and ancestors, or the ones its latest draft would give it, below the

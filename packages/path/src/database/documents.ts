@@ -114,8 +114,10 @@ export function buildRowWithPathAndAncestors<Row extends Record<string, unknown>
  * This write and setDraftPathAndAncestors both send the whole row as it was read, with the path and
  * ancestors changed. On Postgres and SQLite an update that holds a localized value replaces every
  * locale's row of the document, and on MongoDB an update of a version replaces its whole content, so
- * a write of the path alone would empty the rest. The row keeps its updatedAt, because each adapter
- * stamps a new one on a write without it.
+ * a write of the path alone would empty the rest. Such a write undoes whatever a save wrote to the
+ * row since it was read, so one that comes long after its read reads the row again first, as
+ * moveBranch does. The row keeps its updatedAt, because each adapter stamps a new one on a write
+ * without it.
  */
 export async function setPathAndAncestors(
   collection: string,

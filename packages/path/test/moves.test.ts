@@ -3,6 +3,7 @@ import { expect, it } from 'vitest'
 import { describeEachSetup } from './support/boot-payload.js'
 import {
   catchFieldErrors,
+  countLatestVersions,
   create,
   readDocument,
   readLatestVersion,
@@ -11,6 +12,8 @@ import {
   restoreVersion,
   update
 } from './support/documents.js'
+import { holdRow, waitForRowWait } from './support/raw-access.js'
+import { SETUPS } from './support/setups.js'
 
 describeEachSetup('', {}, (test, setup) => {
   it('gives every document below a renamed page its new path, in its latest version too', async () => {
@@ -241,3 +244,59 @@ describeEachSetup('', {}, (test, setup) => {
     expect(await readPath(payload, 'pages', nets.id)).toBe('/landing/nets')
   })
 })
+
+// A move reads each row of its branch again right before it writes it, so a save of a document below
+// that lands while the move is under way is kept. Step by step on Postgres without transactions: a
+// statement of the test holds the row of the first document below a page, so the page's rename reads
+// its branch and then waits to write that row. Meanwhile a document further along the branch is
+// saved. With transactions that save lands only after the move's transaction. Holding a row so that a
+// write waits for it is Postgres's, so the other databases are left out: SQLite has one writer at a
+// time.
+describeEachSetup(
+  'a move that waits to write a row of its branch, transactions off',
+  { boot: { transactions: false }, setups: SETUPS.filter(({ database }) => database === 'postgres') },
+  (test) => {
+    it('keeps the title a document below a renamed page is saved with while the move is under way, with one latest version', async () => {
+      const { payload } = test
+      const shelf = await create(payload, 'pages', { slug: 'shelf', title: 'Shelf' })
+      const first = await create(payload, 'pages', { parent: shelf.id, slug: 'first-book', title: 'First book' })
+      const second = await create(payload, 'pages', { parent: shelf.id, slug: 'second-book', title: 'Second book' })
+      const letGo = await holdRow(payload, 'pages', first.id)
+
+      const rename = update(payload, 'pages', shelf.id, { slug: 'bookcase' })
+      await waitForRowWait(payload)
+      await update(payload, 'pages', second.id, { title: 'Second edition' })
+      await letGo()
+      await rename
+
+      const { path, title } = await readDocument(payload, 'pages', second.id)
+      expect({ latest: await countLatestVersions(payload, 'pages', second.id), path, title }).toEqual({
+        latest: 1,
+        path: '/bookcase/second-book',
+        title: 'Second edition'
+      })
+    })
+
+    // A document below that a save renames while the move is under way gives the documents below it
+    // their paths, so the move leaves them.
+    it('keeps the path a document below a renamed page gets from a rename of its parent saved while the move is under way', async () => {
+      const { payload } = test
+      const atlas = await create(payload, 'pages', { slug: 'atlas', title: 'Atlas' })
+      const north = await create(payload, 'pages', { parent: atlas.id, slug: 'north', title: 'North' })
+      const south = await create(payload, 'pages', { parent: atlas.id, slug: 'south', title: 'South' })
+      const coast = await create(payload, 'pages', { parent: south.id, slug: 'coast', title: 'Coast' })
+      const letGo = await holdRow(payload, 'pages', north.id)
+
+      const rename = update(payload, 'pages', atlas.id, { slug: 'world' })
+      await waitForRowWait(payload)
+      await update(payload, 'pages', south.id, { slug: 'tropics' })
+      await letGo()
+      await rename
+
+      expect({
+        draft: await readPath(payload, 'pages', coast.id, { draft: true }),
+        path: await readPath(payload, 'pages', coast.id)
+      }).toEqual({ draft: '/world/tropics/coast', path: '/world/tropics/coast' })
+    })
+  }
+)

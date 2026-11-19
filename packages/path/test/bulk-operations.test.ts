@@ -2,8 +2,9 @@ import type { CollectionConfig } from 'payload'
 import { beforeEach, expect, it } from 'vitest'
 
 import { findByPath } from '../src/index.js'
+import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup } from './support/boot-payload.js'
-import { create, readDocument, readPath } from './support/documents.js'
+import { countLatestVersions, create, readDocument, readPath, update } from './support/documents.js'
 import { SETUPS } from './support/setups.js'
 
 describeEachSetup('', {}, (test) => {
@@ -351,3 +352,77 @@ describeEachSetup(
     })
   }
 )
+
+// Payload runs the documents of a bulk update at once, so in a bulk publish of a page and the
+// documents below it, each document below writes its own row while the page's move reads the branch
+// and writes it too. The page's pending rename and each new title below are all published, and no
+// document of the branch is taken for one in the way of its own branch. Many documents below make it
+// likely that a write lands between the move's read and its check.
+const DOCUMENTS_BELOW = 10
+
+type Document = { [key: string]: unknown; id: Id }
+
+describeEachSetup('a bulk publish of a page and the documents below it', {}, (test) => {
+  // A published page with documents below it, each with a draft that holds a new title.
+  async function createBranchWithDrafts(slug: string) {
+    const { payload } = test
+    const page = await create(payload, 'pages', { slug, title: slug })
+    const below = []
+    for (let index = 0; index < DOCUMENTS_BELOW; index++) {
+      const title = `${slug} room ${index}`
+      const document = await create(payload, 'pages', { parent: page.id, slug: `${slug}-room-${index}`, title })
+      await update(payload, 'pages', document.id, { title: `${title} renovated` }, { draft: true })
+      below.push(document)
+    }
+    return { below, page }
+  }
+
+  // As the admin publishes the documents it lists: their latest drafts, in one bulk update. Returns
+  // what the bulk update refused, by the page's slug or the title of a document below, the page's
+  // path, and each document below as it is published, with how many latest versions it has.
+  async function publish(page: Document, below: Document[]) {
+    const { payload } = test
+    const { errors } = await payload.update({
+      collection: 'pages',
+      data: { _status: 'published' },
+      draft: true,
+      overrideAccess: true,
+      where: { id: { in: [page.id, ...below.map(({ id }) => id)] } }
+    })
+    const published = []
+    for (const { id } of below) {
+      const { path, title } = await readDocument(payload, 'pages', id)
+      published.push({ latest: await countLatestVersions(payload, 'pages', id), path, title })
+    }
+    const names = new Map([page, ...below].map((document) => [String(document.id), String(document.title ?? document.slug)]))
+    return {
+      errors: errors.map(({ id, message }) => ({ document: names.get(String(id)), message })),
+      pagePath: await readPath(payload, 'pages', page.id),
+      published
+    }
+  }
+
+  const expected = (pageSlug: string, path: string) => ({
+    errors: [],
+    pagePath: path,
+    published: Array.from({ length: DOCUMENTS_BELOW }, (_, index) => ({
+      latest: 1,
+      path: `${path}/${pageSlug}-room-${index}`,
+      title: `${pageSlug} room ${index} renovated`
+    }))
+  })
+
+  it('publishes the new title of each document below a page whose pending rename the same bulk publish publishes, with one latest version each', async () => {
+    const { below, page } = await createBranchWithDrafts('hotel')
+    await update(test.payload, 'pages', page.id, { slug: 'inn' }, { draft: true })
+
+    expect(await publish(page, below)).toEqual(expected('hotel', '/inn'))
+  })
+
+  // The same bulk publish without a rename moves nothing, and every new title is published.
+  it('publishes the new title of each document below a page that the same bulk publish publishes without a rename', async () => {
+    const { below, page } = await createBranchWithDrafts('hostel')
+
+    expect(await publish(page, below)).toEqual(expected('hostel', '/hostel'))
+  })
+})

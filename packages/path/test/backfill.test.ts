@@ -4,8 +4,9 @@ import { backfillPaths, findByPath } from '../src/index.js'
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import type { Query } from './support/adapters.js'
 import { describeEachSetup } from './support/boot-payload.js'
-import { create, readDocument, readLatestVersion, readPath, store, update } from './support/documents.js'
-import { refuseWritesOf } from './support/raw-access.js'
+import { countLatestVersions, create, readDocument, readLatestVersion, readPath, store, update } from './support/documents.js'
+import { holdRow, refuseWritesOf, waitForRowWait } from './support/raw-access.js'
+import { SETUPS } from './support/setups.js'
 
 const WRITES = ['delete', 'findAndModify', 'insert', 'update']
 
@@ -233,6 +234,38 @@ describeEachSetup(
       await expect(backfillPaths({ collections: ['pages', 'notices'], payload: test.payload })).rejects.toThrow(
         "@payloadpack/path was asked for collections that pathPlugin() wasn't given: notices."
       )
+    })
+  }
+)
+
+// A backfill reads each document again when it gets to it, so a save that lands while the run is
+// under way is kept. Step by step on Postgres without transactions: a statement of the test holds the
+// row of a page that stores another path than its slug makes, so the run waits to write it. Meanwhile
+// the page below it, which the run comes to after it, is saved. Holding a row so that a write waits
+// for it is Postgres's, so the other databases are left out: SQLite has one writer at a time.
+describeEachSetup(
+  'a backfill that waits to write a row, transactions off',
+  { boot: { transactions: false }, setups: SETUPS.filter(({ database }) => database === 'postgres') },
+  (test, setup) => {
+    it('keeps the title a document is saved with while the backfill is under way, with one latest version', async () => {
+      const { payload } = test
+      const path = setup.localized ? { en: '/old-cellar' } : '/old-cellar'
+      const cellar = await store(test, setup, 'pages', { path, slug: 'cellar', title: 'Cellar' })
+      const vintage = await store(test, setup, 'pages', { parent: cellar, slug: 'vintage', title: 'Vintage' })
+      const letGo = await holdRow(payload, 'pages', cellar)
+
+      const backfill = backfillPaths({ collections: ['pages'], payload })
+      await waitForRowWait(payload)
+      await update(payload, 'pages', vintage, { title: 'Vintage, restocked' })
+      await letGo()
+      await backfill
+
+      const { path: vintagePath, title } = await readDocument(payload, 'pages', vintage)
+      expect({ latest: await countLatestVersions(payload, 'pages', vintage), path: vintagePath, title }).toEqual({
+        latest: 1,
+        path: '/cellar/vintage',
+        title: 'Vintage, restocked'
+      })
     })
   }
 )

@@ -10,6 +10,7 @@ import { hasDraftsEnabled } from 'payload/shared'
 
 import { findDocuments, findParentPathAndAncestors } from '../database/documents.js'
 import {
+  findDocumentAndLatestVersion,
   findLatestVersionByDocument,
   setDocumentAndDraftPathAndAncestors,
   type DocumentAndLatestVersion
@@ -22,7 +23,10 @@ import { checkParent } from '../validation/check-parent.js'
 import { checkSlugs } from '../validation/check-slugs.js'
 import { checkTakenPaths } from '../validation/check-taken-paths.js'
 
-/** What a backfill did to the documents it went through. */
+/**
+ * What a backfill did to the documents it went through. A document deleted before the run got to it
+ * is in none of them.
+ */
 export type BackfillReport = {
   /**
    * The documents left as they were, each with why: the refusal a save of it would get, or the one
@@ -73,8 +77,9 @@ async function backfillDocument(stored: DocumentAndLatestVersion, collection: Co
   return wrote.document || wrote.draft
 }
 
-// A collection's documents as the database holds them, parents before the documents below them.
-async function findStoredTopDown(collection: CollectionConfig, req: PayloadRequest) {
+// The ids of a collection's documents, parents before the documents below them, by their rows as the
+// database holds them when the run begins.
+async function findIdsTopDown(collection: CollectionConfig, req: PayloadRequest) {
   const documents = await findDocuments(collection.slug, {}, req)
   const versions = hasDraftsEnabled(collection) ? await findLatestVersionByDocument(collection.slug, req) : undefined
   const stored = documents.map((document): DocumentAndLatestVersion => ({
@@ -94,7 +99,7 @@ async function findStoredTopDown(collection: CollectionConfig, req: PayloadReque
       return [document.id, depth]
     })
   )
-  return stored.sort((each, other) => depths.get(each.document.id)! - depths.get(other.document.id)!)
+  return documents.map(({ id }) => id).sort((id, other) => depths.get(id)! - depths.get(other)!)
 }
 
 /**
@@ -104,7 +109,9 @@ async function findStoredTopDown(collection: CollectionConfig, req: PayloadReque
  * that stores another path or other ancestors is written, as a move writes it: without a new version
  * and without the collection's hooks. A document a save would refuse, and one without a slug in any
  * locale, is left as it is and listed with the refusal. So is a document at a path another document
- * is at too.
+ * is at too. A site may be live while it runs, so each document is read again when the run gets to
+ * it, and its path and ancestors are built from its rows as they are then: a save that landed since
+ * the run began is kept, and a document deleted since is skipped.
  */
 export async function backfillPaths({
   collections,
@@ -120,13 +127,15 @@ export async function backfillPaths({
   const report: BackfillReport = { left: [], updated: 0, unchanged: 0 }
   for (const slug of slugs) {
     const collection = payload.collections[slug].config
-    for (const stored of await findStoredTopDown(collection, req)) {
+    for (const id of await findIdsTopDown(collection, req)) {
+      const stored = await findDocumentAndLatestVersion(collection, id, req)
+      if (!stored) continue
       try {
         if (await backfillDocument(stored, collection, req)) report.updated++
         else report.unchanged++
       } catch (error) {
         if (!(error instanceof ValidationError)) throw error
-        report.left.push({ collection: slug, id: stored.document.id, refusal: error.data.errors[0]!.message })
+        report.left.push({ collection: slug, id, refusal: error.data.errors[0]!.message })
       }
     }
   }

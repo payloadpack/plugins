@@ -3,7 +3,7 @@ import { expect, it } from 'vitest'
 
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup } from './support/boot-payload.js'
-import { catchFieldErrors, create, readDocument, readPath, remove, update } from './support/documents.js'
+import { catchFieldErrors, create, readDocument, readPath, readRows, remove, update } from './support/documents.js'
 import { refuseWritesOf } from './support/raw-access.js'
 
 describeEachSetup('', {}, (test, setup) => {
@@ -207,6 +207,34 @@ for (const transactions of [true, false]) {
           })
         }
       })
+
+      // Whether a save unpublishes is known only once Payload has written it, because the hook before
+      // the write is not told whether the save is a draft save. So the refusal of an unpublish whose
+      // branch can't land comes after the page's write. With transactions nothing of it stays. Without
+      // them the page's write stays: the page is unpublished at its new path, and the documents below
+      // keep their paths until its slug is changed.
+      if (transactions) {
+        it('refuses to unpublish a page with a pending rename whose branch would land on a taken path, and leaves it as it was', async () => {
+          const { payload } = test
+          // A page with a pending rename to blog: the page itself would be at /blog, which is free, and
+          // the page below it at /blog/abacus-ledger, where a post is.
+          await create(payload, 'posts', { slug: 'abacus-ledger', title: 'abacus ledger post' })
+          const page = await create(payload, 'pages', { slug: 'abacus', title: 'abacus' })
+          const below = await create(payload, 'pages', { parent: page.id, slug: 'abacus-ledger', title: 'abacus ledger' })
+          await update(payload, 'pages', page.id, { slug: 'blog' }, { draft: true })
+          const before = await readRows(payload, 'pages', [page.id, below.id])
+
+          // As the admin's Unpublish button saves: the status alone, without draft.
+          expect(
+            await catchFieldErrors(
+              payload.update({ collection: 'pages', data: { _status: 'draft' }, id: page.id, overrideAccess: true })
+            )
+          ).toMatchObject([
+            { message: 'Post "abacus ledger post" is already at /blog/abacus-ledger, so change the slug or the parent.' }
+          ])
+          expect(await readRows(payload, 'pages', [page.id, below.id])).toEqual(before)
+        })
+      }
     }
   )
 }

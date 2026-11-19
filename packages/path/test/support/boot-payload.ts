@@ -129,6 +129,10 @@ export async function startPayload(
     secret: 'path-tests',
     telemetry: false
   })
+  // Payload skips the schema push of Postgres and SQLite for a config that is the same as the last one
+  // it pushed in this process, which would leave a new database without tables. A database opened
+  // again has its tables already.
+  process.env.PAYLOAD_FORCE_DRIZZLE_PUSH = String(database === undefined)
   // Payload keeps an instance per key, so each start gets its own, also of a database opened again.
   const payload = await getPayload({ config, key: `${name}_${startCount++}` })
   return { changes, countQueries, database: name, payload }

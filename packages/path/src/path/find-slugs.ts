@@ -7,11 +7,13 @@ import { getFallbackLocales, getSaved, NO_LOCALE, valueInLocale } from '../utils
 import { isSlug, type Id } from './build-path-and-ancestors.js'
 
 /**
- * The slug of each locale the save holds one of. A document without a slug in any locale takes one
- * from its title. A locale without a slug of its own, on a document with one in another locale,
- * falls back to that one, so a translated title never moves a path. In a collection with drafts the
- * rule of a path does that. In one without, a locale has a path only with a slug of its own, so the
- * save keeps the slug it falls back to as the locale's own.
+ * The slug of each locale the save holds one of, and the stored slugs the saved locales fall back to.
+ * A document without a slug in any locale takes one from its title. A locale without a slug of its
+ * own, on a document with one in another locale, falls back to that one, so a translated title never
+ * moves a path. In a collection with drafts the rule of a path does that, so the stored slugs it
+ * falls back to tell only that the document has one to make a path from. In one without, a locale
+ * has a path only with a slug of its own, so the save keeps the slug it falls back to as the
+ * locale's own.
  */
 export async function findSlugs({
   collection,
@@ -23,12 +25,12 @@ export async function findSlugs({
   data: Record<string, unknown>
   id: Id | undefined
   req: PayloadRequest
-}): Promise<Record<string, unknown>> {
+}): Promise<{ fallbackSlugs: unknown[]; slugs: Record<string, unknown> }> {
   const { payload } = req
   const localized = isLocalized(collection.slug, payload)
   const { inLocales, savedLocales } = getSaved(req, localized)
   const slugs = inLocales(data.slug)
-  if (savedLocales.some((savedLocale) => slugs[savedLocale])) return slugs
+  if (savedLocales.some((savedLocale) => slugs[savedLocale])) return { fallbackSlugs: [], slugs }
   // Only of a localized slug can a stored document have one in a locale the save holds no value of:
   // in its latest version, or in the document itself in a collection without drafts.
   if (id !== undefined && localized) {
@@ -40,7 +42,10 @@ export async function findSlugs({
         .map((slugLocale) => valueInLocale(latest?.slug, slugLocale, localized))
         .find(isSlug)
     ])
-    if (fallbacks.some(([, slug]) => slug)) return hasDraftsEnabled(collection) ? slugs : Object.fromEntries(fallbacks)
+    if (fallbacks.some(([, slug]) => slug)) {
+      const fallbackSlugs = fallbacks.map(([, slug]) => slug)
+      return { fallbackSlugs, slugs: hasDraftsEnabled(collection) ? slugs : Object.fromEntries(fallbacks) }
+    }
   }
   // The title is a field of the site's own, localized or not whatever the slug is.
   const titleField = collection.flattenedFields.find(({ name }) => name === collection.admin.useAsTitle)
@@ -52,9 +57,9 @@ export async function findSlugs({
   if (!localized) {
     const titleLocales = getFallbackLocales(payload, req.locale ?? NO_LOCALE)
     const slug = await makeSlug(titleLocales.map((titleLocale) => titles[titleLocale]).find(Boolean))
-    return slug ? inLocales(slug) : slugs
+    return { fallbackSlugs: [], slugs: slug ? inLocales(slug) : slugs }
   }
   const fromTitles: Record<string, unknown> = {}
   for (const savedLocale of savedLocales) fromTitles[savedLocale] = await makeSlug(titles[savedLocale])
-  return Object.values(fromTitles).some(Boolean) ? fromTitles : slugs
+  return { fallbackSlugs: [], slugs: Object.values(fromTitles).some(Boolean) ? fromTitles : slugs }
 }
