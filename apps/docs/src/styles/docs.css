@@ -212,6 +212,9 @@ site-search dialog {
 }
 
 .docs-sidebar ul {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   list-style: none;
   padding: 0;
 }
