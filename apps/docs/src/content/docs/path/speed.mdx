@@ -39,6 +39,8 @@ Nested docs and slug by slug each get a copy of the benchmark's pages, the same 
 
 The pages are a top-level page with 100 pages below it, a page three levels down and the last of a line of ten.
 
+Slug by slug runs one query per segment, each on its index on slug and parent, so it takes longer the deeper a page sits.
+
 ### Moving a branch
 
 <SpeedChart kind="moves" />
