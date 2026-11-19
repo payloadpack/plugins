@@ -131,23 +131,43 @@ export async function setDraftPathAndAncestors(
   await req.payload.db.updateVersion({ collection, id: version.id, req, returning: false, versionData })
 }
 
+type DocumentAndDraft = { document: PathAndAncestors; draft: PathAndAncestors }
+type Wrote = { document: boolean; draft: boolean }
+
 /**
  * Stores a document's path and ancestors, and the ones its latest draft would give it, in each of
- * the two rows that stores other ones, and says which of them it wrote.
+ * the two rows that stores other ones, and says which of them it wrote. With ifUnchanged the
+ * document's row is written only while it is as it was read, as setPathAndAncestors says, and when a
+ * save came first it writes neither row and says nothing, since the draft's were built from the rows
+ * that save changed. The latest version is written by its id either way.
  */
+export function setDocumentAndDraftPathAndAncestors(
+  collection: string,
+  stored: DocumentAndLatestVersion,
+  built: DocumentAndDraft,
+  req: PayloadRequest
+): Promise<Wrote>
+export function setDocumentAndDraftPathAndAncestors(
+  collection: string,
+  stored: DocumentAndLatestVersion,
+  built: DocumentAndDraft,
+  req: PayloadRequest,
+  options: { ifUnchanged: true }
+): Promise<Wrote | undefined>
 export async function setDocumentAndDraftPathAndAncestors(
   collection: string,
   { document, version }: DocumentAndLatestVersion,
-  built: { document: PathAndAncestors; draft: PathAndAncestors },
-  req: PayloadRequest
-) {
+  built: DocumentAndDraft,
+  req: PayloadRequest,
+  { ifUnchanged = false }: { ifUnchanged?: boolean } = {}
+): Promise<Wrote | undefined> {
   const isOther = (row: Omit<StoredDocument, 'id'>, pathAndAncestors: PathAndAncestors) =>
     !hasSamePathAndAncestors(pathAndAncestors, getStoredPathAndAncestors(row, collection, req.payload))
   const wrote = {
     document: isOther(document, built.document),
     draft: version !== undefined && isOther(version.version, built.draft)
   }
-  if (wrote.document) await setPathAndAncestors(collection, document, built.document, req)
+  if (wrote.document && !(await setPathAndAncestors(collection, document, built.document, req, { ifUnchanged }))) return
   if (version && wrote.draft) await setDraftPathAndAncestors(collection, version, built.draft, req)
   return wrote
 }

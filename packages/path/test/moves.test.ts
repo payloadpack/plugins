@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
 
+import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup } from './support/boot-payload.js'
 import {
   catchFieldErrors,
@@ -12,7 +13,7 @@ import {
   restoreVersion,
   update
 } from './support/documents.js'
-import { holdRow, waitForRowWait } from './support/raw-access.js'
+import { holdRow, setUpdatedAtNotWrittenByPayload, waitForRowWait } from './support/raw-access.js'
 import { SETUPS } from './support/setups.js'
 
 describeEachSetup('', {}, (test, setup) => {
@@ -245,17 +246,32 @@ describeEachSetup('', {}, (test, setup) => {
   })
 })
 
-// A move reads each row of its branch again right before it writes it, so a save of a document below
-// that lands while the move is under way is kept. Step by step on Postgres without transactions: a
-// statement of the test holds the row of the first document below a page, so the page's rename reads
-// its branch and then waits to write that row. Meanwhile a document further along the branch is
-// saved. With transactions that save lands only after the move's transaction. Holding a row so that a
-// write waits for it is Postgres's, so the other databases are left out: SQLite has one writer at a
-// time.
+// A move reads each row of its branch again right before it writes it, and writes it only while it is
+// as it was read, so a save of a document below that lands while the move is under way is kept. Step
+// by step on Postgres without transactions: a statement of the test holds the row of a document below
+// a page, so the page's rename reads its branch and then waits to write that row. Meanwhile a document
+// further along the branch is saved, or the held row itself is changed before it is let go. With
+// transactions such a save lands only after the move's transaction. Holding a row so that a write
+// waits for it is Postgres's, so the other databases are left out: SQLite has one writer at a time.
 describeEachSetup(
   'a move that waits to write a row of its branch, transactions off',
   { boot: { transactions: false }, setups: SETUPS.filter(({ database }) => database === 'postgres') },
-  (test) => {
+  (test, setup) => {
+    it('keeps a change committed to a document below a renamed page while the move waits to write its row, and gives it its new path', async () => {
+      const { payload } = test
+      const tray = await create(payload, 'pages', { slug: 'tray', title: 'Tray' })
+      const cup = await create(payload, 'pages', { parent: tray.id, slug: 'cup', title: 'Cup' })
+      const commit = await holdRow(payload, 'pages', cup.id, { localized: setup.localized, title: 'Teacup' })
+
+      const rename = update(payload, 'pages', tray.id, { slug: 'platter' })
+      await waitForRowWait(payload)
+      await commit()
+      await rename
+
+      const { path, title } = await readDocument(payload, 'pages', cup.id)
+      expect({ path, title }).toEqual({ path: '/platter/cup', title: 'Teacup' })
+    })
+
     it('keeps the title a document below a renamed page is saved with while the move is under way, with one latest version', async () => {
       const { payload } = test
       const shelf = await create(payload, 'pages', { slug: 'shelf', title: 'Shelf' })
@@ -297,6 +313,73 @@ describeEachSetup(
         draft: await readPath(payload, 'pages', coast.id, { draft: true }),
         path: await readPath(payload, 'pages', coast.id)
       }).toEqual({ draft: '/world/tropics/coast', path: '/world/tropics/coast' })
+    })
+  }
+)
+
+// A row whose updatedAt Payload didn't write, as an import may leave one, isn't found by a where on
+// the value Payload reads back from it, so a move's write of it on the condition never lands.
+// Postgres is left out: it keeps updatedAt in a timestamp column, so every value reads back as what
+// finds the row.
+describeEachSetup(
+  'a document whose updatedAt Payload did not write',
+  { setups: SETUPS.filter(({ database }) => database !== 'postgres') },
+  (test, setup) => {
+    it('gives it its new path when a page above it is renamed, and leaves its other values', async () => {
+      const { payload } = test
+      const quay = await create(payload, 'pages', { slug: 'quay', title: 'Quay' })
+      const crate = await create(payload, 'pages', { parent: quay.id, slug: 'crate', title: 'Crate' })
+      await setUpdatedAtNotWrittenByPayload(payload, setup, 'pages', crate.id)
+      // MongoDB stores the updatedAt of the write as a date, of the same moment as the text.
+      const readRow = async (): Promise<Record<string, unknown>> => {
+        const row = (await payload.db.findOne<{ [field: string]: unknown; id: Id; updatedAt: string }>({
+          collection: 'pages',
+          where: { id: { equals: crate.id } }
+        }))!
+        return { ...row, updatedAt: new Date(row.updatedAt).getTime() }
+      }
+      const before = await readRow()
+
+      await update(payload, 'pages', quay.id, { slug: 'dock' })
+
+      expect(await readPath(payload, 'pages', crate.id)).toBe('/dock/crate')
+      expect({ ...(await readRow()), path: before.path }).toEqual(before)
+    })
+  }
+)
+
+// A collection with timestamps: false stores no updatedAt, so a move writes its rows by their ids.
+// Payload requires timestamps for versions, which it keeps by default.
+describeEachSetup(
+  'a collection without timestamps',
+  {
+    boot: (setup) => ({
+      collections: [
+        {
+          slug: 'logbooks',
+          admin: { useAsTitle: 'title' },
+          fields: [{ name: 'title', type: 'text', localized: setup.localized }],
+          timestamps: false,
+          versions: false
+        }
+      ],
+      options: { collections: ['pages', 'posts', 'notices', 'logbooks'] }
+    })
+  },
+  (test) => {
+    it('gives every document below a renamed document its new path', async () => {
+      const { payload } = test
+      const voyages = await create(payload, 'logbooks', { slug: 'voyages', title: 'Voyages' })
+      const atlantic = await create(payload, 'logbooks', { parent: voyages.id, slug: 'atlantic', title: 'Atlantic' })
+      const azores = await create(payload, 'logbooks', { parent: atlantic.id, slug: 'azores', title: 'Azores' })
+
+      await update(payload, 'logbooks', voyages.id, { slug: 'crossings' })
+
+      expect(await readPath(payload, 'logbooks', atlantic.id)).toBe('/crossings/atlantic')
+      expect(await readDocument(payload, 'logbooks', azores.id)).toMatchObject({
+        ancestors: [voyages.id, atlantic.id],
+        path: '/crossings/atlantic/azores'
+      })
     })
   }
 )

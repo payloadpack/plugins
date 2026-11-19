@@ -59,9 +59,13 @@ async function findParentAndBuildCheckedPathAndAncestors(
 }
 
 // Stores a document's path and ancestors, and the ones its latest draft would give it, where its rows
-// store other ones, as a move stores them, and says whether it stored any. Refused as a save is,
-// and where another document is at a path it stores, before either write.
-async function backfillDocument(stored: DocumentAndLatestVersion, collection: CollectionConfig, req: PayloadRequest) {
+// store other ones, as a move stores them, and says whether it stored any, or nothing for a document
+// that is gone. Refused as a save is, and where another document is at a path it stores, before
+// either write. The document's row is written only while it is as it was read here, so when a save
+// lands in between, the document is read again and taken again from its rows as that save left them.
+async function backfillDocument(collection: CollectionConfig, id: Id, req: PayloadRequest): Promise<boolean | undefined> {
+  const stored = await findDocumentAndLatestVersion(collection, id, req)
+  if (!stored) return
   const { document, version } = stored
   const built = await findParentAndBuildCheckedPathAndAncestors(stored, 'document', collection, req)
   const builtDraft = version ? await findParentAndBuildCheckedPathAndAncestors(stored, 'draft', collection, req) : built
@@ -73,8 +77,10 @@ async function backfillDocument(stored: DocumentAndLatestVersion, collection: Co
   // in the same instant can both pass. A document in the trash takes no path, so it shares none.
   const keptPaths = getNewPaths(built).filter(([locale, path]) => storedInDocument.paths[locale] === path)
   if (!isInTrash(document)) await checkTakenPaths(collection.slug, document.id, keptPaths, req)
-  const wrote = await setDocumentAndDraftPathAndAncestors(collection.slug, stored, { document: built, draft: builtDraft }, req)
-  return wrote.document || wrote.draft
+  const wrote = await setDocumentAndDraftPathAndAncestors(collection.slug, stored, { document: built, draft: builtDraft }, req, {
+    ifUnchanged: true
+  })
+  return wrote ? wrote.document || wrote.draft : backfillDocument(collection, id, req)
 }
 
 // The ids of a collection's documents, parents before the documents below them, by their rows as the
@@ -111,7 +117,11 @@ async function findIdsTopDown(collection: CollectionConfig, req: PayloadRequest)
  * locale, is left as it is and listed with the refusal. So is a document at a path another document
  * is at too. A site may be live while it runs, so each document is read again when the run gets to
  * it, and its path and ancestors are built from its rows as they are then: a save that landed since
- * the run began is kept, and a document deleted since is skipped.
+ * the run began is kept, and a document deleted since is skipped. The document's row is written only
+ * while it is as it was read then, so a save that lands between that read and the write is kept too,
+ * and the document is read and taken again. Its latest version is written by its id, so a save
+ * between its read and its write is written over, and a document deleted in the moment the run
+ * writes its row comes back on Postgres, and by the adapter's source on SQLite too.
  */
 export async function backfillPaths({
   collections,
@@ -128,11 +138,9 @@ export async function backfillPaths({
   for (const slug of slugs) {
     const collection = payload.collections[slug].config
     for (const id of await findIdsTopDown(collection, req)) {
-      const stored = await findDocumentAndLatestVersion(collection, id, req)
-      if (!stored) continue
       try {
-        if (await backfillDocument(stored, collection, req)) report.updated++
-        else report.unchanged++
+        const wrote = await backfillDocument(collection, id, req)
+        if (wrote !== undefined) report[wrote ? 'updated' : 'unchanged']++
       } catch (error) {
         if (!(error instanceof ValidationError)) throw error
         report.left.push({ collection: slug, id, refusal: error.data.errors[0]!.message })

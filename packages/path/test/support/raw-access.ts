@@ -133,10 +133,39 @@ export async function refuseWritesOf(
 }
 
 /**
+ * Stores a row's updatedAt as text that Payload didn't write, as an import or another tool may: on
+ * SQLite in another form than Payload's, and on MongoDB as a string where Payload keeps a date. The
+ * value Payload reads back from such a row doesn't find the row in a where. Postgres keeps updatedAt
+ * in a timestamp column, so there every value reads back as what finds it.
+ */
+export async function setUpdatedAtNotWrittenByPayload(payload: Payload, setup: Setup, collection: string, id: number | string) {
+  const updatedAt = '2026-01-01 00:00:00'
+  if (setup.database === 'mongodb') {
+    await mongodbOf(payload)
+      .collection(collection)
+      .updateOne({ $expr: { $eq: [{ $toString: '$_id' }, String(id)] } }, { $set: { updatedAt } })
+    return
+  }
+  if (setup.database !== 'sqlite') throw new Error('Only MongoDB and SQLite store an updatedAt Payload reads back otherwise.')
+  const { drizzle, tables } = sqliteOf(payload)
+  await drizzle.run(sqliteSql`UPDATE ${tables[collection]!} SET updated_at = ${updatedAt} WHERE id = ${id}`)
+}
+
+/**
  * Holds a row of a collection on Postgres in a transaction of its own, so a write of it waits, until
  * the returned function lets it go. A write of a row that names it as its parent doesn't wait.
+ *
+ * Given a title, it stands for a save in a transaction of its own that holds the row while a move or
+ * a backfill reads it: as it lets go it gives the row that title, in English in a localized
+ * collection, and a new updatedAt, and commits. The clock's time, not the transaction's start, so the
+ * new updatedAt is later than any the row was read with.
  */
-export async function holdRow(payload: Payload, collection: string, id: number | string) {
+export async function holdRow(
+  payload: Payload,
+  collection: string,
+  id: number | string,
+  saved?: { localized: boolean; title: string }
+) {
   const { drizzle, tables } = postgresOf(payload)
   let letGo = () => {}
   const lettingGo = new Promise<void>((resolve) => (letGo = resolve))
@@ -146,6 +175,14 @@ export async function holdRow(payload: Payload, collection: string, id: number |
     await tx.execute(postgresSql`SELECT id FROM ${tables[collection]} WHERE id = ${id} FOR NO KEY UPDATE`)
     held()
     await lettingGo
+    if (!saved) return
+    const { localized, title } = saved
+    await tx.execute(postgresSql`UPDATE ${tables[collection]} SET updated_at = clock_timestamp() WHERE id = ${id}`)
+    await tx.execute(
+      localized
+        ? postgresSql`UPDATE ${tables[`${collection}_locales`]} SET title = ${title} WHERE _parent_id = ${id} AND _locale = 'en'`
+        : postgresSql`UPDATE ${tables[collection]} SET title = ${title} WHERE id = ${id}`
+    )
   })
   await holding
   return async () => {

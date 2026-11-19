@@ -126,10 +126,14 @@ export const getLandings = ({ collection, documents }: BranchMove): TakenPath[] 
  * gave the document a path in its own hooks, and a write here would undo that save. The rows below a
  * document skipped so are skipped too, since the move built their paths from its old ones and its
  * save gave them theirs. Every other row is written as it is now, with the path and ancestors the
- * move built.
+ * move built. A document's row is written only while it is as it was read here, so a save that lands
+ * between the read and the write is kept: the row is read again and decided again, as many times as a
+ * save comes first.
  *
- * This narrows what two requests at once can do to each other, and closes none of it. A save between
- * a row's read here and its write is written over. And a save that changed a row's slugs or parent
+ * This narrows what two requests at once can do to each other, and closes none of it. A latest
+ * version is written by its id, so a save between its read here and its write is written over. A row
+ * deleted in the moment the move writes it comes back on Postgres, and by the adapter's source on
+ * SQLite too, where the write is an insert that updates the row when it is there. And a save that changed a row's slugs or parent
  * before the move wrote that row's parent built its path from the parent's old one, so the skipped
  * row is left at a path below where its parent was, until a run of backfillPaths.
  */
@@ -137,13 +141,22 @@ export async function moveBranch({ collection, documents, versions }: BranchMove
   const { config } = req.payload.collections[collection as CollectionSlug]
   const isBuiltFrom = (stored: DocumentAndLatestVersion, kind: 'document' | 'draft', slugsAndParent: SlugsAndParent) =>
     hasSameSlugsAndParent(getSlugsAndParent(stored, kind, config, req.payload), slugsAndParent)
+  // Writes a document's row as it is now, with the path and ancestors the move built, and says
+  // whether it did: not for a row that is gone or no longer built from the same slugs and parent.
+  const findAndSetPathAndAncestors = async (
+    id: Id,
+    pathAndAncestors: PathAndAncestors,
+    slugsAndParent: SlugsAndParent
+  ): Promise<boolean> => {
+    const stored = await findDocumentAndLatestVersion(config, id, req)
+    if (!stored || !isBuiltFrom(stored, 'document', slugsAndParent)) return false
+    const landed = await setPathAndAncestors(collection, stored.document, pathAndAncestors, req, { ifUnchanged: true })
+    return landed || (await findAndSetPathAndAncestors(id, pathAndAncestors, slugsAndParent))
+  }
   const skipped = new Set<string>()
   const isBelowSkipped = ({ ancestors }: PathAndAncestors) => ancestors.some((ancestor) => skipped.has(String(ancestor)))
   for (const { document, pathAndAncestors, slugsAndParent } of documents) {
-    const stored = isBelowSkipped(pathAndAncestors) ? undefined : await findDocumentAndLatestVersion(config, document.id, req)
-    if (stored && isBuiltFrom(stored, 'document', slugsAndParent)) {
-      await setPathAndAncestors(collection, stored.document, pathAndAncestors, req)
-    } else {
+    if (isBelowSkipped(pathAndAncestors) || !(await findAndSetPathAndAncestors(document.id, pathAndAncestors, slugsAndParent))) {
       skipped.add(String(document.id))
     }
   }

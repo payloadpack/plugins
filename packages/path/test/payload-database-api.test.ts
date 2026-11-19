@@ -178,6 +178,9 @@ async function readLatestVersionRow(payload: Payload, id: Row['id']) {
 const readThroughPayload = (payload: Payload, id: Row['id'], draft: boolean) =>
   payload.findByID({ collection: 'rich', depth: 0, draft, id, locale: 'all', overrideAccess: true })
 
+// The row with this id, only while it still has the updatedAt it was read with.
+const unchanged = (row: Row): Where => ({ and: [{ id: { equals: row.id } }, { updatedAt: { equals: row.updatedAt } }] })
+
 describeEachSetup(
   "on Payload's database API",
   { boot: (setup) => ({ collections: [rich(setup.localized), tagged], plugin: false }) },
@@ -237,6 +240,51 @@ describeEachSetup(
       expect(await readLatestVersionRow(payload, document.id)).toEqual({ ...before, version: { ...version, ...moved } })
       expect(await readThroughPayload(payload, document.id, true)).toEqual({ ...draftBefore, ...moved })
       expect(await readThroughPayload(payload, document.id, false)).toEqual(publishedBefore)
+    })
+
+    it('writes back the document it read with another path and ancestors while the row has the updatedAt it was read with, and leaves every other value as it was', async () => {
+      const { payload } = test
+      const { document, first, second } = await createRichDocument(payload, setup)
+      const before = (await readRow(payload, document.id))!
+      const moved = { ancestors: [second.id, first.id], path: inLocales('/moved', '/flyttad') }
+
+      const written = await payload.db.updateOne({
+        collection: 'rich',
+        data: { ...structuredClone(before), ...moved },
+        where: unchanged(before)
+      })
+
+      expect(written).not.toBeNull()
+      expect(await readRow(payload, document.id)).toEqual({ ...before, ...moved })
+    })
+
+    it('writes nothing back, and returns null, once a save landed since the document was read, and leaves the row as that save wrote it', async () => {
+      const { payload } = test
+      const { document, first, second } = await createRichDocument(payload, setup)
+      const before = (await readRow(payload, document.id))!
+      const moved = { ancestors: [second.id, first.id], path: inLocales('/moved', '/flyttad') }
+      // A save in the same millisecond as the read would keep the updatedAt the row was read with.
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      await payload.update({
+        collection: 'rich',
+        data: { _status: 'published', count: 9, items: [{ amount: 3, label: 'Three' }], tags: ['saved'], title: 'Saved since' },
+        id: document.id,
+        locale: setup.localized ? 'en' : undefined,
+        overrideAccess: true
+      })
+      const saved = (await readRow(payload, document.id))!
+      const publishedSaved = await readThroughPayload(payload, document.id, false)
+
+      const written = await payload.db.updateOne({
+        collection: 'rich',
+        data: { ...structuredClone(before), ...moved },
+        where: unchanged(before)
+      })
+
+      expect(saved.updatedAt).not.toEqual(before.updatedAt)
+      expect(written).toBeNull()
+      expect(await readRow(payload, document.id)).toEqual(saved)
+      expect(await readThroughPayload(payload, document.id, false)).toEqual(publishedSaved)
     })
 
     it('keeps the ancestors as ids in the order given, and finds and counts every document below a document by them', async () => {

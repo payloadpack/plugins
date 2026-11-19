@@ -5,7 +5,7 @@ import type { Id } from '../src/path/build-path-and-ancestors.js'
 import type { Query } from './support/adapters.js'
 import { describeEachSetup } from './support/boot-payload.js'
 import { countLatestVersions, create, readDocument, readLatestVersion, readPath, store, update } from './support/documents.js'
-import { holdRow, refuseWritesOf, waitForRowWait } from './support/raw-access.js'
+import { holdRow, refuseWritesOf, setUpdatedAtNotWrittenByPayload, waitForRowWait } from './support/raw-access.js'
 import { SETUPS } from './support/setups.js'
 
 const WRITES = ['delete', 'findAndModify', 'insert', 'update']
@@ -238,11 +238,44 @@ describeEachSetup(
   }
 )
 
-// A backfill reads each document again when it gets to it, so a save that lands while the run is
-// under way is kept. Step by step on Postgres without transactions: a statement of the test holds the
-// row of a page that stores another path than its slug makes, so the run waits to write it. Meanwhile
-// the page below it, which the run comes to after it, is saved. Holding a row so that a write waits
-// for it is Postgres's, so the other databases are left out: SQLite has one writer at a time.
+// A row whose updatedAt Payload didn't write, as an import may leave one, isn't found by a where on
+// the value Payload reads back from it, so a backfill's write of it on the condition never lands.
+// Postgres is left out: it keeps updatedAt in a timestamp column, so every value reads back as what
+// finds the row.
+describeEachSetup(
+  'a document whose updatedAt Payload did not write',
+  { setups: SETUPS.filter(({ database }) => database !== 'postgres') },
+  (test, setup) => {
+    it('gives it its path, and keeps its slug, title and updatedAt', async () => {
+      const { payload } = test
+      const path = setup.localized ? { en: '/old-attic' } : '/old-attic'
+      const attic = await store(test, setup, 'pages', { path, slug: 'attic', title: 'Attic' })
+      await setUpdatedAtNotWrittenByPayload(payload, setup, 'pages', attic)
+      // MongoDB stores the updatedAt of the write as a date, of the same moment as the text.
+      const readUpdatedAt = async () => {
+        const row = await payload.db.findOne<{ id: Id; updatedAt: string }>({
+          collection: 'pages',
+          where: { id: { equals: attic } }
+        })
+        return new Date(row!.updatedAt).getTime()
+      }
+      const updatedAt = await readUpdatedAt()
+
+      const report = await backfillPaths({ collections: ['pages'], payload })
+
+      expect(report).toMatchObject({ left: [], updated: 1 })
+      expect(await readDocument(payload, 'pages', attic)).toMatchObject({ path: '/attic', slug: 'attic', title: 'Attic' })
+      expect(await readUpdatedAt()).toBe(updatedAt)
+    })
+  }
+)
+
+// A backfill reads each document again when it gets to it, and writes its row only while it is as it
+// was read, so a save that lands while the run is under way is kept. Step by step on Postgres without
+// transactions: a statement of the test holds the row of a page that stores another path than its
+// slug makes, so the run waits to write it. Meanwhile the page below it, which the run comes to after
+// it, is saved, or the held row itself is changed before it is let go. Holding a row so that a write
+// waits for it is Postgres's, so the other databases are left out: SQLite has one writer at a time.
 describeEachSetup(
   'a backfill that waits to write a row, transactions off',
   { boot: { transactions: false }, setups: SETUPS.filter(({ database }) => database === 'postgres') },
@@ -266,6 +299,22 @@ describeEachSetup(
         path: '/cellar/vintage',
         title: 'Vintage, restocked'
       })
+    })
+
+    it('keeps a change committed to a document while the backfill waits to write its row, and gives it its path', async () => {
+      const { payload } = test
+      const path = setup.localized ? { en: '/old-pantry' } : '/old-pantry'
+      const pantry = await store(test, setup, 'pages', { path, slug: 'pantry', title: 'Pantry' })
+      const commit = await holdRow(payload, 'pages', pantry, { localized: setup.localized, title: 'Larder' })
+
+      const backfill = backfillPaths({ collections: ['pages'], payload })
+      await waitForRowWait(payload)
+      await commit()
+      const report = await backfill
+
+      expect(report).toMatchObject({ left: [], updated: 1 })
+      const { path: pantryPath, title } = await readDocument(payload, 'pages', pantry)
+      expect({ path: pantryPath, title }).toEqual({ path: '/pantry', title: 'Larder' })
     })
   }
 )
