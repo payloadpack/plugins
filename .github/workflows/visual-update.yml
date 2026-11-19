@@ -28,16 +28,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-
-      - name: Install Bun
-        run: npm install --global "$(node -p "require('./package.json').packageManager")"
-
-      - name: Install dependencies (frozen lockfile)
-        run: bun install --frozen-lockfile
+      - name: Setup
+        uses: ./.github/actions/setup
 
       - name: Build the packages the demo uses
         run: bun run build --filter=@apps/theme-demo^...
@@ -95,7 +87,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "The baselines already match."
           else
-            git commit -m "test(demo): update visual baselines"
+            git commit -m "test(theme-demo): update visual baselines"
             git push "https://x-access-token:${GITHUB_API_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$PULL_REQUEST_BRANCH"
           fi
 

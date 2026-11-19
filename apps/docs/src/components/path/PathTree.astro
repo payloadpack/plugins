@@ -1,0 +1,163 @@
+---
+export interface PathTreeDocument {
+  title: string
+  path: string
+  // The collection's base path the path starts with, drawn underlined.
+  basePath?: string
+  // The part of the path to point out, such as the document's own slug or the part a move changed.
+  mark?: string
+  note?: string
+  documents?: PathTreeDocument[]
+}
+
+interface Props {
+  documents: PathTreeDocument[]
+  label?: string
+  nested?: boolean
+}
+
+const { documents, label, nested = false } = Astro.props
+
+function splitPath({ basePath, mark, path }: PathTreeDocument) {
+  const base = basePath && path.startsWith(basePath) ? basePath : ''
+  const rest = path.slice(base.length)
+  const markAt = mark ? rest.lastIndexOf(mark) : -1
+  if (!mark || markAt < 0) return { after: '', base, before: rest, mark: '' }
+  return { after: rest.slice(markAt + mark.length), base, before: rest.slice(0, markAt), mark }
+}
+---
+
+{
+  nested ? (
+    <ul>
+      {documents.map((document) => {
+        const parts = splitPath(document)
+        return (
+          <li>
+            <span class="path-tree-document">
+              <span class="path-tree-title">{document.title}</span>
+              <span class="path-tree-path">
+                {parts.base && <span class="path-tree-base">{parts.base}</span>}
+                {parts.before}
+                {parts.mark && <span class="path-tree-mark">{parts.mark}</span>}
+                {parts.after}
+              </span>
+              {document.note && <span class="path-tree-note">{document.note}</span>}
+            </span>
+            {document.documents && <Astro.self documents={document.documents} nested />}
+          </li>
+        )
+      })}
+    </ul>
+  ) : (
+    <div class="path-tree">
+      {label && <p class="path-tree-label">{label}</p>}
+      <Astro.self documents={documents} nested />
+    </div>
+  )
+}
+
+<style>
+  .path-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .path-tree-label {
+    margin: 0;
+    font-family: var(--sl-font-mono);
+    font-size: 0.75rem;
+    color: var(--docs-muted-foreground);
+  }
+
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  ul ul {
+    padding-inline-start: 1.5rem;
+  }
+
+  li {
+    position: relative;
+    margin: 0;
+    padding-block-start: 0.375rem;
+  }
+
+  ul ul > li::before {
+    content: '';
+    position: absolute;
+    inset-inline-start: -0.875rem;
+    top: 0;
+    width: 0.6875rem;
+    height: 1.375rem;
+    border-inline-start: 1px solid var(--docs-border);
+    border-block-end: 1px solid var(--docs-border);
+    border-end-start-radius: 0.3125rem;
+  }
+
+  ul ul > li:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    inset-inline-start: -0.875rem;
+    top: 0;
+    bottom: 0;
+    border-inline-start: 1px solid var(--docs-border);
+  }
+
+  .path-tree-document {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.625rem;
+    padding: 0.3125rem 0.625rem;
+    border: 1px solid var(--docs-border);
+    border-radius: 0.5rem;
+    background: var(--sl-color-bg);
+    font-size: 0.8125rem;
+    white-space: nowrap;
+  }
+
+  .path-tree-title {
+    font-weight: 500;
+    color: var(--docs-foreground);
+  }
+
+  .path-tree-path {
+    font-family: var(--sl-font-mono);
+    font-size: 0.78rem;
+    color: var(--sl-color-gray-2);
+  }
+
+  .path-tree-base {
+    border-block-end: 1px dashed var(--docs-muted-foreground);
+  }
+
+  .path-tree-mark {
+    background: linear-gradient(90deg, var(--docs-brand-gradient-stops));
+    background-clip: text;
+    color: transparent;
+    font-weight: 600;
+  }
+
+  /* The light theme marks with a gradient line, since the brand's own colors are too light for text on it. */
+  :global(:root[data-theme='light']) .path-tree-mark {
+    background-clip: border-box;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    background-size: 100% 2px;
+    color: var(--docs-foreground);
+  }
+
+  .path-tree-note {
+    padding: 0.0625rem 0.4375rem;
+    border: 1px solid var(--docs-border);
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--docs-muted-foreground);
+  }
+</style>

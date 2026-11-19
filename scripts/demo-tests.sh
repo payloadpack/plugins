@@ -1,17 +1,21 @@
 #!/bin/bash
-# Prints whether the change since <base> can alter what a demo runs, as `e2e=true|false` and
-# `visual=true|false`, so CI runs the demo's suites only when they can catch something.
+# Prints whether the change since <base> can alter what a demo runs, as `<demo>_e2e=true|false` and
+# `<demo>_visual=true|false`, so CI runs the demo's suites only when they can catch something.
+# <demo> is the app's name without its scope, with underscores for dashes: `@apps/theme-demo`
+# prints `theme_demo_e2e` and `theme_demo_visual`.
 #
 #   scripts/demo-tests.sh @apps/theme-demo [base, default origin/main]
 #
 # A change counts when it reaches the demo or a workspace package it builds from: a file other
-# than docs, unit tests or the license, a package.json change beyond its metadata, a lockfile
-# change to their dependencies or a global config file. A screenshot-only change counts for the
-# visual suite alone.
+# than docs, unit tests, benchmarks or the license, a package.json change beyond its metadata, a
+# lockfile change to their dependencies or a global config file. A screenshot-only change counts
+# for the visual suite alone.
 set -euo pipefail
 
 demo=$1
 base=${2:-origin/main}
+key=${demo#*/}
+key=${key//-/_}
 
 closure=$(bunx turbo ls "--filter=$demo..." --output=json)
 paths=()
@@ -38,7 +42,7 @@ elif grep -qvxE 'FileChanged|DependencyChanged' <<<"$reasons"; then
   e2e=true
   visual=true
 else
-  pathspec=("${paths[@]}" ':!*.md' ':!*/LICENSE' ':!*/test/*' ':!*/vitest.config.ts' ':!*/package.json')
+  pathspec=("${paths[@]}" ':!*.md' ':!*/LICENSE' ':!*/test/*' ':!*/bench/*' ':!*/vitest.config.ts' ':!*/package.json')
   git diff --quiet "$base" HEAD -- "${pathspec[@]}" ':!*.png' || e2e=true
   git diff --quiet "$base" HEAD -- "${pathspec[@]}" || visual=true
   for path in "${paths[@]}"; do
@@ -49,5 +53,5 @@ else
   done
 fi
 
-echo "e2e=$e2e"
-echo "visual=$visual"
+echo "${key}_e2e=$e2e"
+echo "${key}_visual=$visual"

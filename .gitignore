@@ -19,3 +19,4 @@ apps/theme-demo/media/
 apps/theme-demo/e2e-media/
 .claude/worktrees/
 .astro/
+/.cache/

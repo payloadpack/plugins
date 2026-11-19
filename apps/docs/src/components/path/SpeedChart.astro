@@ -1,0 +1,304 @@
+---
+import { DATABASE_LABELS, formatTime, formatTiming, METHODS, methodLabel, report, unlocalizedSetups } from './speed'
+
+interface Props {
+  kind: 'lookups' | 'moves'
+}
+
+const { kind } = Astro.props
+
+type Point = { median: number; p95: number; runs?: number; x: number }
+
+// One panel per database, a line per method, on a scale every panel shares.
+const panels = unlocalizedSetups.map(({ database, lookups, moves }) => {
+  const rows =
+    kind === 'lookups'
+      ? lookups.map(({ depth, method, median, p95 }) => ({ median, method, p95, x: depth }))
+      : moves.map(({ below, method, median, p95, runs }) => ({ median, method, p95, runs, x: below }))
+  return {
+    database,
+    series: METHODS.filter((method) => rows.some((row) => row.method === method)).map((method) => ({
+      method,
+      points: rows.filter((row) => row.method === method).sort((first, second) => first.x - second.x) as Point[]
+    }))
+  }
+})
+const methods = METHODS.filter((method) =>
+  panels.some(({ series }) => series.some((line) => line.method === method))
+)
+// Each method keeps its color in every chart, in the palette's fixed order.
+const seriesColor = (method: string) => `var(--speed-series-${METHODS.indexOf(method) + 1})`
+
+const points = panels.flatMap(({ series }) => series.flatMap((line) => line.points))
+const xValues = [...new Set(points.map(({ x }) => x))].sort((first, second) => first - second)
+const medians = points.map(({ median }) => median)
+const logarithmic = kind === 'moves'
+
+const WIDTH = 300
+const HEIGHT = 210
+const MARGIN = { bottom: 28, left: 50, right: 58, top: 30 }
+const plotRight = WIDTH - MARGIN.right
+const plotBottom = HEIGHT - MARGIN.bottom
+
+function niceStep(max: number) {
+  const rough = max / 4
+  const power = 10 ** Math.floor(Math.log10(rough))
+  const scaled = rough / power
+  return (scaled <= 1 ? 1 : scaled <= 2 ? 2 : scaled <= 5 ? 5 : 10) * power
+}
+
+const step = niceStep(Math.max(...medians))
+const yTicks = logarithmic
+  ? Array.from(
+      { length: Math.ceil(Math.log10(Math.max(...medians))) - Math.floor(Math.log10(Math.min(...medians))) + 1 },
+      (_, index) => 10 ** (Math.floor(Math.log10(Math.min(...medians))) + index)
+    )
+  : Array.from({ length: Math.ceil(Math.max(...medians) / step) + 1 }, (_, index) => index * step)
+const [yMin, yMax] = [yTicks[0]!, yTicks.at(-1)!]
+const [xMin, xMax] = [xValues[0]!, xValues.at(-1)!]
+
+const toUnit = (value: number, min: number, max: number) =>
+  logarithmic ? (Math.log10(value) - Math.log10(min)) / (Math.log10(max) - Math.log10(min)) : (value - min) / (max - min)
+const xOf = (x: number) => MARGIN.left + toUnit(x, xMin, xMax) * (plotRight - MARGIN.left)
+const yOf = (y: number) => plotBottom - toUnit(y, yMin, yMax) * (plotBottom - MARGIN.top)
+
+const xLabel = (x: number) =>
+  kind === 'lookups' ? `${x} ${x === 1 ? 'segment' : 'segments'}` : `${x.toLocaleString('en')} pages below`
+
+// The value at the end of each line, moved apart where two would touch.
+function endLabels(series: { method: string; points: Point[] }[]) {
+  const labels = series
+    .map(({ method, points: linePoints }) => {
+      const last = linePoints.at(-1)!
+      return { method, text: formatTime(last.median), x: xOf(last.x) + 8, y: yOf(last.median) + 4 }
+    })
+    .sort((first, second) => first.y - second.y)
+  for (let index = 1; index < labels.length; index++) {
+    labels[index]!.y = Math.max(labels[index]!.y, labels[index - 1]!.y + 12)
+  }
+  return labels
+}
+
+// How many times the benchmark renamed each page, the same for every method.
+const runCounts = xValues.map((x) => points.find((point) => point.x === x)?.runs)
+const runList = `${runCounts.slice(0, -1).join(', ')} and ${runCounts.at(-1)}`
+const caption =
+  kind === 'lookups'
+    ? `The median of ${report.ranOn.lookupRuns.toLocaleString('en')} lookups of the same page, by how many segments its path has.`
+    : `The median of ${runList} renames of a page, by how many pages sit below it. Both scales are logarithmic.`
+---
+
+<figure class="speed-chart">
+  <ul class="speed-chart-legend not-content">
+    {
+      methods.map((method) => (
+        <li>
+          <span class="speed-chart-key" style={`background: ${seriesColor(method)}`} />
+          {methodLabel(method)}
+        </li>
+      ))
+    }
+  </ul>
+  <div class="speed-chart-panels not-content">
+    {
+      panels.map(({ database, series }) => (
+        <svg
+          aria-label={`${DATABASE_LABELS[database]}: ${series
+            .map(({ method, points: linePoints }) => `${methodLabel(method)} ${linePoints.map(({ median }) => formatTime(median)).join(', ')}`)
+            .join('; ')}`}
+          role="img"
+          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}>
+          <text class="speed-chart-title" x={MARGIN.left} y="14">
+            {DATABASE_LABELS[database]}
+          </text>
+          {yTicks.map((tick) => (
+            <g>
+              <line class="speed-chart-grid" x1={MARGIN.left} x2={plotRight} y1={yOf(tick)} y2={yOf(tick)} />
+              <text class="speed-chart-tick" text-anchor="end" x={MARGIN.left - 6} y={yOf(tick) + 4}>
+                {formatTime(tick)}
+              </text>
+            </g>
+          ))}
+          {xValues.map((x) => (
+            <text class="speed-chart-tick" text-anchor="middle" x={xOf(x)} y={plotBottom + 18}>
+              {x.toLocaleString('en')}
+            </text>
+          ))}
+          {series.map(({ method, points: linePoints }) => (
+            <path
+              class="speed-chart-line"
+              d={linePoints.map(({ median, x }, index) => `${index === 0 ? 'M' : 'L'}${xOf(x)},${yOf(median)}`).join('')}
+              style={`stroke: ${seriesColor(method)}`}
+            />
+          ))}
+          {series.map(({ method, points: linePoints }) =>
+            linePoints.map((point) => (
+              <g>
+                <title>
+                  {`${methodLabel(method)}, ${xLabel(point.x)}: ${formatTiming(point)}${point.runs ? `, ${point.runs} runs` : ''}`}
+                </title>
+                <circle class="speed-chart-target" cx={xOf(point.x)} cy={yOf(point.median)} r="10" />
+                <circle
+                  class="speed-chart-marker"
+                  cx={xOf(point.x)}
+                  cy={yOf(point.median)}
+                  r="4"
+                  style={`fill: ${seriesColor(method)}`}
+                />
+              </g>
+            ))
+          )}
+          {endLabels(series).map(({ text, x, y }) => (
+            <text class="speed-chart-value" x={x} y={y}>
+              {text}
+            </text>
+          ))}
+        </svg>
+      ))
+    }
+  </div>
+  <figcaption>{caption}</figcaption>
+  <details>
+    <summary>The numbers</summary>
+    <table>
+      <thead>
+        <tr>
+          <th>Method</th>
+          <th>{kind === 'lookups' ? 'Segments' : 'Pages below'}</th>
+          {kind === 'moves' && <th>Runs</th>}
+          {panels.map(({ database }) => (
+            <th>{DATABASE_LABELS[database]}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {
+          methods.flatMap((method) =>
+            xValues.map((x) => {
+              const cells = panels.map(({ series }) =>
+                series.find((line) => line.method === method)?.points.find((point) => point.x === x)
+              )
+              return (
+                <tr>
+                  <td>{methodLabel(method)}</td>
+                  <td>{x.toLocaleString('en')}</td>
+                  {kind === 'moves' && <td>{cells.find(Boolean)?.runs}</td>}
+                  {cells.map((cell) => (
+                    <td>{cell ? formatTiming(cell) : '-'}</td>
+                  ))}
+                </tr>
+              )
+            })
+          )
+        }
+      </tbody>
+    </table>
+  </details>
+</figure>
+
+<style>
+  /* The validated categorical palette's first three slots, stepped for each theme. */
+  .speed-chart {
+    --speed-series-1: #3987e5;
+    --speed-series-2: #d95926;
+    --speed-series-3: #199e70;
+    margin-block: 1.5rem;
+  }
+
+  :global(:root[data-theme='light']) .speed-chart {
+    --speed-series-1: #2a78d6;
+    --speed-series-2: #eb6834;
+    --speed-series-3: #1baf7a;
+  }
+
+  .speed-chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-2);
+  }
+
+  .speed-chart-legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+  }
+
+  .speed-chart-key {
+    width: 1rem;
+    height: 2px;
+    border-radius: 1px;
+  }
+
+  .speed-chart-panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 0.5rem 1rem;
+    margin-block-start: 0.75rem;
+  }
+
+  .speed-chart-panels svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .speed-chart-title {
+    font-size: 12px;
+    font-weight: 600;
+    fill: var(--docs-foreground);
+  }
+
+  .speed-chart-tick {
+    font-size: 10px;
+    fill: var(--docs-muted-foreground);
+  }
+
+  .speed-chart-value {
+    font-size: 10.5px;
+    fill: var(--sl-color-gray-2);
+  }
+
+  .speed-chart-grid {
+    stroke: var(--docs-border);
+    stroke-width: 1;
+  }
+
+  .speed-chart-line {
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .speed-chart-marker {
+    stroke: var(--sl-color-bg);
+    stroke-width: 2;
+  }
+
+  .speed-chart-target {
+    fill: transparent;
+  }
+
+  figcaption {
+    margin-block-start: 0.5rem;
+    font-size: var(--sl-text-sm);
+    color: var(--docs-muted-foreground);
+  }
+
+  details {
+    margin-block-start: 0.75rem;
+    font-size: var(--sl-text-sm);
+  }
+
+  summary {
+    cursor: pointer;
+    color: var(--sl-color-gray-2);
+  }
+</style>

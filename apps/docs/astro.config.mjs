@@ -67,6 +67,24 @@ export default defineConfig({
               },
               { label: 'Fields', items: ['theme/fields/vertical-tabs', 'theme/fields/radio-cards', 'theme/fields/switch'] }
             ]
+          },
+          {
+            label: 'path',
+            link: '/path/',
+            items: [
+              { slug: 'path', attrs: { 'data-icon': 'book-open' } },
+              { slug: 'path/installation', attrs: { 'data-icon': 'download' } },
+              { slug: 'path/configuration', attrs: { 'data-icon': 'settings-2' } },
+              { slug: 'path/speed', attrs: { 'data-icon': 'gauge' } },
+              {
+                label: 'How it works',
+                items: ['path/paths', 'path/moves-and-deletes', 'path/drafts', 'path/languages', 'path/refusals', 'path/limits']
+              },
+              {
+                label: 'API',
+                items: ['path/api/find-by-path', 'path/api/find-paths', 'path/api/on-paths-changed', 'path/api/backfill-paths']
+              }
+            ]
           }
         ])
       ]

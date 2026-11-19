@@ -33,10 +33,23 @@ bun add @payloadpack/theme
 
 <a href="https://docs.payloadpack.com/theme/"><b>Documentation</b></a> · <a href="packages/theme#readme">README</a> · <a href="packages/theme/CHANGELOG.md">Changelog</a>
 
+## [@payloadpack/path](packages/path)
+
+<a href="https://www.npmjs.com/package/@payloadpack/path"><img alt="npm version" src="https://img.shields.io/npm/v/@payloadpack/path"></a>
+<a href="https://payloadcms.com"><img alt="Payload version" src="https://img.shields.io/npm/dependency-version/@payloadpack/path/peer/payload"></a>
+
+Stored URL paths for pages and posts. Editors pick a parent and a slug, a document takes its whole branch along when it moves, and your site finds the document at a path in one indexed query, in any language.
+
+```sh
+bun add @payloadpack/path
+```
+
+<a href="https://docs.payloadpack.com/path/"><b>Documentation</b></a> · <a href="packages/path#readme">README</a> · <a href="packages/path/CHANGELOG.md">Changelog</a>
+
 ## Contributing
 
 Each plugin lives in `packages/<name>` and releases on its own version. [CONTRIBUTING.md](CONTRIBUTING.md) covers the layout, the commands and how to add a plugin.
 
 ## License
 
-Each plugin has its own license in its folder. The theme's is the [PolyForm Perimeter License 1.0.1](packages/theme/LICENSE).
+Each plugin has its own license, in the `LICENSE` file in its folder.

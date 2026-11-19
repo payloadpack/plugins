@@ -1,3 +1,10 @@
+---
+paths:
+  - 'packages/theme/**'
+  - 'apps/theme-demo/**'
+  - 'apps/docs/src/content/docs/theme/**'
+---
+
 # Naming
 
 The terms for an admin theme where editors pick how their admin panel looks, within the limits a developer sets in the plugin config.

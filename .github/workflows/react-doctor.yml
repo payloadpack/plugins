@@ -32,13 +32,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-
-      - name: Install dependencies (frozen lockfile)
-        run: bun install --frozen-lockfile
+      - name: Setup
+        uses: ./.github/actions/setup
 
       - name: Check whether the change reaches the demo's code
         id: demo
@@ -47,5 +42,5 @@ jobs:
         run: scripts/demo-tests.sh @apps/theme-demo "$BASE" >> "$GITHUB_OUTPUT"
 
       - name: React Doctor
-        if: steps.demo.outputs.e2e == 'true'
+        if: steps.demo.outputs.theme_demo_e2e == 'true'
         uses: millionco/react-doctor@695e46eee203a5d1855020191aa7e9c010a1250e # v2.4.0
