@@ -23,7 +23,9 @@ export type BranchChange = {
   /**
    * Per locale that changed: every path that started with from and a slash now starts with to and a
    * slash. For a move they are the document's own paths. For a lift, from is the deleted document's
-   * path and to what was above it: its parent's path, the base path, or nothing at the root.
+   * path and to what was above it: its parent's path, the base path, or nothing at the root. When a
+   * bulk delete deletes a document and one below it, the two lifts' paths hold followed one after
+   * the other.
    */
   paths: { from: string; locale?: string; to: string }[]
   /**
@@ -77,6 +79,24 @@ export function getBranchChange(
     return movedPaths.length > 0 ? [{ id: document.id, paths: movedPaths }] : []
   })
   return { collection, documents: below, documentsBelow, id, paths }
+}
+
+/**
+ * A lift's documents below with the paths the last lift of the same bulk delete put each at. A lift
+ * of a document further up can move a document again after another lift moved it, and Payload starts
+ * the hooks after the deletes all at once, so the site may hear the lifts in any order. A document
+ * that is back where it was is left out.
+ */
+export function buildBranchChangeToLastLandings(lifted: BranchChange, landings: Map<string, Paths>): BranchChange {
+  const documents = lifted.documents.flatMap(({ id, paths }) => {
+    const landed = landings.get(String(id))
+    const lastPaths = paths.flatMap((path) => {
+      const to = landed?.[path.locale ?? NO_LOCALE] ?? path.to
+      return to === path.from ? [] : [{ ...path, to }]
+    })
+    return lastPaths.length > 0 ? [{ id, paths: lastPaths }] : []
+  })
+  return { ...lifted, documents }
 }
 
 // Which paths show something else after a save, from where a site found the document before the write

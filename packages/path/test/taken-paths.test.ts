@@ -132,6 +132,46 @@ describeEachSetup('', {}, (test) => {
 
     expect(moved.path).toBe('/veranda')
   })
+
+  it('gives a document a path that a save on the same request was about to take before a required field refused it', async () => {
+    const { payload } = test
+    const req = await createPayloadRequest({ payload })
+    const cellar = await create(payload, 'notices', { slug: 'cellar', title: 'Cellar' })
+    const vault = await create(payload, 'notices', { slug: 'vault', title: 'Vault' })
+    const saved = { collection: 'notices', overrideAccess: true, req } as const
+
+    // The path is free, and Payload then refuses the empty title.
+    await expect(payload.update({ ...saved, data: { slug: 'crypt', title: '' }, id: cellar.id })).rejects.toThrow()
+    const moved = await payload.update({ ...saved, data: { slug: 'crypt' }, id: vault.id })
+
+    expect(moved.path).toBe('/crypt')
+  })
+
+  // Payload skips what ends a bulk update when it fails as a whole, so the request still holds what
+  // the bulk update started.
+  it('gives a document a path that a save was refused at, on a request whose bulk update failed as a whole', async () => {
+    const { payload } = test
+    const req = await createPayloadRequest({ payload })
+    const cabin = await create(payload, 'notices', { slug: 'cabin', title: 'Cabin' })
+    const lodge = await create(payload, 'notices', { slug: 'lodge', title: 'Lodge' })
+    const saved = { collection: 'notices', overrideAccess: true, req } as const
+
+    // A request without a user may update no notice.
+    await expect(
+      payload.update({
+        collection: 'notices',
+        data: { title: 'Hut' },
+        overrideAccess: false,
+        req,
+        where: { id: { in: [cabin.id, lodge.id] } }
+      })
+    ).rejects.toThrow('You are not allowed to perform this action.')
+    // The path is free, and Payload then refuses the empty title.
+    await expect(payload.update({ ...saved, data: { slug: 'chalet', title: '' }, id: cabin.id })).rejects.toThrow()
+    const moved = await payload.update({ ...saved, data: { slug: 'chalet' }, id: lodge.id })
+
+    expect(moved.path).toBe('/chalet')
+  })
 })
 
 // A save in progress: a request whose transaction stays open until the test commits it.

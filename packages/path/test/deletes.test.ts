@@ -1,7 +1,8 @@
-import { expect, it } from 'vitest'
+import type { CollectionConfig } from 'payload'
+import { beforeEach, expect, it } from 'vitest'
 
-import { describeEachSetup } from './support/boot-payload.js'
-import { catchFieldErrors, create, readDocument, readPath, remove, update } from './support/documents.js'
+import { describeEachSetup, titled } from './support/boot-payload.js'
+import { catchFieldErrors, create, readDocument, readPath, readRows, remove, update } from './support/documents.js'
 
 describeEachSetup('', {}, (test, setup) => {
   it('gives a lifted document the path its own slug makes, whatever path it stored', async () => {
@@ -116,3 +117,114 @@ describeEachSetup('', {}, (test, setup) => {
     expect(await readPath(payload, 'pages', stock.id)).toBe('/depot/stock')
   })
 })
+
+// The guides a site's own beforeDelete refuses to delete, and the ones whose delete it holds back for
+// a moment. The plugin lifts the documents below after the collection's own beforeDelete hooks, so a
+// delete they refuse moves nothing, and in a bulk delete the lift of a held guide comes last.
+const keptGuides = new Set<string>()
+const heldGuides = new Set<string>()
+
+const guidesWithSiteHook = (localized: boolean): CollectionConfig => ({
+  ...titled('guides', localized),
+  hooks: {
+    beforeDelete: [
+      async ({ id }) => {
+        if (keptGuides.has(String(id))) throw new Error('The site keeps this guide.')
+        if (heldGuides.has(String(id))) await new Promise((resolve) => setTimeout(resolve, 500))
+      }
+    ]
+  }
+})
+
+for (const transactions of [true, false]) {
+  describeEachSetup(
+    `with a site's own beforeDelete, transactions ${transactions ? 'on' : 'off'}`,
+    {
+      boot: (setup) => ({
+        collections: [guidesWithSiteHook(setup.localized)],
+        options: { collections: ['pages', 'posts', 'notices', 'guides'] },
+        transactions
+      })
+    },
+    (test) => {
+      beforeEach(() => {
+        keptGuides.clear()
+        heldGuides.clear()
+      })
+
+      it("keeps the documents below a document where they were when the site's own hook refuses its delete", async () => {
+        const { payload } = test
+        const manual = await create(payload, 'guides', { slug: 'manual', title: 'Manual' })
+        const setupGuide = await create(payload, 'guides', { parent: manual.id, slug: 'setup', title: 'Setup' })
+        const wiring = await create(payload, 'guides', { parent: setupGuide.id, slug: 'wiring', title: 'Wiring' })
+        keptGuides.add(String(manual.id))
+        const before = await readRows(payload, 'guides', [manual.id, setupGuide.id, wiring.id])
+
+        await expect(remove(payload, 'guides', manual.id)).rejects.toThrow('The site keeps this guide.')
+
+        expect(await readRows(payload, 'guides', [manual.id, setupGuide.id, wiring.id])).toEqual(before)
+      })
+
+      it("keeps the documents below a document where they were when the site's own hook refuses its delete in a bulk delete, and deletes the other", async () => {
+        const { payload } = test
+        const handbook = await create(payload, 'guides', { slug: 'handbook', title: 'Handbook' })
+        const safety = await create(payload, 'guides', { parent: handbook.id, slug: 'safety', title: 'Safety' })
+        const drills = await create(payload, 'guides', { parent: safety.id, slug: 'drills', title: 'Drills' })
+        const leaflet = await create(payload, 'guides', { slug: 'leaflet', title: 'Leaflet' })
+        const folds = await create(payload, 'guides', { parent: leaflet.id, slug: 'folds', title: 'Folds' })
+        keptGuides.add(String(handbook.id))
+        const before = await readRows(payload, 'guides', [handbook.id, safety.id, drills.id])
+
+        const { errors } = await payload.delete({
+          collection: 'guides',
+          overrideAccess: true,
+          where: { id: { in: [handbook.id, leaflet.id] } }
+        })
+
+        expect(errors).toMatchObject([{ id: handbook.id, message: 'The site keeps this guide.' }])
+        expect(await readRows(payload, 'guides', [handbook.id, safety.id, drills.id])).toEqual(before)
+        expect(await readPath(payload, 'guides', folds.id)).toBe('/folds')
+      })
+
+      // The site hears the lifts in any order, so each names where a document ended up.
+      for (const held of ['parent', 'parent above'] as const) {
+        it(`lifts a document to the top level when one bulk delete deletes its parent and the parent above that, with the lift from the ${held} last, and tells the site where it went`, async () => {
+          const { changes, payload } = test
+          const name = held === 'parent' ? 'mill' : 'forge'
+          const top = await create(payload, 'guides', { slug: `${name}-top`, title: 'Top' })
+          const middle = await create(payload, 'guides', { parent: top.id, slug: `${name}-middle`, title: 'Middle' })
+          const low = await create(payload, 'guides', { parent: middle.id, slug: `${name}-low`, title: 'Low' })
+          heldGuides.add(String(held === 'parent' ? middle.id : top.id))
+          changes.length = 0
+
+          const { errors } = await payload.delete({
+            collection: 'guides',
+            overrideAccess: true,
+            where: { id: { in: [top.id, middle.id] } }
+          })
+
+          const lifted = await readDocument(payload, 'guides', low.id)
+          const reportedTo = changes
+            .flatMap((change) => change.lifted?.documents ?? [])
+            .filter(({ id }) => String(id) === String(low.id))
+            .flatMap(({ paths }) => paths.map(({ to }) => to))
+          expect({
+            ancestors: lifted.ancestors,
+            draftPath: await readPath(payload, 'guides', low.id, { draft: true }),
+            errors,
+            lastReportedTo: reportedTo.at(-1),
+            parent: lifted.parent ?? null,
+            path: lifted.path
+          }).toEqual({
+            ancestors: [],
+            draftPath: `/${name}-low`,
+            errors: [],
+            lastReportedTo: `/${name}-low`,
+            parent: null,
+            path: `/${name}-low`
+          })
+        })
+      }
+    }
+  )
+}

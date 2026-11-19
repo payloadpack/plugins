@@ -14,7 +14,7 @@ import { checkBranchMove } from '../validation/check-branch-move.js'
 import { checkNewPaths, getNewPaths } from '../validation/check-new-paths.js'
 import { checkPublishedPaths } from '../validation/check-published-paths.js'
 import { freePaths } from '../validation/take-paths.js'
-import { documentKey, getPathContext } from './context.js'
+import { documentKey, getBulkOperation, getPathContext } from './context.js'
 import { getBranchChange, getChangedPaths } from './paths-change.js'
 
 /**
@@ -83,7 +83,8 @@ export const setPathAfterChange: CollectionAfterChangeHook = async ({ collection
     const written = wrote.draft || (!version && wrote.document)
     return written ? { ...doc, path: inData(builtDraft.paths) ?? null } : doc
   } finally {
-    // The database shows what the save took from here on, or the save was refused.
-    freePaths({ collection: slug, id: doc.id }, req)
+    // The database shows what a document of a bulk update took from here on, or it was refused.
+    const bulkOperation = getBulkOperation(req, slug)
+    if (bulkOperation) freePaths(bulkOperation.takenPaths, { collection: slug, id: doc.id })
   }
 }

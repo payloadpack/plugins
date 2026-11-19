@@ -51,6 +51,7 @@ type BranchChange = {
 - `moved` names the document a save moved, and `lifted` the document a delete removed when documents below it were lifted. Both name the collection as well as the id, since a page and a post may share an id on Postgres and SQLite.
 - In both, every path that started with `from` and a slash now starts with `to` and a slash. For `lifted`, `to` is the parent's path, the collection's base path, or an empty string at the root.
 - `documents` names each document below that your site finds at another path now, top-down, with the path it left and the one it is at, in each locale it is published in. A document below that isn't published is not listed, so there can be fewer than `documentsBelow`.
+- A bulk delete that deletes a document and one below it reports each delete with its own `lifted`, and they may come in either order. `documents` names where each document ended up. The rules in `paths` hold when your site follows them one after the other, as redirects do.
 - A rename of a document with nothing below it reports `moved` with `documentsBelow: 0`, and a publish that keeps the slug and the parent reports none.
 - It isn't called when there is nothing to report. A delete of a document in the trash reports no `paths`, since your site heard them when it went there, and still reports `lifted`.
 - With localization, each path has its `locale`, and only the locales the save changed are listed, which usually includes the ones that fall back to a renamed slug.

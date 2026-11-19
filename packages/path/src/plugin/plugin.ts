@@ -7,8 +7,10 @@ import { pathField } from '../fields/path.js'
 import { slugField } from '../fields/slug.js'
 import { setPathAfterChange } from '../hooks/after-change.js'
 import { reportPathsAfterDelete } from '../hooks/after-delete.js'
+import { endBulkOperationAfterOperation } from '../hooks/after-operation.js'
 import { checkPathBeforeChange } from '../hooks/before-change.js'
-import { liftBranchBeforeDelete } from '../hooks/before-delete.js'
+import { checkLiftBeforeDelete, liftBranchBeforeDelete } from '../hooks/before-delete.js'
+import { startBulkOperationBeforeOperation } from '../hooks/before-operation.js'
 import {
   missingCollectionsError,
   parentFieldWithoutParentError,
@@ -28,7 +30,9 @@ import {
 // A collection whose documents have a parent stores their ancestors, and gets the plugin's parent
 // field unless Payload's own hierarchy brings one. Only that field takes what the site sets on a
 // parent field. The plugin's hooks go ahead of the collection's own, so those see the path and a
-// refused save stops before them.
+// refused save or delete stops before them. Two go after them: the lift of a delete, so a delete the
+// collection's own hooks refuse moves nothing, and the start of a bulk operation, which then sees the
+// operation as it runs.
 function withPath(
   collection: CollectionConfig,
   {
@@ -59,8 +63,10 @@ function withPath(
       ...collection.hooks,
       afterChange: [setPathAfterChange, ...(collection.hooks?.afterChange ?? [])],
       afterDelete: [reportPathsAfterDelete, ...(collection.hooks?.afterDelete ?? [])],
+      afterOperation: [endBulkOperationAfterOperation, ...(collection.hooks?.afterOperation ?? [])],
       beforeChange: [checkPathBeforeChange, ...(collection.hooks?.beforeChange ?? [])],
-      beforeDelete: [liftBranchBeforeDelete, ...(collection.hooks?.beforeDelete ?? [])]
+      beforeDelete: [checkLiftBeforeDelete, ...(collection.hooks?.beforeDelete ?? []), liftBranchBeforeDelete],
+      beforeOperation: [...(collection.hooks?.beforeOperation ?? []), startBulkOperationBeforeOperation]
     }
   }
 }

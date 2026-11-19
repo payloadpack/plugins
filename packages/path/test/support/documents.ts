@@ -169,6 +169,20 @@ export async function readVersionPaths(payload: Payload, collection: CollectionS
   return docs.map(({ version }) => (version as Record<string, unknown>).path)
 }
 
+// The rows of some documents of a collection and of their versions, as the database holds them.
+export async function readRows(payload: Payload, collection: CollectionSlug, ids: Id[]) {
+  const { docs: documents } = await payload.db.find({
+    collection,
+    pagination: false,
+    sort: 'id',
+    where: { id: { in: ids } }
+  })
+  const versions = hasDrafts(payload, collection)
+    ? (await payload.db.findVersions({ collection, pagination: false, sort: 'id', where: { parent: { in: ids } } })).docs
+    : []
+  return { documents, versions }
+}
+
 // A ValidationError's field errors, as REST would show them.
 export async function catchFieldErrors(work: Promise<unknown>) {
   try {

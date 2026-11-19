@@ -57,7 +57,7 @@ The most documents or paths a move names in one statement or asks for in one rea
 _Avoid_: batch, and page, which is a document
 
 **Taken path**:
-A path a document is at. Every document takes its path, whatever its status, except one in the trash; a pending move takes nothing until the document moves. A save or a delete also takes the paths it is about to put documents at, on the request, until it has written, so two documents of one bulk operation can't land on the same path.
+A path a document is at. Every document takes its path, whatever its status, except one in the trash; a pending move takes nothing until the document moves. A document of a bulk update also takes the paths it is about to put documents at, until it has written, so two documents of one bulk update can't land on the same path. What it takes is kept by that bulk update only, so it never refuses anything after it.
 _Avoid_: holder, owner, conflict
 
 **Trash**:

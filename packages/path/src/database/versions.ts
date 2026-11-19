@@ -23,6 +23,18 @@ import {
 // A version as the database adapter returns it. Its own parent is the document it is a version of.
 export type StoredVersion = { [key: string]: unknown; id: Id; parent: Id; version: Omit<StoredDocument, 'id'> }
 
+// The id of the document a version is of, or nothing for a version that isn't stored.
+export async function findDocumentIdOfVersion(collection: string, id: Id, req: PayloadRequest): Promise<Id | undefined> {
+  const { docs } = await req.payload.db.findVersions({
+    collection,
+    limit: 1,
+    pagination: false,
+    req,
+    where: { id: { equals: id } }
+  })
+  return (docs[0] as StoredVersion | undefined)?.parent
+}
+
 // A document as the database holds it: the document itself and, in a collection with drafts, its
 // latest version.
 export type DocumentAndLatestVersion = { document: StoredDocument; version?: StoredVersion }

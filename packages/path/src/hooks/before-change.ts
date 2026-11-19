@@ -22,7 +22,7 @@ import { checkNewPaths, getNewPaths } from '../validation/check-new-paths.js'
 import { checkParent } from '../validation/check-parent.js'
 import { checkSlugs } from '../validation/check-slugs.js'
 import { freePaths, takePaths } from '../validation/take-paths.js'
-import { documentKey, getPathContext, type PathAndAncestorsBefore } from './context.js'
+import { documentKey, getBulkOperation, getPathContext, type PathAndAncestorsBefore } from './context.js'
 
 // The parent a save gives the document. Payload fills a field a save leaves out from the latest
 // version, except in a restore. On MongoDB a restored version from before the document had a parent
@@ -84,9 +84,10 @@ function getSavedPaths(
  *
  * It refuses what the data itself shows, in this order: a missing slug, a parent the document can't
  * sit below, a path the document can't be at, and a landing of a document below it. It stores nothing,
- * because Payload's dry-run validate runs this hook too. A save of a stored document takes its paths
- * on the request before it asks the database, because Payload runs the documents of a bulk update at
- * once.
+ * because Payload's dry-run validate runs this hook too. A document of a bulk update takes its paths
+ * before it asks the database, because Payload runs the documents of a bulk update at once. What it
+ * took is kept by that bulk update only, so a save that fails after this hook can't leave a path
+ * taken for anything after it.
  */
 export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collection, data, operation, originalDoc, req }) => {
   const { payload } = req
@@ -125,15 +126,16 @@ export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collec
   const leavesTrash = document !== undefined && isInTrash(document) && data.deletedAt === null
   const paths = getSavedPaths(built, before, { collection: slug, leavesTrash, payload, publishes, savedLocales })
 
-  // The paths, and then where the documents below land: each taken on the request first, and then
-  // checked against the database. Only a save of a stored document takes: a dry run writes nothing,
-  // and a create has no id to take by, which no bulk operation needs.
-  const taker = operation === 'update' ? document : undefined
-  const by = taker && { collection: slug, id: taker.id }
+  // The paths, and then where the documents below land: each taken first by a document of a bulk
+  // update, and then checked against the database. A dry run writes nothing, and a document saved
+  // on its own is not of the bulk update.
+  const bulkOperation = getBulkOperation(req, slug)
+  const takes = operation === 'update' && document && bulkOperation && !bulkOperation.savedOnTheirOwn.has(String(document.id))
+  const taking = takes ? { by: { collection: slug, id: document.id }, document, takenPaths: bulkOperation.takenPaths } : undefined
   try {
-    if (by) {
-      const taken = paths.taken.map(([locale, path]) => ({ collection: slug, document: taker, locale, path }))
-      takePaths(by, taken, req, paths.here)
+    if (taking) {
+      const taken = paths.taken.map(([locale, path]) => ({ collection: slug, document: taking.document, locale, path }))
+      takePaths(taking.takenPaths, taking.by, taken, req, paths.here)
     }
     await checkNewPaths(slug, id, paths.checked, req, paths.here)
     if (id !== undefined && before && paths.moved.length > 0) {
@@ -143,12 +145,12 @@ export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collec
         parent: { ancestors: built.ancestors, id, paths: { ...before.paths, ...Object.fromEntries(paths.moved) } },
         req
       })
-      if (by) takePaths(by, getLandings(branchMove), req)
+      if (taking) takePaths(taking.takenPaths, taking.by, getLandings(branchMove), req)
       await checkBranchMove(branchMove, req)
     }
   } catch (error) {
     // A refused save takes nothing.
-    if (by) freePaths(by, req)
+    if (taking) freePaths(taking.takenPaths, taking.by)
     throw error
   }
 
