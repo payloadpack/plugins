@@ -1,4 +1,13 @@
-import { buildConfig, type CollectionConfig } from 'payload'
+import {
+  buildConfig,
+  type CollectionConfig,
+  type FieldHook,
+  type FilterOptions,
+  type FilterOptionsProps,
+  type RelationshipField,
+  type TextField,
+  type Where
+} from 'payload'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { pathPlugin, type PathCollection } from '../src/index.js'
@@ -141,6 +150,106 @@ describe('pathPlugin', () => {
     })
     // A collection without a title field has nothing to make a slug from.
     expect(slugOf('posts')).toMatchObject({ admin: { components: { Field: component(undefined) } }, custom: { slugify } })
+  })
+
+  // The slug field and parent field of pages, given with what a site sets on them.
+  const fieldsGiven = async (given: Omit<Extract<PathCollection, { slug: string }>, 'slug'>) => {
+    const config = await configWith([collection('pages')], { collections: [{ ...given, slug: 'pages' } as PathCollection] })
+    const find = (name: string) => fieldsOf(config, 'pages').find((field) => field.name === name)
+    return { parent: find('parent') as RelationshipField, slug: find('slug') as TextField }
+  }
+
+  it('puts the access, label and validate a site sets on the slug field and the parent field on them as they are', async () => {
+    const access = { update: () => true }
+    const validate = () => true as const
+    const { parent, slug } = await fieldsGiven({
+      parentField: { access, label: 'Sits below' },
+      slugField: { access, label: 'URL segment', validate }
+    })
+
+    expect(slug).toMatchObject({ access, label: 'URL segment', name: 'slug', type: 'text' })
+    expect(slug.validate).toBe(validate)
+    expect(parent).toMatchObject({ access, index: true, label: 'Sits below', name: 'parent', relationTo: 'pages' })
+  })
+
+  it("keeps the plugin's slug component and sidebar position under the admin a site sets, unless it sets its own", async () => {
+    const { parent, slug } = await fieldsGiven({
+      parentField: { admin: { allowCreate: false } },
+      slugField: { admin: { components: { Description: './description#Description' }, description: 'Ask the web team first.' } }
+    })
+    const { slug: placed } = await fieldsGiven({
+      slugField: { admin: { components: { Field: './slug#Slug' }, position: undefined } }
+    })
+
+    expect(slug.admin).toMatchObject({
+      components: {
+        Description: './description#Description',
+        Field: { path: '@payloadpack/path/client#SlugField' }
+      },
+      description: 'Ask the web team first.',
+      position: 'sidebar'
+    })
+    expect(parent.admin).toMatchObject({ allowCreate: false, position: 'sidebar' })
+    expect(placed.admin).toMatchObject({ components: { Field: './slug#Slug' } })
+    expect(placed.admin?.position).toBeUndefined()
+  })
+
+  it("adds the hooks a site sets on the slug field after the plugin's own, and the ones on the parent field as they are", async () => {
+    const hook: FieldHook = ({ value }) => value
+    const { parent, slug } = await fieldsGiven({
+      parentField: { hooks: { beforeChange: [hook] } },
+      slugField: { hooks: { afterRead: [hook], beforeDuplicate: [hook], beforeValidate: [hook] } }
+    })
+
+    // The plugin's own hook comes first: what the slug is cleaned and copied by.
+    expect(slug.hooks).toMatchObject({
+      afterRead: [hook],
+      beforeDuplicate: [expect.any(Function), hook],
+      beforeValidate: [expect.any(Function), hook]
+    })
+    expect(slug.hooks?.beforeValidate?.[0]).not.toBe(hook)
+    expect(parent.hooks).toEqual({ beforeChange: [hook] })
+  })
+
+  it.each<[string, FilterOptions, Where | false]>([
+    [
+      'a where',
+      { title: { exists: true } },
+      { and: [{ id: { not_equals: 7 }, path: { not_equals: '/' } }, { title: { exists: true } }] }
+    ],
+    [
+      'a function that gives a where',
+      ({ id }) => ({ title: { not_equals: String(id) } }),
+      { and: [{ id: { not_equals: 7 }, path: { not_equals: '/' } }, { title: { not_equals: '7' } }] }
+    ],
+    [
+      'an async function that gives a where',
+      async () => ({ title: { exists: true } }),
+      { and: [{ id: { not_equals: 7 }, path: { not_equals: '/' } }, { title: { exists: true } }] }
+    ],
+    ['a function that gives true', () => true, { id: { not_equals: 7 }, path: { not_equals: '/' } }],
+    ['a function that gives false', async () => false, false],
+    ['null', null, { id: { not_equals: 7 }, path: { not_equals: '/' } }]
+  ])("holds the parent filter a site sets as %s together with the plugin's own", async (_label, filterOptions, expected) => {
+    const { parent } = await fieldsGiven({ parentField: { filterOptions } })
+
+    const run = parent.filterOptions as (options: FilterOptionsProps) => Promise<false | Where>
+    expect(await run({ id: 7, relationTo: 'pages' } as FilterOptionsProps)).toEqual(expected)
+  })
+
+  it.each<[string, Partial<CollectionConfig>, PathCollection]>([
+    // The type refuses it too, as the next test shows, so the site here is one without types.
+    ['without a parent', {}, { parent: false, parentField: { label: 'Parent' }, slug: 'pages' } as unknown as PathCollection],
+    ["with Payload's hierarchy", { hierarchy: true }, { parentField: { label: 'Parent' }, slug: 'pages' }]
+  ])('refuses parentField for a collection %s', async (_label, own, given) => {
+    await expect(configWith([{ ...collection('pages'), ...own }], { collections: [given] })).rejects.toThrow(
+      '@payloadpack/path adds no parent field to pages, so leave out its parentField.'
+    )
+  })
+
+  it('takes parentField only for a collection with a parent', () => {
+    expectTypeOf<{ parentField: { label: string }; slug: 'pages' }>().toExtend<PathCollection>()
+    expectTypeOf<{ parent: false; parentField: { label: string }; slug: 'pages' }>().not.toExtend<PathCollection>()
   })
 
   it.each([

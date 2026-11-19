@@ -13,6 +13,7 @@ import {
   publishInSwedish,
   refreshSlug,
   slugField,
+  unlockButton,
   unlockSlug
 } from './demo'
 
@@ -180,44 +181,47 @@ test(
 )
 
 test(
-  'gives a topic the slug an editor types in Swedish in English too, with the one path and the topic below it',
+  "shows a topic's slug read-only in Swedish, and gives it the slug an editor types in English in Swedish too, with the one path and the topic below it",
   { tag: '@localized' },
   async ({ page }) => {
     const lagoon = await createPublished(page.request, 'topics', { slug: 'lagoon', title: 'Lagoon' })
     const reeds = await createPublished(page.request, 'topics', { _h_topics: lagoon.id, slug: 'reeds', title: 'Reeds' })
+    // The demo's own access on the topics' slug field lets no save in Swedish change it.
     await openDocument(page, 'topics', lagoon.id, 'sv')
+    await expect(slugField(page)).toBeDisabled()
+    await expect(unlockButton(page)).toBeHidden()
 
-    await page.locator('#field-title').fill('Lagun')
+    await openDocument(page, 'topics', lagoon.id, 'en')
     await unlockSlug(page)
     await slugField(page).fill('lagun')
     await publish(page)
 
     await expect(pathField(page)).toHaveValue('/topics/lagun')
-    await openDocument(page, 'topics', lagoon.id, 'en')
+    await openDocument(page, 'topics', lagoon.id, 'sv')
     await expect(slugField(page)).toHaveValue('lagun')
     await expect(pathField(page)).toHaveValue('/topics/lagun')
-    await openDocument(page, 'topics', reeds.id, 'en')
+    await openDocument(page, 'topics', reeds.id, 'sv')
     await expect(pathField(page)).toHaveValue('/topics/lagun/reeds')
   }
 )
 
 test(
-  'shows an editor in Swedish the refusal of a slug whose path a page is at in English only',
+  'shows an editor in English the refusal of a slug whose path a page is at in Swedish only',
   { tag: '@localized' },
   async ({ page }) => {
     const section = await createPublished(page.request, 'pages', { slug: 'topics', title: 'Topics' })
     const marsh = await createPublished(page.request, 'pages', { parent: section.id, slug: 'marsh', title: 'Marsh' })
     await publishInSwedish(page.request, 'pages', marsh.id, { slug: 'karr', title: 'Kärr' })
     const pond = await createPublished(page.request, 'topics', { slug: 'pond', title: 'Pond' })
-    await openDocument(page, 'topics', pond.id, 'sv')
+    await openDocument(page, 'topics', pond.id, 'en')
 
-    await page.locator('#field-title').fill('Damm')
+    await page.locator('#field-title').fill('The pond')
     await unlockSlug(page)
-    await slugField(page).fill('marsh')
+    await slugField(page).fill('karr')
     await publish(page)
 
     await expect(
-      page.getByText('Page "Marsh" is already at /topics/marsh in en, so change the slug or the parent.').first()
+      page.getByText('Page "Kärr" is already at /topics/karr in sv, so change the slug or the parent.').first()
     ).toBeVisible()
     await page.reload()
     await expect(pathField(page)).toHaveValue('/topics/pond')

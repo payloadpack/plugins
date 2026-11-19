@@ -9,19 +9,40 @@ import { setPathAfterChange } from '../hooks/after-change.js'
 import { reportPathsAfterDelete } from '../hooks/after-delete.js'
 import { checkPathBeforeChange } from '../hooks/before-change.js'
 import { liftBranchBeforeDelete } from '../hooks/before-delete.js'
-import { missingCollectionsError, repeatedCollectionsError, takenFieldNamesError } from './messages.js'
-import { getCollection, hasPayloadHierarchy, resolvePathConfig, storePathConfig, type PathPluginOptions } from './options.js'
+import {
+  missingCollectionsError,
+  parentFieldWithoutParentError,
+  repeatedCollectionsError,
+  takenFieldNamesError
+} from './messages.js'
+import {
+  getCollection,
+  getFieldOptions,
+  hasPayloadHierarchy,
+  resolvePathConfig,
+  storePathConfig,
+  type FieldOptions,
+  type PathPluginOptions
+} from './options.js'
 
 // A collection whose documents have a parent stores their ancestors, and gets the plugin's parent
-// field unless Payload's own hierarchy brings one. The plugin's hooks go ahead of the collection's
-// own, so those see the path and a refused save stops before them.
+// field unless Payload's own hierarchy brings one. Only that field takes what the site sets on a
+// parent field. The plugin's hooks go ahead of the collection's own, so those see the path and a
+// refused save stops before them.
 function withPath(
   collection: CollectionConfig,
-  { hasParent, localized, slugify }: { hasParent: boolean; localized: boolean; slugify: Slugify }
+  {
+    fieldOptions,
+    hasParent,
+    localized,
+    slugify
+  }: { fieldOptions: FieldOptions; hasParent: boolean; localized: boolean; slugify: Slugify }
 ): CollectionConfig {
+  const hasOwnParent = hasParent && !hasPayloadHierarchy(collection)
+  if (fieldOptions.parentField && !hasOwnParent) throw new Error(parentFieldWithoutParentError(collection.slug))
   const fields = [
-    ...(hasParent && !hasPayloadHierarchy(collection) ? [parentField(collection.slug)] : []),
-    slugField({ localized, slugify, useAsTitle: collection.admin?.useAsTitle }),
+    ...(hasOwnParent ? [parentField(collection.slug, fieldOptions.parentField)] : []),
+    slugField({ localized, slugify, useAsTitle: collection.admin?.useAsTitle }, fieldOptions.slugField),
     pathField(localized),
     ...(hasParent ? [ancestorsField(collection.slug)] : [])
   ]
@@ -61,7 +82,9 @@ export function pathPlugin(options: PathPluginOptions): Plugin {
       ...config,
       collections: config.collections?.map((collection) => {
         const given = getCollection(collection.slug, pathConfig)
-        return given ? withPath(collection, { ...given, slugify: pathConfig.slugify }) : collection
+        if (!given) return collection
+        const fieldOptions = getFieldOptions(collection.slug, options)
+        return withPath(collection, { ...given, fieldOptions, slugify: pathConfig.slugify })
       }),
       custom: storePathConfig(config.custom, pathConfig)
     }

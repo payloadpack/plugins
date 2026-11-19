@@ -4,7 +4,7 @@ import type { Slugify } from 'payload/shared'
 import type { SlugFieldOwnProps } from '../components/slug-field.js'
 import { findDocuments } from '../database/documents.js'
 import { idOf, isSlug } from '../path/build-path-and-ancestors.js'
-import { getParentFieldName } from '../plugin/options.js'
+import { getParentFieldName, type SlugFieldOptions } from '../plugin/options.js'
 import { valueInLocale } from '../utils/locales.js'
 
 // A slug is cleaned on every save, and kept when a save clears it. A save in every locale at once
@@ -47,7 +47,8 @@ const copySlug =
     return slug
   }
 
-type SlugFieldOptions = {
+// What the plugin builds its slug field from.
+type SlugFieldParts = {
   // Whether the collection's documents have a slug per locale.
   localized: boolean
   // What makes a slug from a title or from what an editor typed: the site's own function, or the default.
@@ -58,25 +59,37 @@ type SlugFieldOptions = {
 
 /**
  * A text field with the plugin's own hooks, shown as Payload's slug field: locked until the editor
- * unlocks it, with a refresh button that makes the slug from the title.
+ * unlocks it, with a refresh button that makes the slug from the title. What the site sets on it
+ * goes over the plugin's own admin, and the site's hooks run after the plugin's, so they see the
+ * cleaned slug.
  */
-export function slugField({ localized, slugify, useAsTitle }: SlugFieldOptions): TextField {
+export function slugField(
+  { localized, slugify, useAsTitle }: SlugFieldParts,
+  { admin, hooks, ...asGiven }: SlugFieldOptions = {}
+): TextField {
   return {
+    ...asGiven,
     name: 'slug',
     type: 'text',
     admin: {
+      position: 'sidebar',
+      ...admin,
       components: {
         Field: {
           clientProps: { useAsSlug: useAsTitle } satisfies SlugFieldOwnProps,
           path: '@payloadpack/path/client#SlugField'
-        }
-      },
-      position: 'sidebar'
+        },
+        ...admin?.components
+      }
     },
     // The refresh button calls Payload's slugify server function, which runs the function it finds
     // here: what Payload's own slug field relies on, and its docs don't name.
     custom: { slugify },
-    hooks: { beforeDuplicate: [copySlug(localized)], beforeValidate: [cleanSlug(slugify, localized)] },
+    hooks: {
+      ...hooks,
+      beforeDuplicate: [copySlug(localized), ...(hooks?.beforeDuplicate ?? [])],
+      beforeValidate: [cleanSlug(slugify, localized), ...(hooks?.beforeValidate ?? [])]
+    },
     localized
   }
 }

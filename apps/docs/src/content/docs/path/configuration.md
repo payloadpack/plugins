@@ -21,7 +21,7 @@ pathPlugin({
 
 | Key                | What it sets                                                                                                                                                                      | Default                                       |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `collections`      | The [collections](#collections) whose documents get a path, each by its slug or as `{ slug, basePath, parent, localized }`                                                        |                                               |
+| `collections`      | The [collections](#collections) whose documents get a path, each by its slug or as `{ slug, basePath, parent, localized, slugField, parentField }`                                |                                               |
 | `rootSlug`         | The slug that makes a top-level document the [home page](#home-page)                                                                                                              | `home`                                        |
 | `reservedSegments` | [Segments your site serves itself](#reserved-slugs), as a list or each with why                                                                                                   | Payload's admin and API routes                |
 | `slugify`          | What makes [a slug](/path/paths/#the-slug) from a title, from what an editor typed and for the slug field's button, as the `slugify` of Payload's own slug field. It may be async | Accents off Latin letters, other scripts kept |
@@ -41,12 +41,14 @@ pathPlugin({
 })
 ```
 
-| Key         | What it sets                                                           | Default                                         |
-| ----------- | ---------------------------------------------------------------------- | ----------------------------------------------- |
-| `slug`      | The collection                                                         |                                                 |
-| `basePath`  | What the paths of its top-level documents start with, such as `/blog`  | None, so they start at the root                 |
-| `parent`    | `false` when its documents have no parent                              | Its documents have a parent                     |
-| `localized` | `true` when its documents have [a path per locale](#a-path-per-locale) | One slug and one path, the same in every locale |
+| Key           | What it sets                                                                                                               | Default                                         |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `slug`        | The collection                                                                                                             |                                                 |
+| `basePath`    | What the paths of its top-level documents start with, such as `/blog`                                                      | None, so they start at the root                 |
+| `parent`      | `false` when its documents have no parent                                                                                  | Its documents have a parent                     |
+| `localized`   | `true` when its documents have [a path per locale](#a-path-per-locale)                                                     | One slug and one path, the same in every locale |
+| `slugField`   | [Field options](#field-options) for the slug field: `access`, `admin`, `hooks`, `label` and `validate`                     | The plugin's own                                |
+| `parentField` | [Field options](#field-options) for the plugin's own parent field: `access`, `admin`, `filterOptions`, `hooks` and `label` | The plugin's own                                |
 
 With `basePath: '/blog'` a top-level post is at `/blog/my-post`. Leave it out and the collection's top-level documents sit at the root, like pages. A base path is no document of its own, so a page may sit at `/blog` beside the posts.
 
@@ -96,6 +98,29 @@ A few things are good to know before you start:
 A collection's documents have one slug and one path, the same in every locale, also when your Payload config has localization. With `localized: true`, they have a slug and a path per locale, so a page can be at `/about` in English and at `/om-oss` in Swedish.
 
 `true` is the only value `localized` takes, and it goes together with `basePath`, `parent: false` and Payload's hierarchy. In a site without localization it changes nothing. See [Languages](/path/languages/) for how each locale gets its path, and what to do in a collection that already has documents.
+
+### Field options
+
+`slugField` and `parentField` set Payload's own field options on the slug field and the parent field the plugin adds. In a site where only the default locale may change a slug, give the slug field Payload's field access:
+
+```ts title="payload.config.ts"
+pathPlugin({
+  collections: [
+    {
+      slug: 'pages',
+      slugField: { access: { update: ({ req }) => req.locale === 'en' } }
+    }
+  ]
+})
+```
+
+In another locale the admin then shows the slug read-only, without its lock and refresh buttons. A save there that sends another slug keeps the slug and the path the page has, and saves the rest of the page.
+
+- `access`, `label` and `validate` are used as you give them.
+- `admin` goes over the plugin's own, and so do its `components`, so the slug field keeps its lock and its place in the sidebar unless you set your own.
+- Your `hooks` run after the plugin's own, so a `beforeValidate` hook on the slug gets it cleaned.
+- Your `filterOptions` on the parent holds together with the plugin's own, so the picker still leaves out the document itself and the home page. It takes what Payload's own `filterOptions` takes.
+- `parentField` is only for a collection with the plugin's own parent, so not for one with `parent: false` or Payload's hierarchy.
 
 ## Home page
 
@@ -162,6 +187,7 @@ The plugin checks its options when Payload builds the config, and stops with one
 | @payloadpack/path was given collections the config doesn't have: posts.                                                 | Fix the slug, or list the plugin after the plugin that adds the collection |
 | @payloadpack/path was given pages more than once, so list each collection once.                                         | Keep one entry for the collection, with its base path if it has one        |
 | @payloadpack/path adds slug to pages, so remove its own.                                                                | Remove or rename the collection's own field                                |
+| @payloadpack/path adds no parent field to posts, so leave out its parentField.                                          | Remove `parentField`, which only the plugin's own parent field takes       |
 | @payloadpack/path was given the base path blog for posts, which doesn't start with a slash, so start it with one.       | Write it as `/blog`                                                        |
 | @payloadpack/path was given the base path /blog/ for posts, which ends with a slash, so remove that slash.              | Write it as `/blog`                                                        |
 | @payloadpack/path was given the base path /blog//news for posts, which has an empty segment, so remove the extra slash. | Write it as `/blog/news`                                                   |

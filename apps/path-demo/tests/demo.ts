@@ -94,9 +94,12 @@ export const pathField = (page: Page) => page.locator('#field-path')
 
 export const slugField = (page: Page) => page.locator('#field-slug')
 
+// What unlocks the slug, which an editor who may not change the slug doesn't get.
+export const unlockButton = (page: Page) => page.getByRole('button', { exact: true, name: 'Unlock' })
+
 // The slug is locked until an editor unlocks it, and only then shows its refresh button.
 export async function unlockSlug(page: Page) {
-  await page.getByRole('button', { exact: true, name: 'Unlock' }).click()
+  await unlockButton(page).click()
   await expect(slugField(page)).toBeEditable()
 }
 

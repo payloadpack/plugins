@@ -52,10 +52,11 @@ export default buildConfig({
       // A page sits below a page by the plugin's own parent, a post has no parent, and a topic sits
       // below a topic by the parent of Payload's hierarchy. With localization, a page and a post have
       // a slug and a path per locale, and a topic has one slug and one path, the same in every locale.
+      // A topic keeps the slug it got in English: its slug field's access lets no save in Swedish change it.
       collections: [
         { localized: true, slug: 'pages' },
         { basePath: '/blog', localized: true, parent: false, slug: 'posts' },
-        { basePath: '/topics', slug: 'topics' }
+        { basePath: '/topics', slug: 'topics', slugField: { access: { update: ({ req }) => req.locale !== 'sv' } } }
       ],
       reservedSegments: {
         anyDepth: { '-': 'starts the page and filters of a listing' },

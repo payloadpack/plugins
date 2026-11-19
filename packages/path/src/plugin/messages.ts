@@ -124,6 +124,9 @@ export const repeatedCollectionsError = (collectionSlugs: string[]) =>
 export const takenFieldNamesError = (fieldNames: string[], collectionSlug: string) =>
   `@payloadpack/path adds ${fieldNames.join(' and ')} to ${collectionSlug}, so remove its own.`
 
+export const parentFieldWithoutParentError = (collectionSlug: string) =>
+  `@payloadpack/path adds no parent field to ${collectionSlug}, so leave out its parentField.`
+
 export const notGivenCollectionsError = (collectionSlugs: string[]) =>
   `@payloadpack/path was asked for collections that pathPlugin() wasn't given: ${collectionSlugs.join(', ')}.`
 

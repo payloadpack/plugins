@@ -72,6 +72,10 @@ _Avoid_: migrate, rebuild, reindex
 Said of a collection whose documents have a slug and a path per locale: one given with `localized: true`, in a site with localization. The documents of every other collection have one slug and one path, the same in every locale. Config says `localized`.
 _Avoid_: synced, shared path, per market
 
+**Field options**:
+What a site sets on the slug field or the plugin's own parent field with `slugField` and `parentField`, as Payload's own field config. The plugin keeps each field's name, type and whether it is localized.
+_Avoid_: field overrides, field config
+
 **Home page**:
 The top-level document whose slug is the root slug, in a collection without a base path. Its path is the root, `/`. Config says `rootSlug`.
 _Avoid_: root page, index page, front page, and home slug for the root slug

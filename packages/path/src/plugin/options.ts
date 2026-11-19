@@ -1,4 +1,13 @@
-import type { CollectionConfig, CollectionSlug, Config, Payload, PayloadRequest } from 'payload'
+import type {
+  CollectionConfig,
+  CollectionSlug,
+  Config,
+  Payload,
+  PayloadRequest,
+  SingleRelationshipField,
+  TextField,
+  TextFieldSingleValidation
+} from 'payload'
 import type { Slugify } from 'payload/shared'
 
 import type { PathsChange } from '../hooks/paths-change.js'
@@ -20,10 +29,26 @@ import { defaultSlugify } from './slugify.js'
  */
 export type ReservedSegments = Record<string, string> | string[]
 
+/**
+ * What a site sets on the plugin's slug field, as on Payload's own text field. Its access, label and
+ * validate are used as given, its admin goes over the plugin's own, and its hooks run after the
+ * plugin's own.
+ */
+export type SlugFieldOptions = Pick<TextField, 'access' | 'admin' | 'hooks' | 'label'> & {
+  validate?: TextFieldSingleValidation
+}
+
+/**
+ * What a site sets on the plugin's parent field, as on Payload's own relationship field. Its access,
+ * hooks and label are used as given, its admin goes over the plugin's own, and its filterOptions
+ * holds together with the plugin's own.
+ */
+export type ParentFieldOptions = Pick<SingleRelationshipField, 'access' | 'admin' | 'filterOptions' | 'hooks' | 'label'>
+
 /** A collection whose documents get a path: its slug alone, or its slug with what sets the collection apart. */
 export type PathCollection =
   | CollectionSlug
-  | {
+  | ({
       /** What the paths of its top-level documents start with, such as /blog. Without one they start at the root. */
       basePath?: string
       /**
@@ -31,10 +56,21 @@ export type PathCollection =
        * it they have one slug and one path, the same in every locale.
        */
       localized?: true
-      /** false when its documents have no parent, so each one's path is the base path, a slash and its slug. */
-      parent?: false
       slug: CollectionSlug
-    }
+      /** What the site sets on the slug field. */
+      slugField?: SlugFieldOptions
+    } & (
+      | {
+          parent?: never
+          /** What the site sets on the plugin's own parent field, which a collection with Payload's hierarchy doesn't get. */
+          parentField?: ParentFieldOptions
+        }
+      | {
+          /** false when its documents have no parent, so each one's path is the base path, a slash and its slug. */
+          parent: false
+          parentField?: never
+        }
+    ))
 
 export type PathPluginOptions = {
   /**
@@ -117,6 +153,15 @@ export function resolvePathConfig(options: PathPluginOptions, config: Config): P
     rootSlug: options.rootSlug ?? 'home',
     slugify: options.slugify ?? defaultSlugify
   }
+}
+
+export type FieldOptions = { parentField?: ParentFieldOptions; slugField?: SlugFieldOptions }
+
+// What a site sets on a collection's slug field and parent field, which only building those fields
+// reads, so the stored config doesn't hold it.
+export function getFieldOptions(collectionSlug: string, { collections }: PathPluginOptions): FieldOptions {
+  const given = collections.find((collection) => typeof collection !== 'string' && collection.slug === collectionSlug)
+  return typeof given === 'object' ? { parentField: given.parentField, slugField: given.slugField } : {}
 }
 
 export function storePathConfig(custom: Record<string, unknown> | undefined, pathConfig: PathConfig) {

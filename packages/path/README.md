@@ -81,6 +81,8 @@ Each collection decides where a document's parent comes from:
 - With `parent: false` its documents have no parent, so a post's path is `/blog`, a slash and its slug.
 - With Payload's own `hierarchy` on the collection, the plugin uses Payload's parent and you keep Payload's tree in the admin. There is nothing to set in the plugin for it.
 
+A collection also takes `slugField` and `parentField`, which set Payload's own field options such as `access` on the plugin's fields, for example so that only a save in the default locale changes a slug.
+
 Every option and every message an editor can meet are in the [docs](https://docs.payloadpack.com/path/configuration/).
 
 ## Languages
