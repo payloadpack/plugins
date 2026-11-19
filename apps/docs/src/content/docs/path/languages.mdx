@@ -64,7 +64,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
 
 Without localization, leave `locale` out.
 
-For links to the same document in your other locales, such as alternate links, [`findPaths`](/path/api/find-paths/) gives its path in each locale it is published in.
+For links to the same document in your other locales, such as alternate links, [`findPaths`](/path/api/find-paths/) gives its path in each locale it is published in. The route above gets them with the document when it passes [`paths: true`](/path/api/find-by-path/#paths-in-each-locale) to `findByPath`.
 
 ## One path in every locale
 

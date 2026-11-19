@@ -25,6 +25,7 @@ It returns the document and the collection it is in, or `null` when nothing is p
 | `draft`       | Find the latest draft at the path, for [previews](/path/drafts/#previews)   | `false`                  |
 | `collections` | The collections to look in, among the plugin's                              | All of them              |
 | `depth`       | How deep the document's relationships are populated, as in Payload's `find` | `0`                      |
+| `paths`       | Also return the document's [path in each locale](#paths-in-each-locale)     | none                     |
 
 - It runs one indexed query per collection it looks in, at the same time, and none for a path with a [reserved slug](/path/configuration/#reserved-slugs).
 - It reads as the server, so it ignores access control. Use it for what your site shows anyway.
@@ -34,3 +35,14 @@ It returns the document and the collection it is in, or `null` when nothing is p
 - `collections` narrows the type too, so with `collections: ['pages']` the result is a page or `null`. A collection the plugin wasn't given stops it with:
 
 > @payloadpack/path was asked for collections that pathPlugin() wasn't given: notices.
+
+## Paths in each locale
+
+With `paths: true` it also returns the document's path in each locale, the same ones [`findPaths`](/path/api/find-paths/) gives, so your route has the links to the page in your other languages:
+
+```ts
+const found = await findByPath({ locale: 'en', path: '/about', paths: true, payload })
+// { collection: 'pages', document: { … }, paths: [{ locale: 'en', path: '/about' }, { locale: 'sv', path: '/om-oss' }] }
+```
+
+It reads the document once more after it finds it. With `draft: true` in a collection with drafts, it also reads the document's latest version, and gives the paths that draft would give it. Without `paths` it reads nothing more, and the result has no `paths`.

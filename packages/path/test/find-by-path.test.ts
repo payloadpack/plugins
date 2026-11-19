@@ -1,10 +1,15 @@
 import { expect, expectTypeOf, it } from 'vitest'
 
-import { findByPath, type FoundByPath } from '../src/index.js'
+import { findByPath, findPaths, type FoundByPath, type FoundPath } from '../src/index.js'
 import { describeEachSetup } from './support/boot-payload.js'
-import { create } from './support/documents.js'
+import { create, update } from './support/documents.js'
 
-describeEachSetup('', {}, (test) => {
+describeEachSetup('', {}, (test, setup) => {
+  // A path as findPaths gives it: with its locale with localization, and alone without.
+  const at = (locale: string, path: string): FoundPath => (setup.localized ? { locale, path } : { path })
+  // A save or a lookup in Swedish, which without localization is one of the one slug.
+  const inSwedish = setup.localized ? { locale: 'sv' } : {}
+
   it('finds the document at a path in any collection, and says which', async () => {
     const { payload } = test
     const home = await create(payload, 'pages', { slug: 'home', title: 'Home' })
@@ -30,6 +35,33 @@ describeEachSetup('', {}, (test) => {
       collection: 'notices',
       document: { id: easter.id }
     })
+  })
+
+  it("gives the document's path in each locale it is published in when asked for its paths, and leaves them out otherwise", async () => {
+    const { payload } = test
+    const about = await create(payload, 'pages', { slug: 'about', title: 'About' })
+    await update(payload, 'pages', about.id, { slug: 'om-oss', title: 'Om oss' }, inSwedish)
+
+    const found = await findByPath({ ...inSwedish, collections: ['pages'], path: '/om-oss', paths: true, payload })
+    expectTypeOf(found).toEqualTypeOf<(FoundByPath<'pages'> & { paths: FoundPath[] }) | null>()
+    expect(found).toMatchObject({ collection: 'pages', document: { id: about.id } })
+    expect(found?.paths).toEqual(setup.localized ? [at('en', '/about'), at('sv', '/om-oss')] : [at('en', '/om-oss')])
+    expect(found?.paths).toEqual(await findPaths({ collection: 'pages', id: about.id, payload }))
+    expect(await findByPath({ ...inSwedish, path: '/om-oss', payload })).not.toHaveProperty('paths')
+  })
+
+  it("gives the paths of the latest draft when asked for a draft's paths", async () => {
+    const { payload } = test
+    const plans = await create(payload, 'pages', { slug: 'plans', title: 'Plans' })
+    await update(payload, 'pages', plans.id, { slug: 'pricing' }, { draft: true })
+
+    const found = await findByPath({ draft: true, path: '/pricing', paths: true, payload })
+    expect(found).toMatchObject({ document: { id: plans.id } })
+    // The Swedish path takes the English slug it falls back to.
+    expect(found?.paths).toEqual(setup.localized ? [at('en', '/pricing'), at('sv', '/pricing')] : [at('en', '/pricing')])
+    expect(found?.paths).toEqual(await findPaths({ collection: 'pages', draft: true, id: plans.id, payload }))
+    // The published document keeps its own path until the draft is published.
+    expect(await findByPath({ path: '/plans', paths: true, payload })).toMatchObject({ paths: [at('en', '/plans')] })
   })
 })
 

@@ -99,7 +99,7 @@ The locale is never part of the path, so your routes decide where it goes:
 const found = await findByPath({ locale, path: `/${(segments ?? []).join('/')}`, payload })
 ```
 
-With a path per locale, the same path may show different documents in different languages, and each language is published on its own. To link to a document in the other languages, `findPaths({ collection, id, payload })` gives its path in each locale it is published in.
+With a path per locale, the same path may show different documents in different languages, and each language is published on its own. To link to a document in the other languages, `findPaths({ collection, id, payload })` gives its path in each locale it is published in, and `findByPath` gives the same paths with the document when you pass `paths: true`.
 
 ## Speed
 

@@ -15,6 +15,8 @@ if (found) {
 
 It returns the document's path in each locale it is published in, in the order of your locales. Put each locale where your site keeps it, in a prefix, a domain or a cookie, and you have the links to the page in the other languages, such as the alternate links in its head.
 
+A route that already calls `findByPath` can ask it for the same paths with [`paths: true`](/path/api/find-by-path/#paths-in-each-locale), instead of a second call.
+
 | Argument     | What it is                                                                 | Default |
 | ------------ | -------------------------------------------------------------------------- | ------- |
 | `payload`    | Your Payload instance                                                      |         |
