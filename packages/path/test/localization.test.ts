@@ -537,6 +537,33 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
     expect(await readStoredPaths(payload, casks.id)).toEqual({ en: '/wine-cellar/casks', sv: '/wine-cellar/casks' })
   })
 
+  // A site that publishes the default locale first: the post waits as a draft in Swedish, with a
+  // Swedish slug of its own, and holds that path until its Swedish is published.
+  it('keeps the path a post waits at in a locale it is not published in yet, through a publish in the default locale, so no other document takes it', async () => {
+    const { payload } = test
+    const post = await create(payload, 'posts', { slug: 'launch', title: 'Launch' })
+    await update(payload, 'posts', post.id, { slug: 'lansering' }, { draft: true, locale: 'sv' })
+    const page = await create(payload, 'pages', { slug: 'news', title: 'News' })
+    const refusal = [{ locale: 'sv', message: expect.stringContaining('is already at this path'), path: 'slug' }]
+    const takeSwedishPath = (draft: boolean) =>
+      catchFieldErrors(update(payload, 'pages', page.id, { slug: 'lansering' }, { draft, locale: 'sv' }))
+
+    expect(await takeSwedishPath(false)).toMatchObject(refusal)
+    expect(await takeSwedishPath(true)).toMatchObject(refusal)
+
+    // The post is published in English again, which Payload writes without what Swedish held.
+    await update(payload, 'posts', post.id, { title: 'Launch day' })
+
+    expect(await takeSwedishPath(false)).toMatchObject(refusal)
+    expect(await takeSwedishPath(true)).toMatchObject(refusal)
+    expect(await findByPath({ locale: 'sv', path: '/lansering', payload })).toBeNull()
+
+    await update(payload, 'posts', post.id, {}, inSwedish)
+
+    expect(await findByPath({ locale: 'sv', path: '/lansering', payload })).toMatchObject({ document: { id: post.id } })
+    expect(await findByPath({ locale: 'en', path: '/launch', payload })).toMatchObject({ document: { id: post.id } })
+  })
+
   it('moves a page with a Swedish slug of its own below a page published in English only, when that page is renamed after a publish', async () => {
     const { payload } = test
     const pantry = await create(payload, 'pages', { slug: 'pantry', title: 'Pantry' })
