@@ -3,7 +3,7 @@ import type { PostgresAdapter } from '@payloadcms/db-postgres'
 import { sql as postgresSql } from '@payloadcms/db-postgres/drizzle'
 import type { SQLiteAdapter } from '@payloadcms/db-sqlite'
 import { sql as sqliteSql } from '@payloadcms/db-sqlite/drizzle'
-import type { Payload } from 'payload'
+import type { Payload, PayloadRequest } from 'payload'
 
 import type { Query } from './adapters.js'
 import type { TestPayload } from './boot-payload.js'
@@ -163,6 +163,17 @@ export async function setUpdatedAtNotWrittenByPayload(payload: Payload, setup: S
  */
 export const setTimestampsThatAreNoDates = (payload: Payload, collection: string, id: number | string) =>
   setOnMongodb(payload, collection, id, { createdAt: 'not a date', updatedAt: 'not a date' })
+
+/**
+ * Holds a collection's table on Postgres in the transaction of a request, as a migration that changes
+ * the table does, until that transaction ends: every other connection waits for the table, and the
+ * request's own doesn't.
+ */
+export async function holdTable(payload: Payload, collection: string, req: PayloadRequest) {
+  const { sessions, tables } = postgresOf(payload)
+  const { db } = sessions[String(await req.transactionID)]!
+  await db.execute(postgresSql`LOCK TABLE ${tables[collection]} IN ACCESS EXCLUSIVE MODE`)
+}
 
 /**
  * Holds a row of a collection on Postgres in a transaction of its own, so a write of it waits, until

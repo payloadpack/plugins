@@ -122,18 +122,29 @@ async function findIdsTopDown(collection: CollectionConfig, req: PayloadRequest)
  * - A save of its latest version between its read and its write is written over, and a document
  *   deleted in the moment the run writes its row comes back on Postgres, and by the adapter's source
  *   on SQLite too.
+ * - Given a request, it reads and writes in that request's transaction, as a migration needs: a
+ *   migration that changed a table holds it, so on Postgres any other connection waits for it and on
+ *   SQLite is refused.
  */
 export async function backfillPaths({
   collections,
-  payload
+  payload,
+  req: given
 }: {
   /** The collections to go through, among the plugin's. Without it, every one of them. */
   collections?: CollectionSlug[]
   payload: Payload
+  /**
+   * The request whose transaction the run reads and writes in, such as a migration's. Without it,
+   * each document is written on its own.
+   */
+  req?: PayloadRequest
 }): Promise<BackfillReport> {
   const slugs = pickCollections(collections, getPathConfig(payload))
-  // In every locale at once, so a refusal names the locale of the path it is about.
+  // In every locale at once, so a refusal names the locale of the path it is about, whatever locale a
+  // given request is in. Of that request it takes the transaction.
   const req = await createPayloadRequest({ locale: 'all', payload })
+  if (given) req.transactionID = given.transactionID
   const report: BackfillReport = { left: [], updated: 0, unchanged: 0 }
   for (const slug of slugs) {
     const collection = payload.collections[slug].config

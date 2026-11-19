@@ -1,11 +1,12 @@
-import { beforeEach, expect, it } from 'vitest'
+import { commitTransaction, createPayloadRequest, initTransaction, killTransaction } from 'payload'
+import { beforeEach, expect, it, onTestFinished } from 'vitest'
 
 import { backfillPaths, findByPath } from '../src/index.js'
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import type { Query } from './support/adapters.js'
 import { describeEachSetup } from './support/boot-payload.js'
 import { countLatestVersions, create, readDocument, readLatestVersion, readPath, store, update } from './support/documents.js'
-import { holdRow, refuseWritesOf, setUpdatedAtNotWrittenByPayload, waitForRowWait } from './support/raw-access.js'
+import { holdRow, holdTable, refuseWritesOf, setUpdatedAtNotWrittenByPayload, waitForRowWait } from './support/raw-access.js'
 import { SETUPS } from './support/setups.js'
 
 const WRITES = ['delete', 'findAndModify', 'insert', 'update']
@@ -197,6 +198,48 @@ describeEachSetup('', {}, (test, setup) => {
     expect(report.left.filter(({ collection }) => collection === 'notices')).toEqual([])
   })
 })
+
+// A site may run the backfill in a transaction of its own, such as a migration's, by giving it that
+// transaction's request.
+describeEachSetup('given a request', {}, (test, setup) => {
+  it('writes in the transaction of the request, so its writes are undone with it', async () => {
+    const { payload } = test
+    const shelf = await store(test, setup, 'pages', { slug: 'shelf', title: 'Shelf' })
+    const req = await createPayloadRequest({ payload })
+    await initTransaction(req)
+
+    const report = await backfillPaths({ payload, req })
+    await killTransaction(req)
+
+    expect(report).toEqual({ left: [], updated: 1, unchanged: 0 })
+    expect((await readPath(payload, 'pages', shelf)) ?? null).toBeNull()
+  })
+})
+
+// A migration that changes a table holds it until its transaction ends, and Postgres makes every
+// other connection wait for it. So a backfill in that migration reads and writes on the migration's
+// own connection, or it would wait for the migration that waits for it.
+describeEachSetup(
+  'in a migration that changed the table',
+  { setups: SETUPS.filter(({ database }) => database === 'postgres') },
+  (test, setup) => {
+    it('gives the documents their paths in the transaction of the request it is given', async () => {
+      const { payload } = test
+      const cabinet = await store(test, setup, 'pages', { slug: 'cabinet', title: 'Cabinet' })
+      const req = await createPayloadRequest({ payload })
+      await initTransaction(req)
+      // A run that waits for the table ends with the test, when the table is let go.
+      onTestFinished(() => killTransaction(req))
+      await holdTable(payload, 'pages', req)
+
+      const report = await backfillPaths({ payload, req })
+      await commitTransaction(req)
+
+      expect(report).toEqual({ left: [], updated: 1, unchanged: 0 })
+      expect(await readPath(payload, 'pages', cabinet)).toBe('/cabinet')
+    })
+  }
+)
 
 describeEachSetup(
   'with transactions off',

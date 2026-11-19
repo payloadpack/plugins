@@ -44,7 +44,18 @@ bunx payload run scripts/backfill-paths.ts
 
 Your site can stay up while it runs. It reads each document again when it gets to it, so an edit saved before then is kept.
 
-In a migration, give it a migration of its own that runs after the one that adds the plugin's columns. It works outside the migration's transaction, so on Postgres a migration that changes a table and then calls it waits forever.
+In a migration, pass it the migration's `req`, so the run is part of the migration's transaction:
+
+```ts title="migrations/backfill-paths.ts"
+import type { MigrateUpArgs } from '@payloadcms/db-postgres'
+import { backfillPaths } from '@payloadpack/path'
+
+export async function up({ payload, req }: MigrateUpArgs): Promise<void> {
+  await backfillPaths({ payload, req })
+}
+```
+
+Without `req` it works outside that transaction. A migration that changed a table holds it until it is done, so the run would wait for it forever on Postgres, and be refused on SQLite.
 
 ## What it returns
 
@@ -61,7 +72,7 @@ Look at `left` after a run. Each document in it needs a change from you before t
 - It gives every document the path its slug and its parent make, parents first, and writes only what differs, in the document and in its latest version.
 - It makes no new version, runs no hook of the collection and doesn't call `onPathsChanged`. A draft's new slug or parent on a published document stays a pending move.
 - It makes up no slug. A document without one is left with the [refusal](/path/refusals/#slug-and-parent) a save would get, and so is every document below it.
-- It writes each document on its own, so a run that stopped can be run again.
+- It writes each document on its own, so a run that stopped can be run again. Given a `req`, the whole run is undone with that request's transaction.
 - Two documents that ended up [at the same path](/path/paths/#one-document-per-path) are both left and listed, each with the message that names the other. Give one of them another slug or parent, and the next run lists neither.
 - A collection the plugin wasn't given stops it with:
 

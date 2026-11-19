@@ -49,7 +49,7 @@ With `push: true` in development, Payload adds the columns on its own.
 
 ## Documents you already have
 
-The plugin gives a document its path when it is saved. For the documents from before the plugin, run [`backfillPaths`](/path/api/backfill-paths/) once, in a script or in a [migration of its own](/path/api/backfill-paths/#how-to-run-it):
+The plugin gives a document its path when it is saved. For the documents from before the plugin, run [`backfillPaths`](/path/api/backfill-paths/) once, in a script or in a [migration](/path/api/backfill-paths/#how-to-run-it):
 
 ```ts
 import { backfillPaths } from '@payloadpack/path'
