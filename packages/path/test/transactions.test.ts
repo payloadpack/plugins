@@ -3,7 +3,16 @@ import { expect, it } from 'vitest'
 
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup } from './support/boot-payload.js'
-import { catchFieldErrors, create, readDocument, readPath, readRows, remove, update } from './support/documents.js'
+import {
+  catchFieldErrors,
+  create,
+  readDocument,
+  readPath,
+  readRows,
+  remove,
+  restoreVersion,
+  update
+} from './support/documents.js'
 import { refuseWritesOf } from './support/raw-access.js'
 
 describeEachSetup('', {}, (test, setup) => {
@@ -227,6 +236,22 @@ for (const transactions of [true, false]) {
           )
         ).toMatchObject([
           { message: 'Post "abacus ledger post" is already at /blog/abacus-ledger, so change the slug or the parent.' }
+        ])
+        expect(await readRows(payload, 'pages', [page.id, below.id])).toEqual(before)
+      })
+
+      // A version restored as the document is written to the document itself, whatever its status.
+      it('refuses to restore a draft version of a page whose branch would land on a taken path, and leaves it as it was', async () => {
+        const { payload } = test
+        await create(payload, 'posts', { slug: 'ledger-roll', title: 'ledger roll post' })
+        const page = await create(payload, 'pages', { slug: 'roll', title: 'roll' })
+        const below = await create(payload, 'pages', { parent: page.id, slug: 'ledger-roll', title: 'ledger roll' })
+        await update(payload, 'pages', page.id, { slug: 'blog' }, { draft: true })
+        const before = await readRows(payload, 'pages', [page.id, below.id])
+
+        // The second version is the draft that renamed the page.
+        expect(await catchFieldErrors(restoreVersion(payload, 'pages', page.id, { version: 1 }))).toMatchObject([
+          { message: 'Post "ledger roll post" is already at /blog/ledger-roll, so change the slug or the parent.' }
         ])
         expect(await readRows(payload, 'pages', [page.id, below.id])).toEqual(before)
       })

@@ -22,7 +22,7 @@ import { checkNewPaths, getNewPaths } from '../validation/check-new-paths.js'
 import { checkParent } from '../validation/check-parent.js'
 import { checkSlugs } from '../validation/check-slugs.js'
 import { freePaths, takePaths } from '../validation/take-paths.js'
-import { documentKey, getBulkOperation, getPathContext, takeSentAsDraft, type PathAndAncestorsBefore } from './context.js'
+import { documentKey, getBulkOperation, getPathContext, takeDocumentWrite, type PathAndAncestorsBefore } from './context.js'
 
 // The parent a save gives the document. Payload fills a field a save leaves out from the latest
 // version, except in a restore. On MongoDB a restored version from before the document had a parent
@@ -81,8 +81,9 @@ function getSavedPaths(
  * beforeChange because that is the last point where a refusal stops the write, and the only one
  * where the path, the slug and the ancestors can go into the data Payload writes: into the latest
  * version always, and into the document itself when Payload writes that. Of that write it knows one
- * thing: whether Payload writes the document itself, which a publish does, and so does an update that
- * wasn't sent as a draft save, such as an unpublish. Everything else of it the hook after it looks at.
+ * thing: whether Payload writes the document itself, which a publish does, and so does an update or
+ * a restore that wasn't sent as a draft, such as an unpublish. Everything else of it the hook after
+ * it looks at.
  *
  * It refuses what the data itself shows, in this order: a publish without a slug to make a path
  * from in any locale, a parent the document can't sit below, a path the document can't be at, and a
@@ -126,16 +127,15 @@ export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collec
   const bulkOperation = getBulkOperation(req, slug)
   const takes = operation === 'update' && document && bulkOperation && !bulkOperation.savedOnTheirOwn.has(String(document.id))
 
-  // Whether Payload writes the document itself: a publish does, and so does an update that wasn't sent
-  // as a draft save, whatever its status, as an unpublish. Unknown for a restored version, which
-  // the hook after the write looks at.
-  const sentAsDraft = takes ? bulkOperation.sentAsDraft : id === undefined ? undefined : takeSentAsDraft(req, slug, id)
+  // Whether Payload writes the document itself, which its operation says where one noted it. A save
+  // no operation noted, such as a create or a dry run, is taken by its status.
+  const documentWrite = takes ? bulkOperation.documentWrite : id === undefined ? undefined : takeDocumentWrite(req, slug, id)
   const paths = getSavedPaths(built, before, {
     collection: slug,
     leavesTrash,
     payload,
     savedLocales,
-    writesDocument: publishes || sentAsDraft === false
+    writesDocument: documentWrite === 'always' || (documentWrite !== 'never' && publishes)
   })
 
   // The paths, and then where the documents below land: each taken first by a document of a bulk
