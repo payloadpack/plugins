@@ -13,7 +13,7 @@ import {
   restoreVersion,
   update
 } from './support/documents.js'
-import { holdRow, setUpdatedAtNotWrittenByPayload, waitForRowWait } from './support/raw-access.js'
+import { holdRow, setTimestampsThatAreNoDates, setUpdatedAtNotWrittenByPayload, waitForRowWait } from './support/raw-access.js'
 import { SETUPS } from './support/setups.js'
 
 describeEachSetup('', {}, (test, setup) => {
@@ -344,6 +344,32 @@ describeEachSetup(
 
       expect(await readPath(payload, 'pages', crate.id)).toBe('/dock/crate')
       expect({ ...(await readRow()), path: before.path }).toEqual(before)
+    })
+  }
+)
+
+// On MongoDB a row may hold text that is no date as its createdAt or updatedAt, as an import may leave
+// it. Payload reads such a row as it is and can save it, and the adapter refuses that text in a write,
+// so a move leaves both as the row holds them. SQLite and Postgres are left out: Payload can't read
+// such a row on SQLite, and Postgres keeps both in timestamp columns.
+describeEachSetup(
+  'a document whose timestamps are no dates',
+  { setups: SETUPS.filter(({ database }) => database === 'mongodb') },
+  (test) => {
+    it('gives it its new path when a page above it is renamed, and leaves its other values', async () => {
+      const { payload } = test
+      const wharf = await create(payload, 'pages', { slug: 'wharf', title: 'Wharf' })
+      const bale = await create(payload, 'pages', { parent: wharf.id, slug: 'bale', title: 'Bale' })
+      await setTimestampsThatAreNoDates(payload, 'pages', bale.id)
+      const readRow = () =>
+        payload.db.findOne<{ [field: string]: unknown; id: Id }>({ collection: 'pages', where: { id: { equals: bale.id } } })
+      const before = (await readRow())!
+
+      await update(payload, 'pages', wharf.id, { slug: 'pier' })
+
+      expect(await readPath(payload, 'pages', bale.id)).toBe('/pier/bale')
+      expect({ ...(await readRow()), path: before.path }).toEqual(before)
+      expect(before).toMatchObject({ createdAt: 'not a date', updatedAt: 'not a date' })
     })
   }
 )

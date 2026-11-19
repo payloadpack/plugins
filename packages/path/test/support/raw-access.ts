@@ -132,6 +132,12 @@ export async function refuseWritesOf(
   }
 }
 
+// MongoDB keeps an id as an ObjectId or as the number or text a site chose, and a test knows it as text.
+const setOnMongodb = (payload: Payload, collection: string, id: number | string, values: Record<string, unknown>) =>
+  mongodbOf(payload)
+    .collection(collection)
+    .updateOne({ $expr: { $eq: [{ $toString: '$_id' }, String(id)] } }, { $set: values })
+
 /**
  * Stores a row's updatedAt as text that Payload didn't write, as an import or another tool may: on
  * SQLite in another form than Payload's, and on MongoDB as a string where Payload keeps a date. The
@@ -141,15 +147,22 @@ export async function refuseWritesOf(
 export async function setUpdatedAtNotWrittenByPayload(payload: Payload, setup: Setup, collection: string, id: number | string) {
   const updatedAt = '2026-01-01 00:00:00'
   if (setup.database === 'mongodb') {
-    await mongodbOf(payload)
-      .collection(collection)
-      .updateOne({ $expr: { $eq: [{ $toString: '$_id' }, String(id)] } }, { $set: { updatedAt } })
+    await setOnMongodb(payload, collection, id, { updatedAt })
     return
   }
   if (setup.database !== 'sqlite') throw new Error('Only MongoDB and SQLite store an updatedAt Payload reads back otherwise.')
   const { drizzle, tables } = sqliteOf(payload)
   await drizzle.run(sqliteSql`UPDATE ${tables[collection]!} SET updated_at = ${updatedAt} WHERE id = ${id}`)
 }
+
+/**
+ * Stores text that is no date as a row's createdAt and updatedAt on MongoDB, as an import or another
+ * tool may. Payload reads such a row as it is and can save it, and the adapter refuses that text in a
+ * write. Only MongoDB has such a row: Payload can't read one on SQLite, and Postgres keeps both in
+ * timestamp columns.
+ */
+export const setTimestampsThatAreNoDates = (payload: Payload, collection: string, id: number | string) =>
+  setOnMongodb(payload, collection, id, { createdAt: 'not a date', updatedAt: 'not a date' })
 
 /**
  * Holds a row of a collection on Postgres in a transaction of its own, so a write of it waits, until

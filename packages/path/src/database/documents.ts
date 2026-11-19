@@ -110,6 +110,9 @@ export function buildRowWithPathAndAncestors<Row extends Record<string, unknown>
   return { ...row, ancestors, path, ...(agrees ? {} : { [parentField]: parentId }) }
 }
 
+// Whether a row holds a timestamp that is no date, as Payload read it: a string, or a Date.
+const isNoDate = (timestamp: unknown) => timestamp != null && Number.isNaN(new Date(timestamp as Date | string).getTime())
+
 /**
  * This write and setDraftPathAndAncestors both send the whole row as it was read, with the path and
  * ancestors changed. On Postgres and SQLite an update that holds a localized value replaces every
@@ -132,6 +135,12 @@ export function buildRowWithPathAndAncestors<Row extends Record<string, unknown>
  * A row that is gone, or has another updatedAt, says the write didn't land. That can't loop: the
  * caller tries again only after a save changed the row. A miss costs one more read, and such a row
  * the write by id that every row got before the condition.
+ *
+ * On MongoDB such text may be no date at all, in createdAt too. Payload reads that row as it is and
+ * can save it, and the adapter refuses the text in a write. So a timestamp that is no date is not
+ * sent back, and the row keeps it: an updatedAt of null tells each adapter to leave the one the row
+ * holds, and a createdAt that isn't sent isn't written. That row has no updatedAt to compare, and is
+ * written by its id.
  */
 export async function setPathAndAncestors(
   collection: string,
@@ -140,9 +149,11 @@ export async function setPathAndAncestors(
   req: PayloadRequest,
   { ifUnchanged = false }: { ifUnchanged?: boolean } = {}
 ): Promise<boolean> {
-  const data = buildRowWithPathAndAncestors(document, pathAndAncestors, collection, req)
-  const { id, updatedAt } = document
-  if (!ifUnchanged || updatedAt == null) {
+  const { createdAt, id, updatedAt } = document
+  const data: Record<string, unknown> = buildRowWithPathAndAncestors(document, pathAndAncestors, collection, req)
+  if (isNoDate(createdAt)) delete data.createdAt
+  if (isNoDate(updatedAt)) data.updatedAt = null
+  if (!ifUnchanged || updatedAt == null || isNoDate(updatedAt)) {
     await req.payload.db.updateOne({ collection, data, id, req, returning: false })
     return true
   }
