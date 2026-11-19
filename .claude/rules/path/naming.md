@@ -99,3 +99,7 @@ _Avoid_: blocked slug, forbidden path, blacklist
 **Refusal**:
 The message a save, move or delete gets when the plugin stops it. It names what is in the way and what to change.
 _Avoid_: error, violation, conflict
+
+**Limit**:
+A case where the package can't keep a promise, with what it leaves and what puts it right: two requests at the same time, a bulk update, or a refusal after the write on a database without transactions. The docs page Limits lists the ones a site can see, and `limits.md` in these rules lists all of them.
+_Avoid_: bug, quirk, caveat, known issue, edge case

@@ -98,4 +98,4 @@ If the collection had documents with parents before you added the plugin, run [`
 
 ## A move that stops halfway
 
-With transactions, a failed move or delete leaves everything as it was. Without them, which is SQLite's default, some documents keep their old paths until you run [`backfillPaths`](/path/api/backfill-paths/).
+With transactions, a failed move or delete leaves everything as it was. Without them, which is SQLite's default, some documents keep their old paths until you run [`backfillPaths`](/path/api/backfill-paths/). [Limits](/path/limits/) has what else a save during a move, or a database without transactions, can leave.

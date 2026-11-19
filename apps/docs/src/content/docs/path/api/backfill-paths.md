@@ -9,7 +9,7 @@ import { backfillPaths } from '@payloadpack/path'
 const { left, unchanged, updated } = await backfillPaths({ payload })
 ```
 
-Run it once after you add the plugin, in a script or a migration, and after a move that stopped halfway on a database without transactions.
+Run it once after you add the plugin, in a script or a migration, and after a move that stopped halfway on a database without transactions. [Limits](/path/limits/) has the other cases it puts right.
 
 | In the result | What it holds                                                                                                                                                    |
 | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |

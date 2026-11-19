@@ -78,7 +78,7 @@ export default defineConfig({
               { slug: 'path/speed', attrs: { 'data-icon': 'gauge' } },
               {
                 label: 'How it works',
-                items: ['path/paths', 'path/moves-and-deletes', 'path/drafts', 'path/languages', 'path/refusals']
+                items: ['path/paths', 'path/moves-and-deletes', 'path/drafts', 'path/languages', 'path/refusals', 'path/limits']
               },
               {
                 label: 'API',

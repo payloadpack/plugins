@@ -39,7 +39,7 @@ import PathTree from '../../../components/path/PathTree.astro'
 - Two documents may share a slug below different parents, such as `/north/contact` and `/south/contact`.
 - A taken path is [refused](/path/refusals/#taken-paths), and the refusal names the document that is at it.
 - A duplicate takes its original's slug with `-copy`, such as `/about-copy`, or `-copy-2` and up when that is taken below the same parent.
-- Each save checks the path before it writes, so two saves of the same path in the same instant can both pass. Both documents then stay at it, and `findByPath` returns one of them, until an editor gives one another slug or parent. A run of [`backfillPaths`](/path/api/backfill-paths/) lists both.
+- Each save checks the path before it writes, so two saves of the same path in the same instant can both pass. Both documents then stay at it, and `findByPath` returns one of them, until an editor gives one another slug or parent. A run of [`backfillPaths`](/path/api/backfill-paths/) lists both. [Limits](/path/limits/) has the other cases like it.
 
 ## The slug
 
