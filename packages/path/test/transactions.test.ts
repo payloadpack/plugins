@@ -208,33 +208,48 @@ for (const transactions of [true, false]) {
         }
       })
 
-      // Whether a save unpublishes is known only once Payload has written it, because the hook before
-      // the write is not told whether the save is a draft save. So the refusal of an unpublish whose
-      // branch can't land comes after the page's write. With transactions nothing of it stays. Without
-      // them the page's write stays: the page is unpublished at its new path, and the documents below
-      // keep their paths until its slug is changed.
-      if (transactions) {
-        it('refuses to unpublish a page with a pending rename whose branch would land on a taken path, and leaves it as it was', async () => {
-          const { payload } = test
-          // A page with a pending rename to blog: the page itself would be at /blog, which is free, and
-          // the page below it at /blog/abacus-ledger, where a post is.
-          await create(payload, 'posts', { slug: 'abacus-ledger', title: 'abacus ledger post' })
-          const page = await create(payload, 'pages', { slug: 'abacus', title: 'abacus' })
-          const below = await create(payload, 'pages', { parent: page.id, slug: 'abacus-ledger', title: 'abacus ledger' })
-          await update(payload, 'pages', page.id, { slug: 'blog' }, { draft: true })
-          const before = await readRows(payload, 'pages', [page.id, below.id])
+      // An unpublish writes the latest draft to the document, so a pending move happens with it. The
+      // plugin knows from the operation that the save is no draft save, so it refuses before the write.
+      it('refuses to unpublish a page with a pending rename whose branch would land on a taken path, and leaves it as it was', async () => {
+        const { payload } = test
+        // A page with a pending rename to blog: the page itself would be at /blog, which is free, and
+        // the page below it at /blog/abacus-ledger, where a post is.
+        await create(payload, 'posts', { slug: 'abacus-ledger', title: 'abacus ledger post' })
+        const page = await create(payload, 'pages', { slug: 'abacus', title: 'abacus' })
+        const below = await create(payload, 'pages', { parent: page.id, slug: 'abacus-ledger', title: 'abacus ledger' })
+        await update(payload, 'pages', page.id, { slug: 'blog' }, { draft: true })
+        const before = await readRows(payload, 'pages', [page.id, below.id])
 
-          // As the admin's Unpublish button saves: the status alone, without draft.
-          expect(
-            await catchFieldErrors(
-              payload.update({ collection: 'pages', data: { _status: 'draft' }, id: page.id, overrideAccess: true })
-            )
-          ).toMatchObject([
-            { message: 'Post "abacus ledger post" is already at /blog/abacus-ledger, so change the slug or the parent.' }
-          ])
-          expect(await readRows(payload, 'pages', [page.id, below.id])).toEqual(before)
+        // As the admin's Unpublish button saves: the status alone, without draft.
+        expect(
+          await catchFieldErrors(
+            payload.update({ collection: 'pages', data: { _status: 'draft' }, id: page.id, overrideAccess: true })
+          )
+        ).toMatchObject([
+          { message: 'Post "abacus ledger post" is already at /blog/abacus-ledger, so change the slug or the parent.' }
+        ])
+        expect(await readRows(payload, 'pages', [page.id, below.id])).toEqual(before)
+      })
+
+      // A bulk unpublish alone moves nothing, because Payload's bulk update saves each document as it is
+      // published, without its latest draft. One that also sends a slug moves the page.
+      it('lists a page that a bulk update unpublishes and renames in its errors when its branch would land on a taken path, and leaves it as it was', async () => {
+        const { payload } = test
+        await create(payload, 'posts', { slug: 'quill-case', title: 'quill case post' })
+        const page = await create(payload, 'pages', { slug: 'quill', title: 'quill' })
+        const below = await create(payload, 'pages', { parent: page.id, slug: 'quill-case', title: 'quill case' })
+        const before = await readRows(payload, 'pages', [page.id, below.id])
+
+        const { errors } = await payload.update({
+          collection: 'pages',
+          data: { _status: 'draft', slug: 'blog' },
+          overrideAccess: true,
+          where: { id: { equals: page.id } }
         })
-      }
+
+        expect(errors).toMatchObject([{ id: page.id }])
+        expect(await readRows(payload, 'pages', [page.id, below.id])).toEqual(before)
+      })
     }
   )
 }

@@ -22,7 +22,7 @@ import { checkNewPaths, getNewPaths } from '../validation/check-new-paths.js'
 import { checkParent } from '../validation/check-parent.js'
 import { checkSlugs } from '../validation/check-slugs.js'
 import { freePaths, takePaths } from '../validation/take-paths.js'
-import { documentKey, getBulkOperation, getPathContext, type PathAndAncestorsBefore } from './context.js'
+import { documentKey, getBulkOperation, getPathContext, takeSentAsDraft, type PathAndAncestorsBefore } from './context.js'
 
 // The parent a save gives the document. Payload fills a field a save leaves out from the latest
 // version, except in a restore. On MongoDB a restored version from before the document had a parent
@@ -54,19 +54,20 @@ function getSavedPaths(
     collection,
     leavesTrash,
     payload,
-    publishes,
-    savedLocales
-  }: { collection: string; leavesTrash: boolean; payload: Payload; publishes: boolean; savedLocales: string[] }
+    savedLocales,
+    writesDocument
+  }: { collection: string; leavesTrash: boolean; payload: Payload; savedLocales: string[]; writesDocument: boolean }
 ): SavedPaths {
   // A path the document itself is at already was checked when it got there. A document in the trash
   // takes no path, so one that a save takes out of it takes the paths it stores again.
   const savedIn = new Set(savedLocales)
   const newPaths = getNewPaths(built, before).filter(([pathLocale]) => savedIn.has(pathLocale))
   const takenAgain = leavesTrash && before ? getNewPaths(before) : []
-  // A save moves the document now where it publishes, and where a site doesn't find the document,
-  // so that the document's own slug doesn't count there. A pending move takes nothing.
+  // A save moves the document now where Payload writes the document itself, and where a site doesn't
+  // find the document, so that the document's own slug doesn't count there. A pending move takes
+  // nothing.
   const ownSlugLocales = new Set(before ? getOwnSlugLocales(before.shownLocales, collection, payload) : [])
-  const moved = newPaths.filter(([pathLocale]) => publishes || !ownSlugLocales.has(pathLocale))
+  const moved = newPaths.filter(([pathLocale]) => writesDocument || !ownSlugLocales.has(pathLocale))
   return {
     checked: [...takenAgain, ...newPaths],
     here: leavesTrash ? undefined : THIS_PATH,
@@ -79,8 +80,9 @@ function getSavedPaths(
  * Checks the path a save would give its document, and puts it in the data. It runs in Payload's
  * beforeChange because that is the last point where a refusal stops the write, and the only one
  * where the path, the slug and the ancestors can go into the data Payload writes: into the latest
- * version always, and into the document itself when Payload writes that. It predicts nothing of that
- * write. The hook after it looks.
+ * version always, and into the document itself when Payload writes that. Of that write it knows one
+ * thing: whether Payload writes the document itself, which a publish does, and so does an update that
+ * wasn't sent as a draft save, such as an unpublish. Everything else of it the hook after it looks at.
  *
  * It refuses what the data itself shows, in this order: a publish without a slug to make a path
  * from in any locale, a parent the document can't sit below, a path the document can't be at, and a
@@ -119,13 +121,25 @@ export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collec
     shownLocales: getShownLocales(document, collection, payload)
   }
   const leavesTrash = document !== undefined && isInTrash(document) && data.deletedAt === null
-  const paths = getSavedPaths(built, before, { collection: slug, leavesTrash, payload, publishes, savedLocales })
 
-  // The paths, and then where the documents below land: each taken first by a document of a bulk
-  // update, and then checked against the database. A dry run writes nothing, and a document saved
-  // on its own is not of the bulk update.
+  // A document of a bulk update, which a dry run and a document saved on its own are not.
   const bulkOperation = getBulkOperation(req, slug)
   const takes = operation === 'update' && document && bulkOperation && !bulkOperation.savedOnTheirOwn.has(String(document.id))
+
+  // Whether Payload writes the document itself: a publish does, and so does an update that wasn't sent
+  // as a draft save, whatever its status, as an unpublish. Unknown for a restored version, which
+  // the hook after the write looks at.
+  const sentAsDraft = takes ? bulkOperation.sentAsDraft : id === undefined ? undefined : takeSentAsDraft(req, slug, id)
+  const paths = getSavedPaths(built, before, {
+    collection: slug,
+    leavesTrash,
+    payload,
+    savedLocales,
+    writesDocument: publishes || sentAsDraft === false
+  })
+
+  // The paths, and then where the documents below land: each taken first by a document of a bulk
+  // update, and then checked against the database.
   const taking = takes ? { by: { collection: slug, id: document.id }, document, takenPaths: bulkOperation.takenPaths } : undefined
   try {
     if (taking) {

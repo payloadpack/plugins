@@ -3,7 +3,7 @@ title: Refusals
 description: Every message an editor can meet when the plugin stops a save, a move or a delete, and what it means.
 ---
 
-A refusal names what is in the way and what to change. It comes before anything is written, except where the plugin only learns what a save did after Payload wrote it, as with [an unpublish](/path/limits/#an-unpublish-is-refused-and-still-happens). It shows on the parent field when the parent is what's wrong, and on the slug otherwise, or always on the slug in a collection with Payload's hierarchy. The messages name your own collections by their labels.
+A refusal comes before anything is written, and names what is in the way and what to change. It shows on the parent field when the parent is what's wrong, and on the slug otherwise, or always on the slug in a collection with Payload's hierarchy. The messages name your own collections by their labels.
 
 ## Slug and parent
 

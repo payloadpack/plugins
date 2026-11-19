@@ -36,7 +36,7 @@ That API does take a condition on a write: `updateOne` without an `id`, and `upd
 
 ## A refusal after the write
 
-- **An unpublish with a pending move whose branch can't land is refused after Payload's write.** `beforeChange` isn't told whether a save is a draft save: Payload gives a draft save and an unpublish the same `_status`, so the plugin learns that a save unpublished in the hook after the write. With transactions nothing of it stays. Without them the document is unpublished at its new path and the documents below keep theirs, until its slug is changed. `beforeOperation` is given the `draft` argument, and the plugin has a hook there, so the refusal could come before the write. That means copying Payload's rule for what counts as a draft save, from `draft`, the status and `publishAllLocales`, which `package.md` rules out. Not decided by the owner.
+- **An unpublish is refused before the write, a restored version maybe not.** `beforeChange` isn't told whether a save is a draft save: Payload gives a draft save and an unpublish the same `_status`. `beforeOperation` is given `draft`, so the plugin notes it there for an update, by id or in bulk, and the check before the write knows that the save writes the document itself. Decided by the owner. A restored version isn't noted, so whether a restore of a draft version whose branch can't land is refused before the write was not checked.
 - **Without transactions, any refusal after the write leaves the write.** `requirements.md` says a refusal comes before anything is written. That holds for everything the hook before the write can see: a missing slug, a parent, a taken path, a landing of the branch. What only Payload's write decides is checked after it.
 
 ## Localization

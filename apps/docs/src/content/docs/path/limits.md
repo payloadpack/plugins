@@ -41,19 +41,13 @@ In everyday use you won't meet any of these. Each one needs two changes to the s
 
 ## Without transactions
 
-With transactions, a save, move or delete that fails leaves everything as it was. These two can only happen without them, which is SQLite's default. See [Installation](/path/installation/#transactions).
+With transactions, a save, move or delete that fails leaves everything as it was. This one can only happen without them, which is SQLite's default. See [Installation](/path/installation/#transactions).
 
 ### A move stops halfway
 
 - **When:** a move fails partway through, such as when the server stops.
 - **What you see:** some of the documents below keep their old paths.
 - **What to do:** run `backfillPaths`.
-
-### An unpublish is refused and still happens
-
-- **When:** a published document has a draft with a new slug or parent, the document is unpublished, and a document below it would land on a taken path.
-- **What you see:** the editor gets the refusal, and the document is unpublished at its new path all the same, while the documents below keep their old paths.
-- **What to do:** give that document, or the one at the taken path, another slug, then run `backfillPaths`.
 
 ## Why they are here
 
@@ -66,4 +60,3 @@ The plugin reads and writes through Payload's own database API, so it runs on Mo
 | A deleted document that comes back              | Payload writing a document with an update. On Postgres it writes with an insert that updates the document when it is there    |
 | A refused document without the plugin's message | Payload passing the message of a refusal on in a bulk update's `errors`                                                       |
 | A move that stops halfway                       | Transactions, which you can turn on today                                                                                     |
-| An unpublish that is refused and still happens  | Transactions today. Without them, Payload telling the hook that runs before a write that the save unpublishes                 |
