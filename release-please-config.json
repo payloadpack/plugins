@@ -20,6 +20,11 @@
       "package-name": "@payloadpack/theme",
       "changelog-path": "CHANGELOG.md",
       "exclude-paths": ["packages/theme/test"]
+    },
+    "packages/path": {
+      "package-name": "@payloadpack/path",
+      "changelog-path": "CHANGELOG.md",
+      "exclude-paths": ["packages/path/test", "packages/path/bench"]
     }
   }
 }
