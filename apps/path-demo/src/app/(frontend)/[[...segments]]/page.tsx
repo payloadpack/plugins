@@ -1,5 +1,6 @@
 import config from '@payload-config'
 import { findByPath } from '@payloadpack/path'
+import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 
@@ -15,12 +16,14 @@ export default async function SitePage({ params, searchParams }: Props) {
   const { draft, locale } = await searchParams
   const payload = await getPayload({ config })
   const path = `/${segments.join('/')}`
+  // Only a logged-in user of the admin sees a draft, for a preview.
+  const { user } = await payload.auth({ headers: await headers() })
 
   // Without `collections`, `found.collection` is one of the collections given to pathPlugin(): pages,
   // posts or topics. Pass `collections: ['pages', 'posts']` to narrow it further.
   const found = await findByPath({
     depth: 1,
-    draft: draft === 'true',
+    draft: draft === 'true' && user !== null,
     locale,
     path,
     paths: true,

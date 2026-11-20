@@ -65,8 +65,7 @@ export async function openNewDocument(page: Page, collection: Collection) {
 
 /**
  * The published document at a path, asked for through the REST API: each collection for the
- * published document whose stored path it is. The demo has no page of a site yet, so nothing in it
- * calls findByPath itself.
+ * published document whose stored path it is.
  */
 export async function findPublishedAt(request: APIRequestContext, path: string) {
   for (const collection of ['pages', 'posts'] as const) {
