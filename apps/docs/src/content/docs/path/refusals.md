@@ -3,7 +3,13 @@ title: Refusals
 description: Every message an editor can meet when the plugin stops a save, a move or a delete, and what it means.
 ---
 
-A refusal comes before anything is written, and names what is in the way and what to change. It shows on the parent field when the parent is what's wrong, and on the slug otherwise, or always on the slug in a collection with Payload's hierarchy. The messages name your own collections by their labels.
+| What is wrong                                                       | Where the refusal shows |
+| ------------------------------------------------------------------- | ----------------------- |
+| The parent                                                          | The parent field        |
+| Anything else, or anything in a collection with Payload's hierarchy | The slug field          |
+
+- A refusal comes before anything is written, and names what is in the way and what to change.
+- The messages name your own collections by their labels.
 
 ## Slug and parent
 
@@ -32,7 +38,7 @@ A refusal comes before anything is written, and names what is in the way and wha
 | A path can't hold -, which starts the page and filters of a listing, so pick another slug. | A segment anywhere in the path is in `anyDepth`              |
 | A path can't hold -, so pick another slug.                                                 | The segment is in `anyDepth` given as a list                 |
 
-See [Reserved slugs](/path/configuration/#reserved-slugs) for how to set them.
+[Reserved slugs](/path/configuration/#reserved-slugs) has how to set them.
 
 ## Home page
 
@@ -44,4 +50,4 @@ See [Reserved slugs](/path/configuration/#reserved-slugs) for how to set them.
 
 ## Bulk updates
 
-A bulk update or delete handles each document on its own. A document the plugin refuses is listed in the operation's `errors`, and the others are saved or deleted. [Limits](/path/limits/#bulk-updates) has what else to know about them.
+A bulk update or delete handles each document on its own: a refused document is listed in the operation's `errors`, and the others are saved or deleted. [Limits](/path/limits/#bulk-updates) has what else to know.

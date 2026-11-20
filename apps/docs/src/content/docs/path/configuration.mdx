@@ -1,9 +1,13 @@
 ---
 title: Configuration
-description: One key is required, the collections. A collection may have a base path or go without a parent, and the rest is optional.
+description: Only the collections are required, and each may have a base path, a path per locale or no parent.
 ---
 
-<!-- prettier-ignore -->
+import { TabItem, Tabs } from '@astrojs/starlight/components'
+import PathDiagram from '../../../components/path/PathDiagram.astro'
+import PathTree from '../../../components/path/PathTree.astro'
+
+{/* prettier-ignore */}
 ```ts title="payload.config.ts"
 pathPlugin({
   collections: [
@@ -33,8 +37,6 @@ pathPlugin({
 
 ## Collections
 
-List a collection by its slug, or as an object when it needs more than that:
-
 ```ts title="payload.config.ts"
 pathPlugin({
   collections: [
@@ -49,36 +51,39 @@ pathPlugin({
 | ------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
 | `slug`        | The collection                                                                                                             |                                                 |
 | `basePath`    | What the paths of its top-level documents start with, such as `/blog`                                                      | None, so they start at the root                 |
-| `parent`      | `false` when its documents have no parent                                                                                  | Its documents have a parent                     |
+| `parent`      | `false` when its documents have [no parent](#the-parent)                                                                   | Its documents have a parent                     |
 | `localized`   | `true` when its documents have [a path per locale](#a-path-per-locale)                                                     | One slug and one path, the same in every locale |
 | `slugField`   | [Field options](#field-options) for the slug field: `access`, `admin`, `hooks`, `label` and `validate`                     | The plugin's own                                |
 | `parentField` | [Field options](#field-options) for the plugin's own parent field: `access`, `admin`, `filterOptions`, `hooks` and `label` | The plugin's own                                |
 
-With `basePath: '/blog'` a top-level post is at `/blog/my-post`. Leave it out and the collection's top-level documents sit at the root, like pages. A base path is no document of its own, so a page may sit at `/blog` beside the posts.
+- With `basePath: '/blog'` a top-level post is at `/blog/my-post`. A base path is no document of its own, so a page may sit at `/blog` beside the posts.
+- A parent is always a document of the same collection, so a post below a page isn't supported. A path still belongs to one document across all your collections.
 
-A parent is always a document of the same collection: a page sits below a page and a topic below a topic, and a post below a page isn't supported. A path still belongs to one document across all your collections.
+### The parent
 
-Each collection gets its parent in one of three ways. In the example above, pages have the plugin's own parent, posts have none, and topics have Payload's hierarchy, which the topics collection has in its own config.
+<Tabs>
+<TabItem label="The plugin's own parent">
 
-| Way                                                | What you write                             | When it fits                                                           |
-| -------------------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------- |
-| [The plugin's own parent](#the-plugins-own-parent) | The collection, with nothing more          | An editor picks the parent in the document's sidebar                   |
-| [No parent](#no-parent)                            | `parent: false`                            | No document sits below another, as with posts below `/blog`            |
-| [Payload's hierarchy](#payloads-hierarchy)         | `hierarchy` in the collection's own config | You want Payload's tree in the admin, or the collection has it already |
+```ts title="payload.config.ts"
+pathPlugin({ collections: ['pages'] })
+```
 
-### The plugin's own parent
+- The default, for a collection listed by its slug or as an object without `parent`.
+- The collection gets a `parent` field in the sidebar, where an editor picks a document of the same collection.
 
-This is the default, for a collection listed as `'pages'` or as an object without `parent`. The collection gets a `parent` field in the sidebar, where an editor picks a document of the same collection.
+</TabItem>
+<TabItem label="No parent">
 
-### No parent
+```ts title="payload.config.ts"
+pathPlugin({ collections: [{ slug: 'posts', basePath: '/blog', parent: false }] })
+```
 
-With `parent: false`, every document of the collection is top-level, so its path is the base path, a slash and its slug, such as `/blog/hello-world`. The collection gets no `parent` field. Nothing sits below anything, so a rename moves that one document and a delete lifts nothing.
+- For a collection whose documents never sit below each other. Each one's path is the base path, a slash and its slug, such as `/blog/hello-world`.
+- The collection gets no `parent` field, so a rename moves that one document and a delete lifts nothing.
+- `false` is the only value `parent` takes.
 
-`false` is the only value `parent` takes. Leave the key out for a collection whose documents have a parent.
-
-### Payload's hierarchy
-
-A collection whose own config has Payload's `hierarchy`, or its `folders` or `tags` preset, keeps Payload's parent. The plugin adds no `parent` field of its own and reads the parent from Payload's, the one `hierarchy.parentFieldName` names, which is `_h_topics` for topics by default. Nothing is set in the plugin for it:
+</TabItem>
+<TabItem label="Payload's hierarchy">
 
 ```ts title="payload.config.ts"
 export default buildConfig({
@@ -87,25 +92,42 @@ export default buildConfig({
 })
 ```
 
-Your site gets Payload's tree in the admin, and an editor moves a document with the button in the document's header. The rest works as with the plugin's own parent: a move takes the branch along, and drafts, languages, taken paths, `backfillPaths` and `onPathsChanged` are the same.
+- For a collection whose own config has Payload's `hierarchy`, or its `folders` or `tags` preset. The plugin adds no `parent` field and reads the one `hierarchy.parentFieldName` names, `_h_topics` here by default.
+- Editors get Payload's tree in the admin, and move a document with the button in the document's header.
+- The rest works as with the plugin's own parent, and a [delete](/path/moves-and-deletes/#deletes) lifts the documents right below one level, where Payload on its own deletes them. See [Payload's hierarchy](#payloads-hierarchy) before you start.
 
-A few things are good to know before you start:
+</TabItem>
+</Tabs>
+
+### Payload's hierarchy
+
+:::caution
 
 - Give `hierarchy` as `true`, or as an object with `parentFieldName`. In Payload 4.0.0-beta.10 an object without it breaks every delete in the collection, with or without the plugin.
-- A [delete](/path/moves-and-deletes/#deletes) lifts the documents right below one level, as in any collection. On its own, Payload deletes them.
 - Where the collection already has documents with parents, run [`backfillPaths`](/path/api/backfill-paths/) once after you add the plugin, before anything in the collection is deleted. Until then a delete also deletes the documents right below, as Payload does on its own.
+
+:::
+
+<details>
+<summary>Good to know</summary>
+
 - Payload's hierarchy has no parent field in the form, so a refused parent, such as a document below itself, shows on the slug field.
 - With `parent: false` as well, the collection keeps Payload's tree in the admin and gets paths without a parent in them. The plugin lifts nothing there, so a delete deletes the documents right below, as Payload does.
 
+</details>
+
 ### A path per locale
 
-A collection's documents have one slug and one path, the same in every locale, also when your Payload config has localization. With `localized: true`, they have a slug and a path per locale, so a page can be at `/about` in English and at `/om-oss` in Swedish.
+<PathDiagram layout="columns">
+  <PathTree label="pages in en" documents={[{ title: 'About', path: '/about', mark: '/about' }]} />
+  <PathTree label="pages in sv" documents={[{ title: 'About', path: '/om-oss', mark: '/om-oss' }]} />
+</PathDiagram>
 
-`true` is the only value `localized` takes, and it goes together with `basePath`, `parent: false` and Payload's hierarchy. In a site without localization it changes nothing. See [Languages](/path/languages/) for how each locale gets its path, and what to do in a collection that already has documents.
+- With `localized: true`, a collection's documents have a slug and a path per locale. Without it they have one of each, the same in every locale, also when your Payload config has localization.
+- `true` is the only value `localized` takes. It goes together with `basePath`, `parent: false` and Payload's hierarchy, and changes nothing in a site without localization.
+- [Languages](/path/languages/) has how each locale gets its path, and what to do in a collection that already has documents.
 
 ### Field options
-
-`slugField` and `parentField` set Payload's own field options on the slug field and the parent field the plugin adds. In a site where only the default locale may change a slug, give the slug field Payload's field access:
 
 ```ts title="payload.config.ts"
 pathPlugin({
@@ -118,13 +140,16 @@ pathPlugin({
 })
 ```
 
-In another locale the admin then shows the slug read-only, without its lock and refresh buttons. A save there that sends another slug keeps the slug and the path the page has, and saves the rest of the page.
+Here only the default locale may change a slug. In another locale the admin shows the slug read-only, without its lock and refresh buttons, and a save that sends another slug keeps the slug and the path and saves the rest of the page.
 
-- `access`, `label` and `validate` are used as you give them.
-- `admin` goes over the plugin's own, and so do its `components`, so the slug field keeps its lock and its place in the sidebar unless you set your own.
-- Your `hooks` run after the plugin's own, so a `beforeValidate` hook on the slug gets it cleaned.
-- Your `filterOptions` on the parent holds together with the plugin's own, so the picker still leaves out the document itself and the home page. It takes what Payload's own `filterOptions` takes.
-- `parentField` is only for a collection with the plugin's own parent, so not for one with `parent: false` or Payload's hierarchy.
+| Option                        | How the plugin uses it                                                                                                                                         |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `access`, `label`, `validate` | As you give them                                                                                                                                               |
+| `admin`                       | Over the plugin's own, `components` too, so the slug field keeps its lock and its place in the sidebar unless you set your own                                 |
+| `hooks`                       | After the plugin's own, so a `beforeValidate` hook on the slug gets it cleaned                                                                                 |
+| `filterOptions`               | Together with the plugin's own, so the parent picker still leaves out the document itself and the home page. It takes what Payload's own `filterOptions` takes |
+
+`parentField` is only for a collection with the plugin's own parent, so not for one with `parent: false` or Payload's hierarchy.
 
 ## Home page
 
@@ -135,7 +160,13 @@ pathPlugin({ collections: ['pages', 'posts'], rootSlug: 'start' })
 - The top-level document with this slug is the home page, and its path is `/`. Without `rootSlug`, the slug is `home`.
 - Only a top-level document in a collection without a base path can be it. A page below another page with the slug `start` sits at `/about/start`, and with posts at `/blog`, a post with it sits at `/blog/start`.
 - The home page holds no documents, since their paths would start with `/start/`, which the home page doesn't answer.
-- In a collection with a path per locale it is checked per locale, so a page is the home page in the locales where its slug is the root slug.
+
+<details>
+<summary>Good to know</summary>
+
+In a collection with a path per locale it is checked per locale, so a page is the home page in the locales where its slug is the root slug.
+
+</details>
 
 ## Reserved slugs
 
@@ -152,8 +183,15 @@ pathPlugin({
 - A segment in `root` is refused as a path's first segment, base path included. Below a parent it is free, so `/docs/api` is fine.
 - A segment in `anyDepth` is refused anywhere in a path, such as the `-` in `/journal/-/page/2`.
 - Without `root`, the plugin reserves the first segment of Payload's `routes.admin` and `routes.api`. A `root` you give is the whole list, so name those two in it, as above.
+
+<details>
+<summary>Good to know</summary>
+
 - Each also takes a list, such as `root: ['admin', 'api', 'shop']`, and the [refusal](/path/refusals/#reserved-slugs) then gives no reason.
-- A move or a delete that would put a document on a reserved slug is refused too, and `findByPath` answers a path with one with `null`, without asking the database.
+- A move or a delete that would put a document on a reserved slug is refused too.
+- `findByPath` answers a path with a reserved slug with `null`, without asking the database.
+
+</details>
 
 ## Slugify
 
@@ -167,11 +205,9 @@ pathPlugin({
 })
 ```
 
-`defaultSlugify` is what the plugin uses without a `slugify` of your own, so a rule of yours can run before or after it, as above.
+`defaultSlugify` is what the plugin uses without a `slugify` of your own, so a rule of yours can run before or after it.
 
 ## The fields it adds
-
-Each collection in `collections` gets these fields, after its own:
 
 | Field       | What it holds                                                                                                                                                         | Which collections get it                                         |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -180,7 +216,8 @@ Each collection in `collections` gets these fields, after its own:
 | `path`      | The stored path, read-only and indexed                                                                                                                                | Every one                                                        |
 | `ancestors` | The ids of the documents above, top-down, an indexed relationship to the document's own collection. The API returns it and filters by it, and the admin leaves it out | One whose documents have a parent, the plugin's own or Payload's |
 
-In a collection given with `localized: true`, `slug` and `path` are localized fields.
+- Each collection in `collections` gets these after its own fields.
+- In a collection given with `localized: true`, `slug` and `path` are localized fields.
 
 ## When the config is wrong
 

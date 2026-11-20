@@ -1,6 +1,6 @@
 ---
 title: Drafts
-description: A published document stays at its path until its draft is published. One that isn't published follows its draft at once.
+description: A published document stays at its path until its draft is published, while one that isn't published follows its draft at once.
 ---
 
 import PathChange from '../../../components/path/PathChange.astro'
@@ -12,7 +12,7 @@ import PathTree from '../../../components/path/PathTree.astro'
     label="Published"
     documents={[{ title: 'Harbour', path: '/harbour', documents: [{ title: 'Ferries', path: '/harbour/ferries' }] }]}
   />
-  <PathChange>A draft is saved with the slug `port`</PathChange>
+  <PathChange>Slug changed from `harbour` to `port`, saved as a draft</PathChange>
   <PathTree
     label="Draft saved"
     documents={[
@@ -24,7 +24,7 @@ import PathTree from '../../../components/path/PathTree.astro'
       }
     ]}
   />
-  <PathChange>The draft is published</PathChange>
+  <PathChange>Draft published</PathChange>
   <PathTree
     label="Published again"
     documents={[
@@ -38,10 +38,26 @@ import PathTree from '../../../components/path/PathTree.astro'
   />
 </PathDiagram>
 
-- A draft's new slug or parent on a published document is a pending move. The sidebar shows the path it plans, and it takes no path until it is published.
-- Publishing checks the planned path again, since another document may be at it by then. Two pending moves may plan the same path, and the first one published gets it.
-- A document that isn't published follows its draft at once: saving the draft moves it and the documents below it.
-- Unpublishing, or an update through the API without `draft`, writes the latest draft to the document, so a pending move happens then. A restored version takes its path from its parent and slug again, and older versions keep the paths they had.
+## When a document moves
+
+| An editor or your code                                               | The document's path                        |
+| -------------------------------------------------------------------- | ------------------------------------------ |
+| Saves a draft with a new slug or parent, on a published document     | Stays as it is, with a pending move        |
+| Saves a draft with a new slug or parent, on one that isn't published | Moves at once, with the documents below it |
+| Publishes the draft                                                  | Moves to the draft's path                  |
+| Unpublishes the document                                             | Moves to the latest draft's path           |
+| Updates it through the API without `draft`                           | Moves to the latest draft's path           |
+| Restores a version                                                   | Takes the path its parent and slug make    |
+
+- A pending move takes no path until it is published. The sidebar shows the path the draft would give the document.
+- Publishing checks that path again, since another document may be at it by then. Two pending moves may name the same path, and the first one published gets it.
+
+<details>
+<summary>Good to know</summary>
+
+Older versions keep the paths they had.
+
+</details>
 
 ## Autosave
 
@@ -49,8 +65,8 @@ An autosave is checked like any save. A new document has no slug and no path unt
 
 ## Previews
 
-`findByPath` returns published documents. Pass `draft: true` to find the latest draft at a path:
-
 ```ts
 const found = await findByPath({ draft: true, path: '/plans', payload })
 ```
+
+`findByPath` returns published documents. With `draft: true` it finds the latest draft at a path.
