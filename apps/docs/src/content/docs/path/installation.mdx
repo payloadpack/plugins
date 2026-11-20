@@ -1,0 +1,75 @@
+---
+title: Installation
+description: Add the package, add the plugin, and create a migration on Postgres and SQLite.
+---
+
+import { Steps } from '@astrojs/starlight/components'
+
+<Steps>
+
+1. Add the package.
+
+   ```sh
+   bun add @payloadpack/path
+   ```
+
+   With another package manager, use `npm install`, `pnpm add` or `yarn add`. The peer dependencies are `payload`, `@payloadcms/ui` and `react`.
+
+2. Add the plugin. Put it after any plugin that adds one of its collections.
+
+   ```ts title="payload.config.ts"
+   import { pathPlugin } from '@payloadpack/path'
+
+   export default buildConfig({
+     plugins: [pathPlugin({ collections: ['pages', 'posts'] })]
+   })
+   ```
+
+   Pages and posts now show a slug, a parent and their path in the sidebar. A page sits below a page, and a post below a post. [Collections](/path/configuration/#collections) covers base paths such as `/blog`, collections without a parent, and Payload's hierarchy.
+
+3. Generate the import map. It must include the slug field's admin component, `@payloadpack/path/client#SlugField`. Payload's dev server does this for you.
+
+   ```sh
+   bunx payload generate:importmap
+   ```
+
+4. On Postgres and SQLite, create a migration for [the fields the plugin adds](/path/configuration/#the-fields-it-adds). In development with `push: true`, Payload adds the columns for you.
+
+   ```sh
+   bunx payload migrate:create
+   ```
+
+5. Give the documents you had before the plugin their paths. Do this once, in a script or in a [migration](/path/api/backfill-paths/#how-to-run-it). Every other document gets its path when it is saved.
+
+   ```ts
+   import { backfillPaths } from '@payloadpack/path'
+
+   const { left, unchanged, updated } = await backfillPaths({ payload })
+   ```
+
+   In a collection with [Payload's hierarchy](/path/configuration/#payloads-hierarchy) that already has documents with parents, run this before you delete anything in it.
+
+6. Generate types.
+
+   ```sh
+   bunx payload generate:types
+   ```
+
+   Your document types then include `slug` and `path`. They also include `parent` and `ancestors` in a collection that [has them](/path/configuration/#the-fields-it-adds).
+
+</Steps>
+
+## A slug or parent field of your own
+
+- The plugin [adds its own](/path/configuration/#when-the-config-is-wrong) `slug` and `parent`, so remove yours first. If `@payloadcms/plugin-nested-docs` adds your `parent`, remove that plugin from your config. Your documents keep the values stored in those fields.
+- `backfillPaths` then builds each document's path from the slugs and parents already stored.
+- In a site with localization, a slug that isn't localized today stays one slug for every locale. That holds as long as you don't give the collection [`localized: true`](/path/configuration/#a-path-per-locale).
+
+## Transactions
+
+|                                | A save, move or delete that fails                                                                                           |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| With transactions              | Leaves everything as it was                                                                                                 |
+| Without them, SQLite's default | A move that stops halfway leaves some documents at old paths, until [`backfillPaths`](/path/api/backfill-paths/) fixes them |
+
+The plugin works with both, on MongoDB, Postgres and SQLite.

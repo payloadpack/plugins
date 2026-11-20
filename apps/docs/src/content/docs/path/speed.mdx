@@ -1,13 +1,13 @@
 ---
 title: Speed
-description: What finding a page, showing links and moving a branch cost on a MongoDB server on another machine, and why the path is stored.
+description: The cost of finding a page, showing links and moving a branch on a MongoDB server on another machine, and why the path is stored.
 ---
 
 import SpeedChart from '../../../components/path/SpeedChart.astro'
 import SpeedServer from '../../../components/path/SpeedServer.astro'
 import SpeedTable from '../../../components/path/SpeedTable.astro'
 
-The numbers at the top of this page come from a MongoDB server on another machine, reached over the internet: 6.4 ms per query, with 10,000 pages per collection. That is how most sites reach their database, so it is where the differences show.
+The numbers at the top of this page come from a MongoDB server on another machine, reached over the internet, at 6.4 ms per query and with 10,000 pages per collection. Most sites reach their database this way, so this is where the differences show.
 
 ## Four ways to give a page its path
 
@@ -16,15 +16,15 @@ The numbers at the top of this page come from a MongoDB server on another machin
 | path          | Slug, parent, ancestors, path | 1 query                               | On the document                      |
 | slug by slug  | Slug, parent                  | 1 query per segment                   | Read from the pages above, per link  |
 | built on read | Slug, parent                  | All slugs in 1 query, matched in code | Read from the pages above, per level |
-| ancestors     | Slug, parent, ancestors       | 2 queries                             | 1 more query for every link at once  |
+| ancestors     | Slug, parent, ancestors       | 2 queries                             | 1 more query for all links together  |
 
-Slug by slug is what a site writes without a plugin. Built on read and ancestors are prototypes we built to test the idea, without the rules this package keeps.
+Slug by slug is what a site does without a plugin. Built on read and ancestors are prototypes we made to test the idea, without this package's rules.
 
 ## Finding a page
 
 <SpeedServer kind="lookups" />
 
-Path asks one query at any depth. Slug by slug asks one per segment, one after the other.
+Path runs one query at any depth. Slug by slug runs one per segment, one after the other.
 
 ## Showing links
 
@@ -36,9 +36,9 @@ A menu, a list or a sitemap needs the path of every page it links to.
 
 <SpeedServer kind="moves" />
 
-Path 0.1.1 saved each page below through Payload, 5 queries a page: 5,026 queries and 41 s for a rename. Built on read and ancestors store no path, so a rename writes nothing below, and every read above pays for it instead.
+Path 0.1.1 saved each page below through Payload, 5 queries a page. A rename took 5,026 queries and 41 s. Built on read and ancestors store no path, so a rename writes nothing below. They pay for it on every read instead, as the charts above show.
 
-We kept the stored path and changed the write. A save already checks every path the branch lands on, so a move builds those paths from the slugs and ancestors and writes 1,000 pages with a few statements: 28 queries and 443 ms.
+We kept the stored path and changed the write. A save already checks every new path in the branch. So a move builds those paths from the slugs and ancestors, and writes 1,000 pages with a few statements: 28 queries and 443 ms.
 
 Path's own move ran on 20 November, when a query to the same server took 4.9 ms. The rest ran on 19 November.
 
@@ -46,8 +46,8 @@ Path's own move ran on 20 November, when a query to the same server took 4.9 ms.
 
 - **A top-level page** is one query either way.
 - **A rename** writes nothing below in built on read and ancestors.
-- **A sitemap** can read every page once and build the paths in code: 86 ms against 68 ms.
-- **A database on the same machine**, SQLite included, makes a query cost a fraction of a millisecond, so slug by slug takes 1 to 3 ms at ten segments.
+- **A sitemap** can read every page once and build the paths in code: 86 ms, against 68 ms for path.
+- **A database on the same machine**, SQLite included, runs a query in a fraction of a millisecond. There, slug by slug takes 1 to 3 ms at ten segments.
 
 ## On the same machine
 
@@ -57,7 +57,7 @@ Path's own move ran on 20 November, when a query to the same server took 4.9 ms.
 
 <SpeedTable />
 
-`findByPath` asks one indexed query per collection, at the same time, and none for a path with a reserved segment. A move reads the documents below 1,000 at a time and writes them with a few statements per 1,000. Tests hold both.
+`findByPath` runs one indexed query per collection, all at the same time, and none for a path with a reserved segment. A move reads the documents below 1,000 at a time, and writes each 1,000 with a few statements. Tests check both.
 
 ### Finding a page
 
@@ -81,9 +81,9 @@ Nested docs saves each page below in full, with its hooks, validation and a new 
 <details>
 <summary>How the comparison is set up</summary>
 
-- Nested docs and slug by slug each get a copy of the pages, about 2,000, with the same versions and drafts, without localization.
-- Nested docs runs as its docs set it up, with `generateURL` joining the slugs. Its lookup also matches the slug, or a top-level page's query returns its whole branch.
-- On MongoDB nothing indexes nested docs' `parent`, which each save below queries twice.
+- Nested docs and slug by slug each get a copy of the pages: about 2,000, with the same versions and drafts, and no localization.
+- Nested docs runs as its docs set it up, with `generateURL` joining the slugs. Its lookup also matches the slug. Otherwise a top-level page's query returns its whole branch.
+- On MongoDB, nested docs' `parent` has no index, and each save below queries it twice.
 - Slug by slug uses an index on slug and parent that the site adds itself.
 - `findByPath` looks in posts too, at the same time. The other two look in pages only.
 
@@ -97,4 +97,4 @@ cd packages/path && bun run bench
 
 It starts its own databases, seeds them and prints the numbers under [On the same machine](#on-the-same-machine), in about an hour. That full run writes them to this page and to the package's README.
 
-The numbers from the server on another machine come from runs of their own, not from `bun run bench`.
+The numbers from the server on another machine come from separate runs, not from `bun run bench`.
