@@ -27,10 +27,8 @@ const findFreePort = () =>
     })
   })
 
-/**
- * Vitest's global setup: one server of each database under test for every test file, and none of
- * the others. Each file's Payload instances take their own database on it.
- */
+// One server per database for every test file, on which each file's Payload instances take their own
+// database.
 export default async function startServers(project: TestProject) {
   const directory = await mkdtemp(path.join(tmpdir(), 'payloadpack-path-'))
   const servers: Servers = {}

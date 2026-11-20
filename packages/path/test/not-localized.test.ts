@@ -8,8 +8,7 @@ import { catchFieldErrors, create, readPath, remove, store, update } from './sup
 import { listIndexes, readSqlitePlan } from './support/raw-access.js'
 import { LOCALES, SETUPS } from './support/setups.js'
 
-// In a site with localization, a collection given without localized: true has one slug and one path,
-// the same in every locale. Pages are given with it, so they have a slug and a path per locale.
+// Pages are given with localized: true, so they have a slug and a path per locale.
 
 const inSwedish = { locale: 'sv' }
 
@@ -20,10 +19,8 @@ const COLLECTIONS: CollectionConfig[] = [
   titled('topics', true),
   // Products have no localized field, so Payload keeps one status for every locale.
   titled('products', false),
-  // Sections get their parent from Payload's own hierarchy, and offers have none.
   { ...titled('sections', true), hierarchy: true },
   titled('offers', true),
-  // Memos have no drafts, so every save publishes.
   { slug: 'memos', admin: { useAsTitle: 'title' }, fields: [{ name: 'title', type: 'text' }] },
   // Berths start below a path a topic can be at, so a berth can be where a document below that
   // topic would land while the topic's own path is free.
@@ -53,17 +50,14 @@ describeEachSetup(
       test.changes.length = 0
     })
 
-    // A document's path as each locale reads it.
     const readPaths = async (collection: CollectionSlug, id: Id, options: { draft?: boolean } = {}) =>
       Object.fromEntries(
         await Promise.all(
           LOCALES.map(async (locale) => [locale, await readPath(test.payload, collection, id, { ...options, locale })])
         )
       )
-    // A document as the database holds it, where a localized value holds every locale.
     const readRow = (collection: CollectionSlug, id: Id) =>
       test.payload.db.findOne<{ [field: string]: unknown; id: Id }>({ collection, where: { id: { equals: id } } })
-    // A document created in one locale, or in every locale at once.
     const createIn = (locale: string, collection: CollectionSlug, data: Record<string, unknown>) =>
       test.payload.create({ collection, data, locale, overrideAccess: true })
     const each = <Entry extends object>(entry: Entry) => LOCALES.map((locale) => ({ ...entry, locale }))

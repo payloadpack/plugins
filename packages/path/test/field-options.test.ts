@@ -7,13 +7,11 @@ import { describeEachSetup, titled } from './support/boot-payload.js'
 import { catchFieldErrors, create, readDocument, update } from './support/documents.js'
 import { LOCALES } from './support/setups.js'
 
-// A site where only a save in the default locale changes a slug, with Payload's own field access.
 const inDefaultLocaleOnly: FieldAccess = ({ req }) => req.locale === 'en'
 
 // Manuals offer only a published manual as a parent.
 const PUBLISHED: Where = { _status: { equals: 'published' } }
 
-// The slugs a site's own hook on the leaflets' slug field was given.
 const seenSlugs: unknown[] = []
 const seeSlug: FieldHook = ({ value }) => {
   seenSlugs.push(value)
@@ -125,7 +123,6 @@ describeEachSetup(
       const { filterOptions } = payload.collections.manuals.config.fields.find(
         (field) => 'name' in field && field.name === 'parent'
       ) as RelationshipField
-      // The documents of this test the picker offers to the binder.
       const where = (await (filterOptions as (options: FilterOptionsProps) => unknown)({
         id: binder.id,
         relationTo: 'manuals'

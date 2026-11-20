@@ -3,7 +3,6 @@
 import { SlugField as PayloadSlugField } from '@payloadcms/ui'
 import type { TextFieldClientProps } from 'payload'
 
-// What the plugin's slug field hands its component, beside what Payload gives every field.
 export type SlugFieldOwnProps = {
   // The name of the field the refresh button makes the slug from. Without one, it makes nothing.
   useAsSlug: string | undefined

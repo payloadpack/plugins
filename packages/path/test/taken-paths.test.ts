@@ -27,7 +27,7 @@ describeEachSetup('', {}, (test) => {
     const { payload } = test
     const legal = await create(payload, 'pages', { slug: 'legal', title: 'Legal' })
     const terms = await create(payload, 'pages', { parent: legal.id, slug: 'terms', title: 'Terms' })
-    // The same slug below another parent, and at the top level, is not in the way.
+    // The same slug at the top level is not in the way.
     await create(payload, 'pages', { slug: 'terms-copy', title: 'Terms copy' })
     const duplicate = () => payload.duplicate({ collection: 'pages', draft: true, id: terms.id, overrideAccess: true })
 
@@ -156,7 +156,6 @@ describeEachSetup('', {}, (test) => {
     const lodge = await create(payload, 'notices', { slug: 'lodge', title: 'Lodge' })
     const saved = { collection: 'notices', overrideAccess: true, req } as const
 
-    // A request without a user may update no notice.
     await expect(
       payload.update({
         collection: 'notices',
@@ -174,7 +173,6 @@ describeEachSetup('', {}, (test) => {
   })
 })
 
-// A save in progress: a request whose transaction stays open until the test commits it.
 async function openSave(payload: Payload) {
   const req = await createPayloadRequest({ payload })
   await initTransaction(req)
@@ -222,13 +220,11 @@ describeEachSetup('with two saves of one path that overlap', {}, (test, setup) =
 
       const both = [ferry.id, bridge.id]
       expect(new Set(await findPublishedAt(payload, '/crossing'))).toEqual(new Set(both))
-      // The site gets one of the two.
       expect(both).toContain((await findByPath({ path: '/crossing', payload }))?.document.id)
       // A later save that keeps the slug and the parent is not checked, so both stay.
       await update(payload, 'pages', ferry.id, { title: 'Ferry at dawn' })
       await update(payload, 'pages', bridge.id, { title: 'Bridge at dawn' })
       expect(await findPublishedAt(payload, '/crossing')).toHaveLength(2)
-      // A document that left the path is checked when it takes it again.
       await update(payload, 'pages', ferry.id, { slug: 'ferry' })
       expect(await catchFieldErrors(update(payload, 'pages', ferry.id, { slug: 'crossing' }))).toMatchObject(
         takenBy('Page "Bridge at dawn"')

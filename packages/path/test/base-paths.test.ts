@@ -106,7 +106,6 @@ describeEachSetup(
       test.changes.length = 0
       await remove(payload, 'posts', series.id)
       expect(await readPath(payload, 'posts', part.id)).toBe('/blog/part-one')
-      // The lifted posts are right below the base path now.
       expect(test.changes).toEqual([
         [
           changed(setup, 'posts', series, '/blog/saga', null),

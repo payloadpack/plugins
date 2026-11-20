@@ -143,7 +143,6 @@ describeEachSetup('', {}, (test, setup) => {
   })
 })
 
-// A site keeps its redirects in a collection of its own, which the plugin isn't given.
 describeEachSetup(
   'with an onPathsChanged that writes',
   {
@@ -180,7 +179,6 @@ describeEachSetup(
   }
 )
 
-// The context a save passes to make the site's onPathsChanged below fail.
 const PURGE_FAILS = { purgeFails: true }
 
 describeEachSetup(

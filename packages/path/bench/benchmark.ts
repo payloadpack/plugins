@@ -28,20 +28,6 @@ import {
   type Timing
 } from './report.js'
 
-/**
- * Times what a site and its editors do most on a used database: a lookup by path, an autosave, a
- * publish, a rename and moves of pages with up to MOVE_SIZE pages below them. The database holds
- * BENCH_DOCUMENTS pages and posts (100,000 by default), each with two versions, and a tenth of them
- * with a pending draft, the posts in a tree of their own below /blog. It is seeded without the
- * plugin, through the same fields, then opened again with it.
- *
- * Without localization, it also compares path with the other ways a site finds a page by its URL and
- * moves a branch, on two copies of the pages seeded the same way: one with Payload's nested-docs
- * plugin, one with only a slug and a parent. BENCH_COMPARISON=off leaves the comparison and its copies
- * out, for a run that only asks whether path got slower.
- *
- * Only the full run writes its numbers, as writeReport says: any other run prints them.
- */
 const MOVE_SIZE = 1_000
 const DEEP_LEVELS = 10
 const POST_TOPICS = 100
@@ -50,8 +36,7 @@ const SAVES = 200
 // The pages seedPages lays out: 10 sections with 100 pages below them and 900 below those, the page
 // that holds MOVE_SIZE pages, and the line of DEEP_LEVELS.
 const PAGES = 10 + 100 + 900 + 1 + MOVE_SIZE + DEEP_LEVELS
-// The fewest documents a run seeds: the pages, the topics, and a post for each of the saves the three
-// save timings make, so no timing saves a post an earlier one changed.
+// A post for each save the three save timings make, so no timing saves a post an earlier one changed.
 const FEWEST_DOCUMENTS = PAGES + POST_TOPICS + 3 * SAVES
 
 function readDocuments() {
@@ -65,6 +50,8 @@ function readDocuments() {
   return Number(given)
 }
 
+// BENCH_COMPARISON=off leaves the comparison and its copies out, for a run that only asks whether path
+// got slower.
 function readComparison() {
   const given = process.env.BENCH_COMPARISON ?? ''
   if (given !== '' && given !== 'off') throw new Error(`BENCH_COMPARISON is ${given}, so set it to off or leave it out.`)
@@ -75,7 +62,6 @@ const DOCUMENTS = readDocuments()
 const COMPARISON = readComparison()
 const RUN: Run = { compared: COMPARISON, documents: DOCUMENTS, lookupRuns: LOOKUPS }
 
-// The pages the comparison finds, by how many segments their path has.
 const LOOKUP_PATHS = [
   { depth: 1, path: '/section-3' },
   { depth: 3, path: '/section-3/child-4/leaf-5' },
@@ -85,18 +71,16 @@ const LOOKUP_PATHS = [
 const MOVED_METHODS = ['path', 'nested-docs'] as const satisfies readonly Method[]
 type MovedMethod = (typeof MOVED_METHODS)[number]
 
-// The pages renamed, by how many pages sit below them, and how many times each method renames them.
 const MOVES = [
   { below: 9, page: '/section-5/child-5', runs: 20 },
   { below: 100, page: '/section-6', runs: 20 },
   { below: MOVE_SIZE, page: '/moved', runs: 5 }
 ]
 
-// The posts sit below their own base path, as a blog's do.
 const BASE_PATHS = { [NESTED_PAGES]: '', pages: '', [PLAIN_PAGES]: '', posts: '/blog' }
 const COLLECTIONS: PathPluginOptions['collections'] = ['pages', { basePath: BASE_PATHS.posts, slug: 'posts' }]
 
-// The documents each database writes at once while seeding: SQLite writes one at a time.
+// SQLite writes one document at a time.
 const SEED_CONCURRENCY = { mongodb: 16, postgres: 8, sqlite: 1 }
 
 type SeededCollection = keyof typeof BASE_PATHS
@@ -111,7 +95,6 @@ async function workAtOnce<Item>(items: Item[], size: number, work: (item: Item) 
   }
 }
 
-// Times each run, then checks it untimed, by what it returned or by what it left in the database.
 async function measure<Result>(
   times: number,
   work: (index: number) => Promise<Result>,
@@ -128,8 +111,6 @@ async function measure<Result>(
   return { median: durations[Math.floor(times / 2)]!, p95: durations[Math.floor(times * 0.95)]! }
 }
 
-// A seeded document's paths: its parent's, or its collection's base path, a slash and its slug, in
-// Swedish its own slug for a page.
 function pathsBelow(
   parent: Seeded | undefined,
   collection: SeededCollection,
@@ -141,16 +122,9 @@ function pathsBelow(
   return localized ? { en: `${start('en')}/${slug}`, sv: `${start('sv')}/${swedishSlug}` } : { '': `${start('')}/${slug}` }
 }
 
-/**
- * The site: ten sections, each with ten pages that each hold nine more, one page holding MOVE_SIZE
- * pages, and a line of DEEP_LEVELS pages, each below the one before. The posts sit in a tree of their
- * own below /blog: POST_TOPICS posts at the top, with the rest spread over them. The comparison's
- * copies hold the same pages, written as nested docs or a site without a plugin writes them.
- */
 async function seed(payload: Payload, setup: Setup, { compared }: { compared: boolean }) {
   const concurrency = SEED_CONCURRENCY[setup.database]
-  // What each document that holds others passes on to them, by collection and id, as collections
-  // may share ids on SQL: path's ancestors, and nested docs' breadcrumbs.
+  // By collection and id, as collections may share ids on SQL.
   const ancestorsOf = new Map<string, Id[]>()
   const breadcrumbsOf = new Map<string, Breadcrumb[]>()
   let seededCount = 0
@@ -238,7 +212,6 @@ async function seed(payload: Payload, setup: Setup, { compared }: { compared: bo
     const all = [...sections, ...children, ...grandchildren, moved!, ...shelves, ...items, ...line]
     if (all.length !== PAGES) throw new Error(`The site holds ${all.length} pages, not the ${PAGES} that PAGES counts`)
     return {
-      // Each page by its path, in the default locale.
       byPath: new Map(all.map((page) => [page.paths[setup.localized ? 'en' : '']!, page])),
       sections: [...sections, ...children, ...grandchildren]
     }
@@ -286,16 +259,13 @@ async function timeLookups(payload: Payload, site: Site) {
   return lookups
 }
 
-// Where the deepest page below a renamed page reads it is: its path with path, the URL of its last
-// breadcrumb with nested docs.
 async function readMovedPath(payload: Payload, method: MovedMethod, id: Id) {
   const document = await readDocument(payload, METHOD_COLLECTIONS[method], id)
   return method === 'path' ? document.path : (document.breadcrumbs as Breadcrumb[] | undefined)?.at(-1)?.url
 }
 
-// Renames each page, and checks after each run that the deepest page below it moved along. Each method
-// finishes before the next starts, so path's moves run before nested docs' writes can slow the
-// database down.
+// Each method finishes before the next starts, so path's moves run before nested docs' writes can slow
+// the database down.
 async function timeMoves(payload: Payload, site: Site, methods: readonly MovedMethod[]) {
   const moves: SetupResults['moves'] = []
   for (const method of methods) {
@@ -320,7 +290,6 @@ async function timeMoves(payload: Payload, site: Site, methods: readonly MovedMe
   return moves
 }
 
-// Before anything is seeded.
 await checkReadme(RUN, SETUPS.length)
 
 describe.each(SETUPS)('$name', (setup) => {

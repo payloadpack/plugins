@@ -3,8 +3,8 @@ import type { Payload } from 'payload'
 import { ADMIN_ROUTE_REASON, API_ROUTE_REASON, reservedAnyDepthRefusal, reservedRootRefusal } from '../plugin/messages.js'
 import { getPathConfig, type ReasonBySegment } from '../plugin/options.js'
 
-// The root segments of Payload's own routes. A route at the root has none. The routes are read from
-// the running config, because the plugin gets the config before Payload fills in their defaults.
+// The routes are read from the running config, because the plugin gets the config before Payload fills
+// in their defaults. A route at the root has no root segment.
 function getPayloadRootSegments({ routes }: Payload['config']): ReasonBySegment {
   const reasons = [
     [routes.admin, ADMIN_ROUTE_REASON],
@@ -18,7 +18,6 @@ function getPayloadRootSegments({ routes }: Payload['config']): ReasonBySegment 
   )
 }
 
-// What a path is refused with when one of its segments is reserved.
 export function getReservedPathRefusal(path: string, payload: Payload) {
   const { anyDepth, root = getPayloadRootSegments(payload.config) } = getPathConfig(payload).reservedSegments
   const segments = path.split('/').slice(1)

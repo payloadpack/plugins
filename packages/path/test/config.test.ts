@@ -24,7 +24,6 @@ const configWith = (
 
 type BuiltConfig = Awaited<ReturnType<typeof configWith>>
 
-// The named fields of a built collection, which hold the ones Payload adds itself.
 const fieldsOf = (config: BuiltConfig, slug: string) =>
   (config.collections.find((built) => built.slug === slug)?.fields ?? []).flatMap((field) => ('name' in field ? [field] : []))
 
@@ -152,7 +151,6 @@ describe('pathPlugin', () => {
     expect(slugOf('posts')).toMatchObject({ admin: { components: { Field: component(undefined) } }, custom: { slugify } })
   })
 
-  // The slug field and parent field of pages, given with what a site sets on them.
   const fieldsGiven = async (given: Omit<Extract<PathCollection, { slug: string }>, 'slug'>) => {
     const config = await configWith([collection('pages')], { collections: [{ ...given, slug: 'pages' } as PathCollection] })
     const find = (name: string) => fieldsOf(config, 'pages').find((field) => field.name === name)

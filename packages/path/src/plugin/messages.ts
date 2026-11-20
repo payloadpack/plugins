@@ -4,7 +4,7 @@ import type { StoredDocument } from '../database/documents.js'
 import { getFallbackLocales, NO_LOCALE, valueInLocale } from '../utils/locales.js'
 import type { TakenPath } from '../validation/find-taken-path.js'
 
-// Every message the package can show. The docs pages copy them word for word.
+// The docs pages copy these messages word for word.
 
 // The slug a refusal is shown on, whatever caused it, because the slug is what an editor changes.
 export const REFUSAL_FIELD = 'slug'
@@ -30,7 +30,6 @@ function getCollectionLabel(collectionSlug: string, number: 'plural' | 'singular
   return getLabel(req.payload.collections[collectionSlug as CollectionSlug].config.labels[number], req)
 }
 
-// A collection's labels as they read inside a sentence.
 const getLowercaseLabels = (collectionSlug: string, req: PayloadRequest) => ({
   plural: getCollectionLabel(collectionSlug, 'plural', req).toLowerCase(),
   singular: getCollectionLabel(collectionSlug, 'singular', req).toLowerCase()
@@ -52,8 +51,6 @@ function describeDocument(collectionSlug: string, stored: StoredDocument, locale
           .find((value) => typeof value === 'string' && value !== '')
   return `${getCollectionLabel(collectionSlug, 'singular', req)} "${String(text ?? stored.id)}"`
 }
-
-// The refusals an editor meets.
 
 export const MISSING_SLUG_REFUSAL = 'Give this document a slug, or a title to make one from.'
 
@@ -83,7 +80,6 @@ export const reservedAnyDepthRefusal = (segment: string, reason?: string) =>
 export const reservedRootRefusal = (segment: string, reason = 'something else') =>
   `The site serves ${reason} at /${segment}, so pick another slug or a parent.`
 
-// What Payload's own routes serve, which reservedRootRefusal says of their root segments.
 export const ADMIN_ROUTE_REASON = 'the admin panel'
 
 export const API_ROUTE_REASON = 'the API'
@@ -91,18 +87,14 @@ export const API_ROUTE_REASON = 'the API'
 // Where describeTakenPath says the document is when it is at the path of the document being saved.
 export const THIS_PATH = 'this path'
 
-// Names the document at a taken path and where it is: in the editor's locale, here or the path, and in
-// another locale the path and that locale, since the editor doesn't see it.
 function describeTakenPath({ collection, document, locale, path }: TakenPath, req: PayloadRequest, here = path) {
+  // In another locale than the editor's, the refusal names that locale, since the editor doesn't see it.
   const where = locale === NO_LOCALE || locale === req.locale ? here : `${path} in ${locale}`
   return `${describeDocument(collection, document, locale, req)} is already at ${where}, so change the slug or the parent.`
 }
 
-// The refusal of a taken path, shown in the locale the path is taken in.
 export const buildTakenPathError = (collection: string, taken: TakenPath, req: PayloadRequest, here?: string) =>
   buildFieldError(collection, REFUSAL_FIELD, describeTakenPath(taken, req, here), req, taken.locale)
-
-// The errors a developer meets, at startup or in code.
 
 export const BASE_PATH_IS_ROOT = 'is the root already, so leave basePath out'
 

@@ -6,16 +6,11 @@ import { buildFieldError, homePageBranchRefusal, REFUSAL_FIELD } from '../plugin
 import { checkTakenPaths } from './check-taken-paths.js'
 import { getReservedPathRefusal } from './get-reserved-path-refusal.js'
 
-// A document's paths that are other ones than each of those given holds in that locale.
 export const getNewPaths = (pathAndAncestors: PathAndAncestors, ...known: (PathAndAncestors | undefined)[]) =>
   Object.entries(pathAndAncestors.paths).filter(
     (entry): entry is LocalePath => entry[1] !== null && known.every((each) => each?.paths[entry[0]] !== entry[1])
   )
 
-/**
- * Refuses the paths a document can't be at: one with a reserved segment, the home page's for a
- * document with others below it, and one another document is at, see checkTakenPaths.
- */
 export async function checkNewPaths(slug: string, id: Id | undefined, paths: LocalePath[], req: PayloadRequest, here?: string) {
   for (const [locale, path] of paths) {
     const refusal = getReservedPathRefusal(path, req.payload)
