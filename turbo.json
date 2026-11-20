@@ -33,6 +33,9 @@
     "typecheck": {
       "dependsOn": ["^build"]
     },
+    "@payloadpack/path#typecheck": {
+      "dependsOn": ["^build", "build"]
+    },
     "generate:importmap": {
       "dependsOn": ["^build"],
       "outputs": ["src/app/**/admin/importMap.js"]
