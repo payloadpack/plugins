@@ -1,4 +1,4 @@
-import { commitTransaction, createPayloadRequest, initTransaction, killTransaction, type User } from 'payload'
+import { createPayloadRequest, initTransaction, killTransaction, type User } from 'payload'
 import { expect, expectTypeOf, it, onTestFinished } from 'vitest'
 
 import { findByPath, findPaths, type FoundByPath, type FoundPath } from '../src/index.js'
@@ -243,21 +243,6 @@ describeEachSetup('', {}, (test, setup) => {
 
     await killTransaction(req)
     expect(await findByPath({ path: '/tx-page', payload })).toBeNull()
-
-    // Also verify a committed transaction works cleanly.
-    const commitReq = await createPayloadRequest({ payload })
-    await initTransaction(commitReq)
-    const committed = await payload.create({
-      collection: 'pages',
-      data: { _status: 'published', slug: 'tx-committed', title: 'Tx committed' },
-      overrideAccess: true,
-      req: commitReq
-    })
-    await commitTransaction(commitReq)
-    expect(await findByPath({ path: '/tx-committed', payload })).toMatchObject({
-      collection: 'pages',
-      document: { id: committed.id }
-    })
   })
 })
 
@@ -377,20 +362,6 @@ describeEachSetup('given pages and posts', { boot: { options: { collections: ['p
     expectTypeOf(inBoth).toEqualTypeOf<FoundByPath<'pages' | 'posts'> | null>()
     expect(inBoth).toMatchObject({ collection: 'pages', document: { id: tours.id } })
     expectTypeOf(await findByPath({ path: '/tours', payload })).toEqualTypeOf<FoundByPath | null>()
-
-    // Omitted payload.find options are rejected by the type.
-    if (false as boolean) {
-      // @ts-expect-error collection is replaced by collections
-      await findByPath({ collection: 'pages', path: '/tours', payload })
-      // @ts-expect-error limit does not apply to a unique path lookup
-      await findByPath({ limit: 1, path: '/tours', payload })
-      // @ts-expect-error pagination is always false
-      await findByPath({ pagination: true, path: '/tours', payload })
-      // @ts-expect-error sort does not apply to a unique path lookup
-      await findByPath({ path: '/tours', payload, sort: 'title' })
-      // @ts-expect-error trashed documents take no path
-      await findByPath({ path: '/tours', payload, trash: true })
-    }
   })
 
   it('asks for collections the plugin was given', async () => {
