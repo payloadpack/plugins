@@ -4,6 +4,7 @@ import { sql as postgresSql } from '@payloadcms/db-postgres/drizzle'
 import type { SQLiteAdapter } from '@payloadcms/db-sqlite'
 import { sql as sqliteSql } from '@payloadcms/db-sqlite/drizzle'
 import type { Payload, PayloadRequest } from 'payload'
+import { onTestFinished } from 'vitest'
 
 import { ADAPTER_SQL, type Query } from './adapters.js'
 import type { TestPayload } from './boot-payload.js'
@@ -311,10 +312,14 @@ export async function holdRow(
     )
   })
   await holding
-  return async () => {
+  const letGoAndCommit = async () => {
     letGo()
     await transaction
   }
+  // A test that fails before it lets the row go would leave it held, and the write that waits for it
+  // would never end.
+  onTestFinished(letGoAndCommit)
+  return letGoAndCommit
 }
 
 /**
