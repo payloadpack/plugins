@@ -1,9 +1,10 @@
-import type { Column, Name, SQL } from '@payloadcms/db-postgres/drizzle'
+import type { Column, SQL } from '@payloadcms/db-postgres/drizzle'
 import type { PayloadRequest } from 'payload'
 
 import type { Id } from '../path/build-path-and-ancestors.js'
-import type { StartsBelow } from '../path/starts-below.js'
-import { getPathConfig } from '../plugin/options.js'
+import { getParentFieldName, getPathConfig, isLocalized } from '../plugin/options.js'
+import { getLocales } from '../utils/locales.js'
+import type { RowFields, RowKind } from './branch.js'
 
 // The sql of drizzle, which each of Payload's Postgres and SQLite adapters exports and the site gives
 // the plugin, so the statements are built by the drizzle that runs them.
@@ -18,37 +19,22 @@ type SqlAdapter = {
   localesSuffix: string
   rawRelations: Record<string, Record<string, { to: string } | undefined>>
   relationshipsSuffix: string
+  schemaName?: string
   sessions: Record<string, { db: unknown } | undefined>
   tables: Record<string, Record<string, Column>>
   versionsSuffix: string
 }
 
-// The table of a collection's documents, which the adapter keeps with every relationship to the
-// collection, by the key of the column that holds an ancestor in a table of relationships. A
-// collection with ancestors always has one, to itself.
-function getTableName(ancestorColumnKey: string, { rawRelations }: SqlAdapter) {
-  return Object.values(rawRelations).find((relations) => relations[ancestorColumnKey])![ancestorColumnKey]!.to
-}
-
 // What the statements and the lock start from: the site's sql, the adapter, a statement run in the
-// request's transaction, the key of the column that holds an ancestor, the name of the documents'
-// table, and the subquery of the rows below the document in a table of relationships: the ones that
-// hold it among their ancestors at the field.
-async function getStatementSetup(collection: string, id: Id, req: PayloadRequest) {
+// request's transaction, and the table of the collection's documents, which the adapter keeps with
+// every relationship to the collection. A collection with ancestors always has one, to itself.
+async function getStatementSetup(collection: string, req: PayloadRequest) {
   const sql = getPathConfig(req.payload).sql as Sql
   const adapter = req.payload.db as unknown as SqlAdapter
   const db = adapter.sessions[String(await req.transactionID)]?.db ?? adapter.drizzle
-  const ancestorColumnKey = `${collection}ID`
-  return {
-    adapter,
-    ancestorColumnKey,
-    documentsName: getTableName(ancestorColumnKey, adapter),
-    execute: (statement: SQL) => adapter.execute({ db, sql: statement }),
-    selectRowsBelow: (relationships: Record<string, Column>, ancestorsField: string) =>
-      sql`SELECT ${relationships.parent} FROM ${relationships}
-        WHERE ${relationships.path} = ${ancestorsField} AND ${relationships[ancestorColumnKey]} = ${id}`,
-    sql
-  }
+  const toCollection = `${collection}ID`
+  const documentsName = Object.values(adapter.rawRelations).find((relations) => relations[toCollection])![toCollection]!.to
+  return { adapter, documentsName, execute: (statement: SQL) => adapter.execute({ db, sql: statement }), sql }
 }
 
 /**
@@ -60,110 +46,94 @@ async function getStatementSetup(collection: string, id: Id, req: PayloadRequest
  * read every ancestor of the collection for each row.
  */
 export async function lockBranchInPostgres(collection: string, id: Id, req: PayloadRequest) {
-  const { adapter, documentsName, execute, selectRowsBelow, sql } = await getStatementSetup(collection, id, req)
-  const documents = adapter.tables[documentsName]
-  const relationships = adapter.tables[`${documentsName}${adapter.relationshipsSuffix}`]
-  const ancestorCount = sql`(SELECT count(*) FROM ${relationships}
-    WHERE ${relationships.parent} = ${documents.id} AND ${relationships.path} || '' = ${'ancestors'})`
+  const { adapter, documentsName, execute, sql } = await getStatementSetup(collection, req)
+  const [documents, rels] = [adapter.tables[documentsName], adapter.tables[`${documentsName}${adapter.relationshipsSuffix}`]]
+  const rowsBelow = sql`SELECT ${rels.parent} FROM ${rels} WHERE ${rels.path} = ${'ancestors'} AND ${rels[`${collection}ID`]} = ${id}`
+  const ancestorCount = sql`(SELECT count(*) FROM ${rels}
+    WHERE ${rels.parent} = ${documents.id} AND ${rels.path} || '' = ${'ancestors'})`
   await execute(sql`SELECT ${documents.id} FROM ${documents}
-    WHERE ${documents.id} = ANY(array_append(ARRAY(${selectRowsBelow(relationships, 'ancestors')}), ${id}))
+    WHERE ${documents.id} = ANY(array_append(ARRAY(${rowsBelow}), ${id}))
     ORDER BY ${ancestorCount} FOR NO KEY UPDATE`)
 }
 
 /**
- * The statements on Postgres and SQLite, for the documents below or for their latest versions: an
- * update of the path column per locale whose start changes in a localized collection, where each
- * locale's path is a row of its own, one of the parent column, and up to three for the ancestors,
- * which are rows of their own in the table of relationships. Every value is bound. The database
- * counts the characters of the start itself, because a Postgres database of bytes counts a character
- * by its bytes.
+ * The write on Postgres and SQLite: an update of the path column, one of the parent column for the
+ * rows that get another parent, and a delete and an insert for the rows that get other ancestors,
+ * which are rows of their own in the table of relationships. Each statement reads its rows out of one
+ * bound value, a JSON list, so it binds the same whatever the number of rows.
  */
-export async function buildStatementsBelowInSql(collection: string, id: Id, localized: boolean, req: PayloadRequest) {
-  const { adapter, ancestorColumnKey, documentsName, execute, selectRowsBelow, sql } = await getStatementSetup(
-    collection,
-    id,
-    req
-  )
+export async function setPathAndAncestorsFieldsInSql(collection: string, kind: RowKind, rows: RowFields[], req: PayloadRequest) {
+  const { payload } = req
+  const { adapter, documentsName, execute, sql } = await getStatementSetup(collection, req)
   const { localesSuffix, relationshipsSuffix, tables, versionsSuffix } = adapter
-  // Postgres can't tell the type of a value it selects, so each is cast to the type of its column.
-  const buildCast = (column: Column, value: unknown) => sql`CAST(${value} AS ${sql.raw(column.getSQLType())})`
-  return (rowKind: 'documents' | 'versions') => {
-    // The table of the documents or of their versions, with its table of relationships, the key a
-    // column the statements write has there, the field the ancestors are rows of, and the rows below
-    // there: of the versions the latest only.
-    const isDocuments = rowKind === 'documents'
-    const tableName = isDocuments ? documentsName : `_${documentsName}${versionsSuffix}`
-    const rowsTable = tables[tableName]
-    const relationships = tables[`${tableName}${relationshipsSuffix}`]
-    const getRowColumnKey = (field: string) => (isDocuments ? field : `version_${field}`)
-    const ancestorsField = isDocuments ? 'ancestors' : 'version.ancestors'
-    const rowIdsBelow = isDocuments
-      ? selectRowsBelow(relationships, ancestorsField)
-      : sql`SELECT ${rowsTable.id} FROM ${rowsTable}
-          WHERE ${rowsTable.latest} = ${true} AND ${rowsTable.id} IN (${selectRowsBelow(relationships, ancestorsField)})`
-    // Postgres takes the column an update sets by its name alone, without its table, so each SET names
-    // its column with sql.identifier.
-    return {
-      // A row's ancestors are rows of the table of relationships, in the order of a number each holds.
-      // So the old ones move back to make room at the front for the new ones, and then the old ones up
-      // to the first time the moved document comes after the new ones go, as
-      // buildReplacedPathAndAncestors has it.
-      setAncestors: async (ancestors: Id[]) => {
-        const { order, parent, path } = relationships
-        const ancestor = relationships[ancestorColumnKey]
-        const newAncestorCount = ancestors.length
-        // On Postgres ANY(ARRAY(…)) finds the rows below once instead of joining the table to itself.
-        const isRowBelow = req.payload.db.name === 'postgres' ? sql`= ANY(ARRAY(${rowIdsBelow}))` : sql`IN (${rowIdsBelow})`
-        const isAncestorOfRowBelow = sql`${path} = ${ancestorsField} AND ${parent} ${isRowBelow}`
-        if (newAncestorCount > 0) {
-          await execute(sql`UPDATE ${relationships}
-            SET ${sql.identifier(order.name)} = ${order} + ${newAncestorCount} WHERE ${isAncestorOfRowBelow}`)
-          const newAncestors = ancestors.map(
-            (newAncestor, index) => sql`(${buildCast(order, index + 1)}, ${buildCast(ancestor, newAncestor)})`
-          )
-          const columns = [order, parent, path, ancestor].map(({ name }) => sql.identifier(name))
-          await execute(sql`INSERT INTO ${relationships} (${sql.join(columns, sql`, `)})
-            SELECT added.column1, ${rowsTable.id}, ${ancestorsField}, added.column2
-            FROM (VALUES ${sql.join(newAncestors, sql`, `)}) AS added, ${rowsTable}
-            WHERE ${rowsTable.id} IN (${rowIdsBelow})`)
-        }
-        // A join finds the moved document once for each row, where a subquery would look for it again
-        // for each of the row's ancestors. The shift moved every order past what Postgres knows of the
-        // table, so it would reach the old rows by their order or path once for each row below: + 0 and
-        // || '' leave it only the row to reach them by.
-        const [oldAncestor, movedDocument] = [sql.identifier('old'), sql.identifier('moved')]
-        const buildAliasedColumn = (alias: Name) => (column: Column) => sql`${alias}.${sql.identifier(column.name)}`
-        const [oldAncestorColumn, movedDocumentColumn] = [buildAliasedColumn(oldAncestor), buildAliasedColumn(movedDocument)]
-        await execute(sql`DELETE FROM ${relationships} WHERE ${relationships.id} IN (
-          SELECT ${oldAncestorColumn(relationships.id)} FROM ${relationships} AS ${oldAncestor}
-          JOIN (
-            SELECT ${parent} AS ${sql.identifier(parent.name)}, min(${order}) AS ${sql.identifier(order.name)} FROM ${relationships}
-            WHERE ${isAncestorOfRowBelow} AND ${ancestor} = ${id} AND ${order} > ${newAncestorCount}
-            GROUP BY ${parent}
-          ) AS ${movedDocument} ON ${movedDocumentColumn(parent)} = ${oldAncestorColumn(parent)}
-          WHERE ${oldAncestorColumn(path)} || '' = ${ancestorsField}
-            AND ${oldAncestorColumn(order)} + 0 > ${newAncestorCount}
-            AND ${oldAncestorColumn(order)} + 0 <= ${movedDocumentColumn(order)}
-        )`)
-      },
-      setLiftedParent: async (parentField: string, liftParentId: Id | null) => {
-        const parentColumn = rowsTable[getRowColumnKey(parentField)]
-        await execute(sql`UPDATE ${rowsTable} SET ${sql.identifier(parentColumn.name)} = ${liftParentId}
-          WHERE ${rowsTable.id} IN (${rowIdsBelow}) AND ${parentColumn} = ${id}`)
-      },
-      setPathStarts: async (paths: StartsBelow['paths']) => {
-        const pathTable = tables[localized ? `${tableName}${localesSuffix}` : tableName]
-        const pathColumn = pathTable[getRowColumnKey('path')]
-        const rowId = localized ? pathTable._parentID : pathTable.id
-        for (const { locale, newStart, oldStart } of paths) {
-          const oldStartAndSlash = `${oldStart}/`
-          const localeCondition = localized ? sql` AND ${pathTable._locale} = ${locale}` : sql``
-          await execute(sql`UPDATE ${pathTable}
-            SET ${sql.identifier(pathColumn.name)} = ${newStart} || substr(${pathColumn}, length(${oldStartAndSlash}))
-            WHERE ${rowId} IN (${rowIdsBelow})${localeCondition}
-            AND substr(${pathColumn}, 1, length(${oldStartAndSlash})) = ${oldStartAndSlash}`)
-        }
-      }
-    }
+  const [tableName, columnPrefix, fieldPrefix] =
+    kind === 'documents' ? [documentsName, '', ''] : [`_${documentsName}${versionsSuffix}`, 'version_', 'version.']
+  const [rowsTable, relationships] = [tables[tableName], tables[`${tableName}${relationshipsSuffix}`]]
+  // Each database reads a JSON list as rows with a column named value.
+  const each = (list: unknown[]) =>
+    payload.db.name === 'postgres'
+      ? sql`jsonb_array_elements(CAST(${JSON.stringify(list)} AS jsonb))`
+      : sql`json_each(${JSON.stringify(list)})`
+  // A value of a JSON row is text, so it is cast to the type of the column it is compared with or
+  // written to. The id of a row is of the type the table of relationships points at it with.
+  const typeOf = (column: Column) => sql.raw(column.getSQLType())
+  const idType = typeOf(relationships.parent)
+
+  // A localized collection stores each locale's path in a row of its own, by the row and the locale.
+  const localized = isLocalized(collection, payload)
+  const pathTable = localized ? tables[`${tableName}${localesSuffix}`] : rowsTable
+  const pathColumn = pathTable[`${columnPrefix}path`]
+  const paths = rows.flatMap(({ fields, id }) =>
+    localized
+      ? getLocales(payload).map((locale) => ({ id, locale, path: (fields.path as Record<string, string>)[locale] ?? null }))
+      : [{ id, path: fields.path }]
+  )
+  const writtenPaths = sql`(SELECT CAST(value ->> 'id' AS ${idType}) AS id, value ->> 'locale' AS locale, value ->> 'path' AS path
+    FROM ${each(paths)}) AS written`
+  const isRowOfPath = localized
+    ? sql`${pathTable._parentID} = written.id AND CAST(${pathTable._locale} AS text) = written.locale`
+    : sql`${pathTable.id} = written.id`
+  await execute(
+    sql`UPDATE ${pathTable} SET ${sql.identifier(pathColumn.name)} = written.path FROM ${writtenPaths} WHERE ${isRowOfPath}`
+  )
+  if (localized) {
+    // A document has no row for a locale it has no values in, as one stored before the plugin has
+    // none for a locale it only falls back in, so a path there gets a row. Postgres keeps the locales
+    // in a type of the schema's own.
+    const { _locale, _parentID } = pathTable
+    const localeType = adapter.schemaName ? sql`${sql.identifier(adapter.schemaName)}.${typeOf(_locale)}` : typeOf(_locale)
+    const columns = [pathColumn, _locale, _parentID].map(({ name }) => sql.identifier(name))
+    await execute(sql`INSERT INTO ${pathTable} (${sql.join(columns, sql`, `)})
+      SELECT written.path, CAST(written.locale AS ${localeType}), written.id FROM ${writtenPaths}
+      WHERE written.path IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ${pathTable} WHERE ${isRowOfPath})`)
   }
+
+  const parentField = getParentFieldName(collection, payload)
+  const parents = rows.flatMap(({ fields, id }) =>
+    parentField !== undefined && parentField in fields ? [{ id, parent: fields[parentField] }] : []
+  )
+  if (parents.length > 0) {
+    const parentColumn = rowsTable[`${columnPrefix}${parentField}`]
+    await execute(sql`UPDATE ${rowsTable} SET ${sql.identifier(parentColumn.name)} = written.parent
+      FROM (SELECT CAST(value ->> 'id' AS ${idType}) AS id, CAST(value ->> 'parent' AS ${typeOf(parentColumn)}) AS parent
+        FROM ${each(parents)}) AS written
+      WHERE ${rowsTable.id} = written.id`)
+  }
+
+  const rowsWithAncestors = rows.filter(({ fields }) => 'ancestors' in fields)
+  if (rowsWithAncestors.length === 0) return
+  const { order, parent, path } = relationships
+  const ancestor = relationships[`${collection}ID`]
+  const ancestorsField = `${fieldPrefix}ancestors`
+  await execute(sql`DELETE FROM ${relationships} WHERE ${path} = ${ancestorsField}
+    AND ${parent} IN (SELECT CAST(value ->> 'id' AS ${idType}) FROM ${each(rowsWithAncestors.map(({ id }) => ({ id })))})`)
+  const ancestors = rowsWithAncestors.flatMap(({ fields, id }) =>
+    (fields.ancestors as Id[]).map((ancestorId, index) => ({ ancestor: ancestorId, id, order: index + 1 }))
+  )
+  if (ancestors.length === 0) return
+  const columns = [order, parent, path, ancestor].map(({ name }) => sql.identifier(name))
+  await execute(sql`INSERT INTO ${relationships} (${sql.join(columns, sql`, `)})
+    SELECT CAST(value ->> 'order' AS ${typeOf(order)}), CAST(value ->> 'id' AS ${idType}), ${ancestorsField},
+      CAST(value ->> 'ancestor' AS ${typeOf(ancestor)})
+    FROM ${each(ancestors)}`)
 }

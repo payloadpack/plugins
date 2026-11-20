@@ -103,8 +103,8 @@ async function storeInRow(payload: Payload, collection: CollectionSlug, id: Id, 
 
 /**
  * Stores a path that nothing the plugin writes leaves behind in a document's row, in every locale,
- * through the database adapter, so no hook runs and the row keeps every other value. A move gives
- * such a row its path with a write of its own, where its statements can't.
+ * through the database adapter, so no hook runs and the row keeps every other value. A move and a
+ * backfill give such a row the path its slug and its parent make.
  */
 export function storeStrayPath(payload: Payload, { localized }: Setup, collection: CollectionSlug, id: Id, path: string) {
   const paths = localized ? Object.fromEntries(LOCALES.map((locale) => [locale, path])) : path

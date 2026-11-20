@@ -1,7 +1,7 @@
 import type { CollectionBeforeChangeHook, Payload } from 'payload'
 import { hasDraftsEnabled } from 'payload/shared'
 
-import { findDocumentById, findParentPathAndAncestors, type StoredDocument } from '../database/documents.js'
+import { findDocumentById, findParentPathAndAncestors } from '../database/documents.js'
 import {
   buildPathAndAncestors,
   getOwnSlugLocales,
@@ -116,13 +116,11 @@ export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collec
   const built = buildPathAndAncestors(slugs, parent, collection, payload)
 
   // Where the document is now, and which of the built paths it isn't at yet.
-  const getPathAndAncestorsBefore = (storedDocument: StoredDocument): PathAndAncestorsBefore => ({
-    ...getStoredPathAndAncestors(storedDocument, slug, payload),
-    shownLocales: getShownLocales(storedDocument, collection, payload)
-  })
   const document = id === undefined ? undefined : await findDocumentById(slug, id, req)
-  const before = document && getPathAndAncestorsBefore(document)
-  let pathAndAncestorsBeforeWrite = before
+  const before: PathAndAncestorsBefore | undefined = document && {
+    ...getStoredPathAndAncestors(document, slug, payload),
+    shownLocales: getShownLocales(document, collection, payload)
+  }
   const leavesTrash = document !== undefined && isInTrash(document) && data.deletedAt === null
 
   // A document of a bulk update, which a dry run and a document saved on its own are not.
@@ -154,19 +152,10 @@ export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collec
         collection,
         id,
         parent: { ancestors: built.ancestors, id, paths: { ...before.paths, ...Object.fromEntries(paths.moved) } },
-        pathAndAncestorsBefore: before,
         req
       })
       if (taking) takePaths(taking.takenPaths, taking.by, getLandings(branchMove), req)
       await checkBranchMove(branchMove, req)
-      // Only a save whose findBranchMove held the branch may have waited for a move above that moved
-      // this document too, so only then is the document read again. The hook after the write needs
-      // where the document is now, or the statements find no path with the start it had and every row
-      // below is written by itself.
-      if (branchMove.isBranchHeld) {
-        const documentInHeldBranch = await findDocumentById(slug, id, req)
-        pathAndAncestorsBeforeWrite = documentInHeldBranch && getPathAndAncestorsBefore(documentInHeldBranch)
-      }
     }
   } catch (error) {
     // A refused save takes nothing.
@@ -175,9 +164,7 @@ export const checkPathBeforeChange: CollectionBeforeChangeHook = async ({ collec
   }
 
   // For the hook after the write: where the document was. For Payload's write: the path.
-  if (id !== undefined && pathAndAncestorsBeforeWrite) {
-    getPathContext(req).saved.set(documentKey(slug, id), pathAndAncestorsBeforeWrite)
-  }
+  if (id !== undefined && before) getPathContext(req).saved.set(documentKey(slug, id), before)
   return {
     ...data,
     path: inData(built.paths) ?? null,

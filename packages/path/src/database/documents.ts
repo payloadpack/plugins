@@ -83,33 +83,42 @@ export async function findParentPathAndAncestors(
 }
 
 /**
- * A row with a path and ancestors stored in it. In a localized collection a locale without a path is
- * left out, so the write makes no row for a locale the document has no values in. In one that isn't,
- * every locale holds the same path, which is the one the row stores. A row's parent must agree with
- * its ancestors, so a row that holds another parent than the last of the ancestors, which the path
- * hangs from, gets that one: Payload writes a draft to the latest version only, and the row of a
- * document that isn't published follows that draft. A row that agrees is left as it is, so a parent
- * it doesn't hold is not invented: MongoDB stores none for a top-level document. A collection
- * without parents stores neither a parent nor ancestors.
+ * The fields a row stores a path and ancestors in, each with its value, of the ones the row holds
+ * another value in, and the path always. In a localized collection a locale without a path is left
+ * out, so a write makes no row for a locale the document has no values in. In one that isn't, every
+ * locale holds the same path, which is the one the row stores. A row's parent must agree with its
+ * ancestors, so a row that holds another parent than the last of the ancestors, which the path hangs
+ * from, gets that one: Payload writes a draft to the latest version only, and the row of a document
+ * that isn't published follows that draft. A row that agrees is left as it is, so a parent it doesn't
+ * hold is not invented: MongoDB stores none for a top-level document. A collection without parents
+ * stores neither a parent nor ancestors.
  */
-export function buildRowWithPathAndAncestors<Row extends Record<string, unknown>>(
-  row: Row,
+export function buildPathAndAncestorsFields(
+  row: Record<string, unknown>,
   { ancestors, paths }: PathAndAncestors,
   collection: string,
   req: PayloadRequest
-) {
+): Record<string, unknown> {
   const localePaths = Object.fromEntries(Object.entries(paths).filter(([, path]) => path !== null))
   const path = isLocalized(collection, req.payload) ? localePaths : (Object.values(paths)[0] ?? null)
   const parentField = getParentFieldName(collection, req.payload)
-  if (parentField === undefined) return { ...row, path }
-  const agrees = hasParentOfAncestors(row, ancestors, parentField)
-  return { ...row, ancestors, path, ...(agrees ? {} : { [parentField]: ancestors.at(-1) ?? null }) }
+  if (parentField === undefined) return { path }
+  // A row without ancestors, as MongoDB holds one stored before the plugin, gets them even when empty.
+  const storedAncestors = row.ancestors as Id[] | null | undefined
+  return {
+    path,
+    ...(storedAncestors?.join() === ancestors.join() ? {} : { ancestors }),
+    ...(String(idOf(row[parentField])) === String(ancestors.at(-1) ?? null) ? {} : { [parentField]: ancestors.at(-1) ?? null })
+  }
 }
 
-// Whether a row holds in its parent field the parent its ancestors hang from: the last of them, or
-// none at the top level.
-export const hasParentOfAncestors = (row: Record<string, unknown>, ancestors: Id[], parentField: string) =>
-  String(idOf(row[parentField])) === String(ancestors.at(-1) ?? null)
+// A row with a path and ancestors stored in it.
+export const buildRowWithPathAndAncestors = <Row extends Record<string, unknown>>(
+  row: Row,
+  pathAndAncestors: PathAndAncestors,
+  collection: string,
+  req: PayloadRequest
+) => ({ ...row, ...buildPathAndAncestorsFields(row, pathAndAncestors, collection, req) })
 
 // Whether a row holds a timestamp that is no date, as Payload read it: a string, or a Date.
 const isNoDate = (timestamp: unknown) => timestamp != null && Number.isNaN(new Date(timestamp as Date | string).getTime())

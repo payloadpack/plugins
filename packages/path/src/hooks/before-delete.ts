@@ -14,11 +14,11 @@ import { changedPath, getChangedPathsBelow } from './paths-change.js'
 async function findLift(collection: CollectionConfig, id: Id, req: PayloadRequest) {
   const document = await findDocumentById(collection.slug, id, req)
   if (!document) return
-  const pathAndAncestorsBefore = getStoredPathAndAncestors(document, collection.slug, req.payload)
-  const parent = await findParentPathAndAncestors(collection.slug, pathAndAncestorsBefore.ancestors.at(-1) ?? null, req)
-  const branchMove = await findBranchMove({ collection, id, parent, pathAndAncestorsBefore, req })
+  const { ancestors, paths } = getStoredPathAndAncestors(document, collection.slug, req.payload)
+  const parent = await findParentPathAndAncestors(collection.slug, ancestors.at(-1) ?? null, req)
+  const branchMove = await findBranchMove({ collection, id, parent, req })
   await checkBranchMove(branchMove, req)
-  return { branchMove, document, paths: pathAndAncestorsBefore.paths }
+  return { branchMove, document, paths }
 }
 
 /**

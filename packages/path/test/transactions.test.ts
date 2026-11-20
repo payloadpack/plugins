@@ -104,9 +104,9 @@ describeEachSetup('', {}, (test, setup) => {
       }).toEqual({ cairn: '/crest/slope/cairn', renameWaited: true, ridgeRowIsFree: true, slope: '/crest/slope' })
     })
 
-    // A save that waits for a move above it to end finds its document moved, and its statements must
-    // replace the start the rows below have now, or every row below gets a write of its own. The save
-    // above stays open in a transaction of the test until the save below waits for it.
+    // A save that waits for a move above it to end finds its document moved, and gives the rows below
+    // the paths and ancestors they have below where it is now. The save above stays open in a
+    // transaction of the test until the save below waits for it.
     it.each([
       { name: 'a rename below a rename', kind: 'rename' },
       { name: 'a move below a move', kind: 'move' }

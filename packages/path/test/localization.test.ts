@@ -12,6 +12,7 @@ import {
   readPath,
   remove,
   restoreVersion,
+  store,
   update
 } from './support/documents.js'
 import { SETUPS } from './support/setups.js'
@@ -24,7 +25,7 @@ const inSwedish = { locale: 'sv' }
 const readStoredPaths = async (payload: Payload, collection: CollectionSlug, id: Id) =>
   (await payload.db.findOne<{ id: Id; path: unknown }>({ collection, where: { id: { equals: id } } }))?.path
 
-describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
+describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test, setup) => {
   beforeEach(() => {
     test.changes.length = 0
   })
@@ -590,6 +591,20 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
     expect(changes).toEqual([[{ collection: 'pages', from: '/icehouse', id: icehouse.id, locale: 'en', to: '/icehouse' }]])
   })
 
+  // A document stored before the plugin has values in English only, so on Postgres and SQLite it has
+  // no row for Swedish yet.
+  it('gives a document stored before the plugin its path in every locale when a page above it is renamed', async () => {
+    const { payload } = test
+    const shelf = await create(payload, 'pages', { slug: 'shelf', title: 'Shelf' })
+    const book = await store(test, setup, 'pages', { ancestors: [shelf.id], parent: shelf.id, slug: 'book', title: 'Book' })
+
+    await update(payload, 'pages', shelf.id, { slug: 'bookcase' })
+
+    const bothLocales = { en: '/bookcase/book', sv: '/bookcase/book' }
+    expect(await readStoredPaths(payload, 'pages', book)).toEqual(bothLocales)
+    expect((await readLatestVersion(payload, 'pages', book)).path).toEqual(bothLocales)
+  })
+
   it('gives a document of a collection without drafts the path of each locale it is saved in, and moves it with its parent', async () => {
     const { payload } = test
     const visit = await create(payload, 'notices', { slug: 'visit', title: 'Visit' })
@@ -624,15 +639,12 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
     const lobby = await create(payload, 'notices', { slug: 'lobby', title: 'Lobby' })
     const map = await create(payload, 'notices', { parent: lobby.id, slug: 'map', title: 'Map' })
     await update(payload, 'notices', map.id, { slug: 'karta', title: 'Karta' }, inSwedish)
-    // Beside it, a document whose paths the lift's statements give it, so they run.
-    const desk = await create(payload, 'notices', { parent: lobby.id, slug: 'desk', title: 'Desk' })
     expect(await readStoredPaths(payload, 'notices', map.id)).toEqual({ en: '/lobby/map', sv: null })
 
     await remove(payload, 'notices', lobby.id)
 
     expect(await readStoredPaths(payload, 'notices', map.id)).toEqual({ en: '/map', sv: '/karta' })
     expect(await readDocument(payload, 'notices', map.id)).toMatchObject({ ancestors: [], parent: null })
-    expect(await readPath(payload, 'notices', desk.id)).toBe('/desk')
   })
 
   it('gives a document below with a path in one locale only its new path there when a save renames the document above in every locale at once', async () => {

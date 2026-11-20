@@ -59,13 +59,6 @@ export function hasSamePathAndAncestors(one: PathAndAncestors, other: PathAndAnc
   )
 }
 
-export function hasSameSlugsAndParent(one: SlugsAndParent, other: SlugsAndParent) {
-  return (
-    String(one.parentId) === String(other.parentId) &&
-    Object.entries(one.slugs).every(([locale, slug]) => other.slugs[locale] === slug)
-  )
-}
-
 /**
  * The locales a document's own slug counts in, from the locales it is published in, or a site finds
  * it in: those, and in a collection that isn't localized every locale once there is one, because its
@@ -103,14 +96,11 @@ export function getSlugsAndParent(
 
 // What the paths of the documents right below a parent start with, in each locale: the parent's
 // path, or at the top level the collection's base path.
-export function getParentPaths(parent: PathAndAncestors | null, collectionSlug: string, payload: Payload): Paths {
+function getParentPaths(parent: PathAndAncestors | null, collectionSlug: string, payload: Payload): Paths {
   if (parent) return parent.paths
   const basePath = getBasePath(collectionSlug, payload)
   return Object.fromEntries(getLocales(payload).map((locale) => [locale, basePath]))
 }
-
-// The ancestors of the documents right below a parent: the parent's own and the parent, or none at the top level.
-export const getAncestorsBelow = (parent: ParentPathAndAncestors | null): Id[] => (parent ? [...parent.ancestors, parent.id] : [])
 
 /**
  * The one rule of a path and its ancestors: the parent's path, a slash and the slug, below the
@@ -136,5 +126,5 @@ export function buildPathAndAncestors(
     const isHomePage = !parent && parentPath === NO_BASE_PATH && slug === rootSlug
     return [locale, isHomePage ? HOME_PAGE_PATH : `${parentPath}/${slug}`]
   })
-  return { ancestors: getAncestorsBelow(parent), paths: Object.fromEntries(paths) as Paths }
+  return { ancestors: parent ? [...parent.ancestors, parent.id] : [], paths: Object.fromEntries(paths) as Paths }
 }

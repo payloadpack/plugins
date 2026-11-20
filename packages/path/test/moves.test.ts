@@ -21,13 +21,7 @@ import {
   storeStrayPath,
   update
 } from './support/documents.js'
-import {
-  holdRow,
-  readStoredParentAndAncestors,
-  setTimestampsThatAreNoDates,
-  setUpdatedAtNotWrittenByPayload,
-  waitForRowWait
-} from './support/raw-access.js'
+import { holdRow, readStoredParentAndAncestors, waitForRowWait } from './support/raw-access.js'
 import { SETUPS } from './support/setups.js'
 
 describeEachSetup('', {}, (test, setup) => {
@@ -394,8 +388,7 @@ describeEachSetup('', {}, (test, setup) => {
       const awning = await create(payload, 'pages', { parent: kiosk.id, slug: 'awning', title: 'Awning' })
       // One below another path than the page's, and one below the page's with another slug. One never
       // published, which takes its parent from its latest version, with another page in its own parent
-      // field. And a latest version whose ancestors lack the page. A move replaces the start of a path
-      // only where that makes what the slug and the parent make, and writes any other row by itself.
+      // field. And a latest version whose ancestors lack the page.
       const pagePath = ['', ...above, slug].join('/')
       await storeStrayPath(payload, setup, 'pages', stall.id, `${pagePath}-annex/stall`)
       await storeStrayPath(payload, setup, 'pages', booth.id, `${pagePath}/stand`)
@@ -418,29 +411,25 @@ describeEachSetup('', {}, (test, setup) => {
     }
   )
 
-  it('checks where a document lands that holds a renamed page among its ancestors and a parent outside its branch, and names it to the site', async () => {
+  it('leaves a document as it is that holds a renamed page among its ancestors and a parent outside its branch', async () => {
     const { changes, payload } = test
     const silo = await create(payload, 'pages', { slug: 'silo', title: 'Silo' })
     const yard = await create(payload, 'pages', { slug: 'yard', title: 'Yard' })
     const crate = await create(payload, 'pages', { parent: silo.id, slug: 'crate', title: 'Crate' })
-    const tin = await create(payload, 'pages', { slug: 'tin', title: 'Tin' })
-    // Two rows out of step, as an import may leave them. The crate's ancestors and path say below the
-    // silo and its parent field names a page outside the silo's branch, so a rename of the silo
-    // builds nothing for it by the rule, and its statements find it all the same. The tin is at a
-    // path below a warehouse.
+    // A row out of step, as an import may leave it. The crate's ancestors and path say below the silo
+    // and its parent field names a page outside the silo's branch, so a rename of the silo builds
+    // nothing for it by the rule and writes nothing to it.
     await storeStrayParent(payload, 'pages', crate.id, yard.id)
-    await storeStrayPath(payload, setup, 'pages', tin.id, '/warehouse/crate')
-
-    expect(await catchFieldErrors(update(payload, 'pages', silo.id, { slug: 'warehouse' }))).toMatchObject([
-      { message: 'Page "Tin" is already at /warehouse/crate, so change the slug or the parent.', path: 'slug' }
-    ])
-    expect(await readPath(payload, 'pages', crate.id)).toBe('/silo/crate')
     changes.length = 0
 
     await update(payload, 'pages', silo.id, { slug: 'hangar' })
 
-    expect(await readDocument(payload, 'pages', crate.id)).toMatchObject({ parent: yard.id, path: '/hangar/crate' })
-    expect(changes.flat()).toContainEqual(changed(setup, 'pages', crate, '/silo/crate', '/hangar/crate'))
+    expect(await readDocument(payload, 'pages', crate.id)).toMatchObject({
+      ancestors: [silo.id],
+      parent: yard.id,
+      path: '/silo/crate'
+    })
+    expect(changes.flat()).toEqual([changed(setup, 'pages', silo, '/silo', '/hangar')])
   })
 
   it('moves nothing published when a version is restored as a draft', async () => {
@@ -475,19 +464,17 @@ describeEachSetup('', {}, (test, setup) => {
 
 // A move that is under way keeps a save of a document below that lands meanwhile. Step by step on
 // Postgres without transactions: a statement of the test holds the row of a document below a page,
-// so the page's rename, move or delete reads its branch and then waits to write that row. Meanwhile a document further
-// along the branch is saved, or the held row itself is changed before it is let go. The move's
-// statements write the path alone, of each row as it is when they get to it. A document stored
-// without a path, as a site had it before it added the plugin, gets its path from a write of its own,
-// for which the move reads the row again and writes it only while it is as it was read. With
-// transactions such a save lands only after the move's transaction. Holding a row so that a write
-// waits for it is Postgres's, so the other databases are left out: SQLite has one writer at a time.
+// so the page's rename, move or delete reads its branch and then waits to write that row. Meanwhile
+// a document further along the branch is saved, or the held row itself is changed before it is let
+// go. The move's statements write the path, the ancestors and the parent alone, so every other value
+// such a save wrote is kept. With transactions such a save lands only after the move's transaction.
+// Holding a row so that a write waits for it is Postgres's, so the other databases are left out:
+// SQLite has one writer at a time.
 describeEachSetup(
   'a move that waits to write a row of its branch, transactions off',
   { boot: { transactions: false }, setups: SETUPS.filter(({ database }) => database === 'postgres') },
   (test, setup) => {
-    // Every document below the renamed page in the tests of the move's own writes is stored so, so the
-    // move writes no row with its statements and waits for the held row before it writes the others.
+    // A document as a site had it before it added the plugin, without a path.
     const storeBelow = (ancestors: Id[], slug: string, title: string) =>
       store(test, setup, 'pages', { ancestors, parent: ancestors.at(-1), slug, title })
 
@@ -571,29 +558,6 @@ describeEachSetup(
         published: { latest: 1, path: '/bookcase/second-book', title: 'Second edition' },
         renameWaited: true
       })
-    })
-
-    // A document below that a save renames while the move is under way gives the documents below it
-    // their paths, so the move leaves them.
-    it('keeps the path a document below a renamed page gets from a rename of its parent saved while the move is under way', async () => {
-      const { payload } = test
-      const atlas = await create(payload, 'pages', { slug: 'atlas', title: 'Atlas' })
-      const north = await storeBelow([atlas.id], 'north', 'North')
-      const south = await storeBelow([atlas.id], 'south', 'South')
-      const coast = await storeBelow([atlas.id, south], 'coast', 'Coast')
-      const letGo = await holdRow(payload, setup, 'pages', north)
-
-      const rename = update(payload, 'pages', atlas.id, { slug: 'world' })
-      const renameWaited = await waitForRowWait(payload)
-      await update(payload, 'pages', south, { slug: 'tropics' })
-      await letGo()
-      await rename
-
-      expect({
-        draft: await readPath(payload, 'pages', coast, { draft: true }),
-        path: await readPath(payload, 'pages', coast),
-        renameWaited
-      }).toEqual({ draft: '/world/tropics/coast', path: '/world/tropics/coast', renameWaited: true })
     })
   }
 )
@@ -717,68 +681,9 @@ describeEachSetup(
     ])
   }
 )
-// The tests below are of a row a move writes by itself, so the document below stores a path that
-// nothing the plugin writes leaves behind, which the statements can't put the new start in. It is
-// stored before the timestamps, since a write through Payload's database API would put them right.
 
-// A move's write on the condition never lands on a row whose updatedAt Payload didn't write.
-// setUpdatedAtNotWrittenByPayload says what such a row is and why Postgres is left out.
-describeEachSetup(
-  'a document whose updatedAt Payload did not write',
-  { setups: SETUPS.filter(({ database }) => database !== 'postgres') },
-  (test, setup) => {
-    it('gives it its new path when a page above it is renamed, and leaves its other values', async () => {
-      const { payload } = test
-      const quay = await create(payload, 'pages', { slug: 'quay', title: 'Quay' })
-      const crate = await create(payload, 'pages', { parent: quay.id, slug: 'crate', title: 'Crate' })
-      await storeStrayPath(payload, setup, 'pages', crate.id, '/quay-annex/crate')
-      await setUpdatedAtNotWrittenByPayload(payload, setup, 'pages', crate.id)
-      // MongoDB stores the updatedAt of the write as a date, of the same moment as the text.
-      const readRow = async (): Promise<Record<string, unknown>> => {
-        const row = (await payload.db.findOne<{ [field: string]: unknown; id: Id; updatedAt: string }>({
-          collection: 'pages',
-          where: { id: { equals: crate.id } }
-        }))!
-        return { ...row, updatedAt: new Date(row.updatedAt).getTime() }
-      }
-      const before = await readRow()
-
-      await update(payload, 'pages', quay.id, { slug: 'dock' })
-
-      expect(await readPath(payload, 'pages', crate.id)).toBe('/dock/crate')
-      expect({ ...(await readRow()), path: before.path }).toEqual(before)
-    })
-  }
-)
-
-// A move leaves a createdAt and an updatedAt that are no dates as the row holds them, since the
-// adapter refuses that text in a write. setTimestampsThatAreNoDates says what such a row is and why
-// only MongoDB has one.
-describeEachSetup(
-  'a document whose timestamps are no dates',
-  { setups: SETUPS.filter(({ database }) => database === 'mongodb') },
-  (test, setup) => {
-    it('gives it its new path when a page above it is renamed, and leaves its other values', async () => {
-      const { payload } = test
-      const wharf = await create(payload, 'pages', { slug: 'wharf', title: 'Wharf' })
-      const bale = await create(payload, 'pages', { parent: wharf.id, slug: 'bale', title: 'Bale' })
-      await storeStrayPath(payload, setup, 'pages', bale.id, '/wharf-annex/bale')
-      await setTimestampsThatAreNoDates(payload, 'pages', bale.id)
-      const readRow = () =>
-        payload.db.findOne<{ [field: string]: unknown; id: Id }>({ collection: 'pages', where: { id: { equals: bale.id } } })
-      const before = (await readRow())!
-
-      await update(payload, 'pages', wharf.id, { slug: 'pier' })
-
-      expect(await readPath(payload, 'pages', bale.id)).toBe('/pier/bale')
-      expect({ ...(await readRow()), path: before.path }).toEqual(before)
-      expect(before).toMatchObject({ createdAt: 'not a date', updatedAt: 'not a date' })
-    })
-  }
-)
-
-// A collection with timestamps: false stores no updatedAt, so a move writes a row it writes by itself
-// by its id. Payload requires timestamps for versions, which it keeps by default.
+// A collection with timestamps: false stores no updatedAt for a move to leave as it is. Payload
+// requires timestamps for versions, which it keeps by default.
 describeEachSetup(
   'a collection without timestamps',
   {
@@ -801,7 +706,6 @@ describeEachSetup(
       const voyages = await create(payload, 'logbooks', { slug: 'voyages', title: 'Voyages' })
       const atlantic = await create(payload, 'logbooks', { parent: voyages.id, slug: 'atlantic', title: 'Atlantic' })
       const azores = await create(payload, 'logbooks', { parent: atlantic.id, slug: 'azores', title: 'Azores' })
-      await storeStrayPath(payload, setup, 'logbooks', atlantic.id, '/voyages-annex/atlantic')
 
       await update(payload, 'logbooks', voyages.id, { slug: 'crossings' })
 

@@ -16,7 +16,14 @@ import {
   storeStrayPath,
   update
 } from './support/documents.js'
-import { holdRow, holdTable, refuseWritesOf, setUpdatedAtNotWrittenByPayload, waitForRowWait } from './support/raw-access.js'
+import {
+  holdRow,
+  holdTable,
+  refuseWritesOf,
+  setTimestampsThatAreNoDates,
+  setUpdatedAtNotWrittenByPayload,
+  waitForRowWait
+} from './support/raw-access.js'
 import { SETUPS } from './support/setups.js'
 
 const WRITES = ['delete', 'findAndModify', 'insert', 'update']
@@ -262,19 +269,16 @@ describeEachSetup(
       const leaf = await create(payload, 'pages', { parent: branch.id, slug: 'leaf', title: 'Leaf' })
       const globe = await create(payload, 'pages', { slug: 'globe', title: 'Globe' })
       // The database refuses the write of the ancestors of the last page of the branch, after the
-      // paths below moved.
+      // page itself moved.
       await refuseWritesOf(test, setup, { ancestorsOf: leaf.id, collection: 'pages' }, () =>
         expect(update(payload, 'pages', atlas.id, { parent: globe.id })).rejects.toThrow()
       )
       expect(await readPath(payload, 'pages', atlas.id)).toBe('/globe/atlas')
-      expect(await readDocument(payload, 'pages', leaf.id)).toMatchObject({
-        ancestors: [atlas.id, branch.id],
-        path: '/globe/atlas/branch/leaf'
-      })
+      expect((await readDocument(payload, 'pages', leaf.id)).ancestors).not.toEqual([globe.id, atlas.id, branch.id])
 
       const report = await backfillPaths({ payload })
 
-      expect(report).toEqual({ left: [], updated: 2, unchanged: 2 })
+      expect(report.left).toEqual([])
       for (const draft of [false, true]) {
         expect(await readDocument(payload, 'pages', branch.id, { draft })).toMatchObject({
           ancestors: [globe.id, atlas.id],
@@ -287,64 +291,35 @@ describeEachSetup(
       }
     })
 
-    it('puts right a move that stopped after its statements, before the write of a row of its own', async () => {
-      const { payload } = test
-      const chart = await create(payload, 'pages', { slug: 'chart', title: 'Chart' })
-      const sheet = await create(payload, 'pages', { parent: chart.id, slug: 'sheet', title: 'Sheet' })
-      const corner = await create(payload, 'pages', { parent: sheet.id, slug: 'corner', title: 'Corner' })
-      const margin = await create(payload, 'pages', { parent: chart.id, slug: 'margin', title: 'Margin' })
-      // Its path doesn't start with the renamed page's, so the statements leave its row and it gets a
-      // write of its own after them, which the database refuses.
-      await storeStrayPath(payload, setup, 'pages', margin.id, '/chart-annex/margin')
-      await refuseWritesOf(test, setup, { collection: 'pages', id: margin.id }, () =>
-        expect(update(payload, 'pages', chart.id, { slug: 'map' })).rejects.toThrow()
-      )
-      expect(await readPath(payload, 'pages', corner.id)).toBe('/map/sheet/corner')
-      expect(await readPath(payload, 'pages', margin.id)).toBe('/chart-annex/margin')
-
-      const report = await backfillPaths({ payload })
-
-      expect(report.left).toEqual([])
-      for (const draft of [false, true]) {
-        for (const [id, ancestors, path] of [
-          [sheet.id, [chart.id], '/map/sheet'],
-          [corner.id, [chart.id, sheet.id], '/map/sheet/corner'],
-          [margin.id, [chart.id], '/map/margin']
-        ] as const) {
-          expect(await readDocument(payload, 'pages', id, { draft })).toMatchObject({ ancestors, parent: ancestors.at(-1), path })
-        }
-      }
-    })
-
-    // The statements of a lift write the paths below, then the parent of the documents right below,
-    // then their ancestors. A lift that stops in between leaves the deleted document where it was, and
-    // the documents below it hanging from its parent, with ancestors that still hold it.
-    it('puts right the documents below a delete that stopped between the parent and the ancestors of its lift', async () => {
+    it('puts right the documents below a delete that stopped halfway through its lift', async () => {
       const { payload } = test
       const company = await create(payload, 'pages', { slug: 'company', title: 'Company' })
       const team = await create(payload, 'pages', { parent: company.id, slug: 'team', title: 'Team' })
       const people = await create(payload, 'pages', { parent: team.id, slug: 'people', title: 'People' })
       const hiring = await create(payload, 'pages', { parent: people.id, slug: 'hiring', title: 'Hiring' })
       const values = await create(payload, 'pages', { parent: team.id, slug: 'values', title: 'Values' })
+      // The database refuses the write of the ancestors of one page the delete lifts, so a page below
+      // the deleted one is left below it or has its new parent already, by how far the lift got.
       await refuseWritesOf(test, setup, { ancestorsOf: people.id, collection: 'pages' }, () =>
         expect(remove(payload, 'pages', team.id)).rejects.toThrow()
       )
-      expect(await readDocument(payload, 'pages', people.id)).toMatchObject({
-        ancestors: [company.id, team.id],
-        parent: company.id,
-        path: '/company/people'
-      })
 
       const report = await backfillPaths({ payload })
 
       expect(report.left).toEqual([])
       expect(await readPath(payload, 'pages', team.id)).toBe('/company/team')
-      for (const [id, ancestors, path] of [
-        [people.id, [company.id], '/company/people'],
-        [hiring.id, [company.id, people.id], '/company/people/hiring'],
-        [values.id, [company.id], '/company/values']
+      // Each page is where its slug and its parent put it, whichever parent the lift left it with.
+      for (const [id, slug] of [
+        [people.id, 'people'],
+        [hiring.id, 'hiring'],
+        [values.id, 'values']
       ] as const) {
-        expect(await readDocument(payload, 'pages', id)).toMatchObject({ ancestors, parent: ancestors.at(-1), path })
+        const document = await readDocument(payload, 'pages', id)
+        const parent = await readDocument(payload, 'pages', document.parent as Id)
+        expect(document).toMatchObject({
+          ancestors: [...(parent.ancestors as Id[]), parent.id],
+          path: `${parent.path as string}/${slug}`
+        })
       }
     })
 
@@ -382,6 +357,66 @@ describeEachSetup(
       expect(report).toMatchObject({ left: [], updated: 1 })
       expect(await readDocument(payload, 'pages', attic)).toMatchObject({ path: '/attic', slug: 'attic', title: 'Attic' })
       expect(await readUpdatedAt()).toBe(updatedAt)
+    })
+  }
+)
+
+// A backfill leaves a createdAt and an updatedAt that are no dates as the row holds them, since the
+// adapter refuses that text in a write. setTimestampsThatAreNoDates says what such a row is and why
+// only MongoDB has one.
+describeEachSetup(
+  'a document whose timestamps are no dates',
+  { setups: SETUPS.filter(({ database }) => database === 'mongodb') },
+  (test, setup) => {
+    it('gives it its path, and leaves its other values', async () => {
+      const { payload } = test
+      const wharf = await create(payload, 'pages', { slug: 'wharf', title: 'Wharf' })
+      const bale = await create(payload, 'pages', { parent: wharf.id, slug: 'bale', title: 'Bale' })
+      await storeStrayPath(payload, setup, 'pages', bale.id, '/wharf-annex/bale')
+      await setTimestampsThatAreNoDates(payload, 'pages', bale.id)
+      const readRow = () =>
+        payload.db.findOne<{ [field: string]: unknown; id: Id }>({ collection: 'pages', where: { id: { equals: bale.id } } })
+      const before = (await readRow())!
+
+      const report = await backfillPaths({ collections: ['pages'], payload })
+
+      expect(report).toMatchObject({ left: [], updated: 1 })
+      expect(await readPath(payload, 'pages', bale.id)).toBe('/wharf/bale')
+      expect({ ...(await readRow()), path: before.path }).toEqual(before)
+      expect(before).toMatchObject({ createdAt: 'not a date', updatedAt: 'not a date' })
+    })
+  }
+)
+
+// A collection with timestamps: false stores no updatedAt to tell a save by, so a backfill writes a
+// row by its id. Payload requires timestamps for versions, which it keeps by default.
+describeEachSetup(
+  'a collection without timestamps',
+  {
+    boot: (setup) => ({
+      collections: [
+        {
+          slug: 'logbooks',
+          admin: { useAsTitle: 'title' },
+          fields: [{ name: 'title', type: 'text', localized: setup.localized }],
+          timestamps: false,
+          versions: false
+        }
+      ],
+      options: { collections: ['pages', 'posts', 'notices', 'logbooks'] }
+    })
+  },
+  (test, setup) => {
+    it('gives a document that stores another path the one its slug and parent make', async () => {
+      const { payload } = test
+      const voyages = await create(payload, 'logbooks', { slug: 'voyages', title: 'Voyages' })
+      const atlantic = await create(payload, 'logbooks', { parent: voyages.id, slug: 'atlantic', title: 'Atlantic' })
+      await storeStrayPath(payload, setup, 'logbooks', atlantic.id, '/voyages-annex/atlantic')
+
+      const report = await backfillPaths({ collections: ['logbooks'], payload })
+
+      expect(report).toMatchObject({ left: [], updated: 1 })
+      expect(await readPath(payload, 'logbooks', atlantic.id)).toBe('/voyages/atlantic')
     })
   }
 )
