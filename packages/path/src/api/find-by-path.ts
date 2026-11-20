@@ -127,6 +127,8 @@ export async function findByPath<Slug extends PathCollectionSlug = PathCollectio
       pagination: false,
       req,
       select: querySelect as SelectFor<CollectionSlug> | undefined,
+      // A document in the trash takes no path, also for a caller without the types that passes trash.
+      trash: false,
       where: buildWhere(path, published, where)
     })
     const matched = published ? docs.find(({ _status }) => _status === 'published') : docs[0]

@@ -66,6 +66,9 @@ describeEachSetup(
 
       expect(await findByPath({ path: '/recall', payload })).toBeNull()
       expect(await findByPath({ draft: true, path: '/recall', payload })).toBeNull()
+      // A caller without the types can still pass Payload's trash option.
+      // @ts-expect-error trash is not an option of findByPath
+      expect(await findByPath({ path: '/recall', payload, trash: true })).toBeNull()
     })
 
     it('tells the site the paths of a published document that goes to the trash, and lifts nothing', async () => {
