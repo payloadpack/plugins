@@ -6,7 +6,7 @@ import { sql as sqliteSql } from '@payloadcms/db-sqlite/drizzle'
 import type { Payload, PayloadRequest } from 'payload'
 import { onTestFinished } from 'vitest'
 
-import { ADAPTER_SQL, type Query } from './adapters.js'
+import type { Query } from './adapters.js'
 import type { TestPayload } from './boot-payload.js'
 import type { Setup } from './setups.js'
 
@@ -182,7 +182,7 @@ export async function readStoredParentAndAncestors(
   )
   const idKey = `${collection}ID`
   // The same statements on both, each in the drizzle its adapter brings.
-  const sql = ADAPTER_SQL[setup.database] as typeof postgresSql
+  const sql = (setup.database === 'postgres' ? postgresSql : sqliteSql) as typeof postgresSql
   const latestVersionId = sql`SELECT ${versions.id} FROM ${versions} WHERE ${versions.parent} = ${id} AND ${versions.latest} = ${true}`
   const readIds = async (statement: ReturnType<typeof postgresSql>) =>
     setup.database === 'postgres'

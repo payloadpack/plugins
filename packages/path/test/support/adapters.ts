@@ -1,6 +1,6 @@
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
-import { postgresAdapter, sql as postgresSql } from '@payloadcms/db-postgres'
-import { sqliteAdapter, sql as sqliteSql } from '@payloadcms/db-sqlite'
+import { postgresAdapter } from '@payloadcms/db-postgres'
+import { sqliteAdapter } from '@payloadcms/db-sqlite'
 import path from 'node:path'
 import { inject } from 'vitest'
 
@@ -10,9 +10,6 @@ import type { DatabaseName } from './setups.js'
 // while another was running; the SQL adapters run one statement at a time on a connection. A SQL
 // statement keeps its text and the values bound to it.
 export type Query = { collection: string; operation: string; parallel: boolean; sql?: { params: unknown[]; text: string } }
-
-// The sql a site on each database gives the plugin: its adapter's own, and none on MongoDB.
-export const ADAPTER_SQL = { mongodb: undefined, postgres: postgresSql, sqlite: sqliteSql }
 
 const MONGODB_DATA_COMMANDS = ['aggregate', 'count', 'delete', 'find', 'findAndModify', 'getMore', 'insert', 'update']
 
