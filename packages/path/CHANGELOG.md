@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/payloadpack/plugins/compare/path-v0.1.2...path-v0.2.0) (2026-11-20)
+
+
+### Features
+
+* **path:** forward payload.find options in findByPath ([#92](https://github.com/payloadpack/plugins/issues/92)) ([3f78eaa](https://github.com/payloadpack/plugins/commit/3f78eaaeba1dec90e8534beb5e33f7e1f2014b91))
+
+
+### Bug Fixes
+
+* **path:** support Payload 4.0.0-beta.11 ([#94](https://github.com/payloadpack/plugins/issues/94)) ([bd78caf](https://github.com/payloadpack/plugins/commit/bd78caf27f3941cb6dcd30522aa98bec64f5c8c7))
+
 ## [0.1.2](https://github.com/payloadpack/plugins/compare/path-v0.1.1...path-v0.1.2) (2026-11-20)
 
 
