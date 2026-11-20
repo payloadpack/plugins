@@ -27,12 +27,6 @@ import {
   type PathPluginOptions
 } from './options.js'
 
-// A collection whose documents have a parent stores their ancestors, and gets the plugin's parent
-// field unless Payload's own hierarchy brings one. Only that field takes what the site sets on a
-// parent field. The plugin's hooks go ahead of the collection's own, so those see the path and a
-// refused save or delete stops before them. Two go after them: the lift of a delete, so a delete the
-// collection's own hooks refuse moves nothing, and startBulkOperationBeforeOperation, which then
-// sees the operation as it runs.
 function withPath(
   collection: CollectionConfig,
   {
@@ -50,7 +44,6 @@ function withPath(
     pathField(localized),
     ...(hasParent ? [ancestorsField(collection.slug)] : [])
   ]
-  // A collection can't have a field of its own under the name of one the plugin adds to it.
   const fieldNames = new Set(fields.map(({ name }) => name))
   const takenFieldNames = collection.fields.flatMap((field) =>
     'name' in field && fieldNames.has(field.name) ? [field.name] : []
@@ -59,6 +52,10 @@ function withPath(
   return {
     ...collection,
     fields: [...collection.fields, ...fields],
+    // The plugin's hooks go ahead of the collection's own, so those see the path and a refused save or
+    // delete stops before them. Two go after them: the lift of a delete, so a delete the collection's
+    // own hooks refuse moves nothing, and startBulkOperationBeforeOperation, which then sees the
+    // operation as it runs.
     hooks: {
       ...collection.hooks,
       afterChange: [setPathAfterChange, ...(collection.hooks?.afterChange ?? [])],
@@ -87,10 +84,10 @@ export function pathPlugin(options: PathPluginOptions): Plugin {
     return {
       ...config,
       collections: config.collections?.map((collection) => {
-        const given = getCollection(collection.slug, pathConfig)
-        if (!given) return collection
+        const pathCollection = getCollection(collection.slug, pathConfig)
+        if (!pathCollection) return collection
         const fieldOptions = getFieldOptions(collection.slug, options)
-        return withPath(collection, { ...given, fieldOptions, slugify: pathConfig.slugify })
+        return withPath(collection, { ...pathCollection, fieldOptions, slugify: pathConfig.slugify })
       }),
       custom: storePathConfig(config.custom, pathConfig)
     }

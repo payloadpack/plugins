@@ -1,0 +1,355 @@
+{
+  "ranOn": {
+    "date": "2026-11-19",
+    "database": "MongoDB",
+    "pagesPerCollection": 10000,
+    "queryMilliseconds": 6.4
+  },
+  "methods": [
+    {
+      "id": "path",
+      "label": "path"
+    },
+    {
+      "id": "path-released",
+      "label": "path 0.1.1"
+    },
+    {
+      "id": "slug-walk",
+      "label": "slug by slug"
+    },
+    {
+      "id": "built-on-read",
+      "label": "built on read"
+    },
+    {
+      "id": "ancestors",
+      "label": "ancestors"
+    }
+  ],
+  "lookups": [
+    {
+      "name": "1 segment",
+      "rows": [
+        {
+          "method": "path",
+          "median": 7.1,
+          "queries": 1,
+          "runs": 300
+        },
+        {
+          "method": "slug-walk",
+          "median": 6.2,
+          "queries": 1,
+          "runs": 300
+        },
+        {
+          "method": "built-on-read",
+          "median": 6.75,
+          "queries": 1,
+          "runs": 300
+        },
+        {
+          "method": "ancestors",
+          "median": 13.01,
+          "queries": 2,
+          "runs": 300
+        }
+      ]
+    },
+    {
+      "name": "3 segments",
+      "rows": [
+        {
+          "method": "path",
+          "median": 6.67,
+          "queries": 1,
+          "runs": 300
+        },
+        {
+          "method": "slug-walk",
+          "median": 20.61,
+          "queries": 3,
+          "runs": 300
+        },
+        {
+          "method": "built-on-read",
+          "median": 17.17,
+          "queries": 2,
+          "runs": 300
+        },
+        {
+          "method": "ancestors",
+          "median": 13.03,
+          "queries": 2,
+          "runs": 300
+        }
+      ]
+    },
+    {
+      "name": "7 segments",
+      "rows": [
+        {
+          "method": "path",
+          "median": 5.71,
+          "queries": 1,
+          "runs": 300
+        },
+        {
+          "method": "slug-walk",
+          "median": 48.95,
+          "queries": 7,
+          "runs": 300
+        },
+        {
+          "method": "built-on-read",
+          "median": 7.0,
+          "queries": 1,
+          "runs": 300
+        },
+        {
+          "method": "ancestors",
+          "median": 14.65,
+          "queries": 2,
+          "runs": 300
+        }
+      ]
+    },
+    {
+      "name": "3 segments, last slug on 1,000 pages",
+      "rows": [
+        {
+          "method": "path",
+          "median": 6.29,
+          "queries": 1,
+          "runs": 300
+        },
+        {
+          "method": "slug-walk",
+          "median": 20.53,
+          "queries": 3,
+          "runs": 300
+        },
+        {
+          "method": "built-on-read",
+          "median": 37.41,
+          "queries": 2,
+          "runs": 300
+        },
+        {
+          "method": "ancestors",
+          "median": 13.69,
+          "queries": 2,
+          "runs": 300
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "name": "Menu of 20 links",
+      "rows": [
+        {
+          "method": "path",
+          "median": 16.82,
+          "queries": 2,
+          "runs": 200
+        },
+        {
+          "method": "slug-walk",
+          "median": 72.08,
+          "queries": 59,
+          "runs": 20
+        },
+        {
+          "method": "built-on-read",
+          "median": 58.7,
+          "queries": 8,
+          "runs": 200
+        },
+        {
+          "method": "ancestors",
+          "median": 23.95,
+          "queries": 3,
+          "runs": 200
+        }
+      ]
+    },
+    {
+      "name": "Menu of 100 links",
+      "rows": [
+        {
+          "method": "path",
+          "median": 20.67,
+          "queries": 2,
+          "runs": 200
+        },
+        {
+          "method": "slug-walk",
+          "median": 95.32,
+          "queries": 297,
+          "runs": 20
+        },
+        {
+          "method": "built-on-read",
+          "median": 70.1,
+          "queries": 8,
+          "runs": 200
+        },
+        {
+          "method": "ancestors",
+          "median": 43.01,
+          "queries": 4,
+          "runs": 200
+        }
+      ]
+    },
+    {
+      "name": "Menu of 500 links",
+      "rows": [
+        {
+          "method": "path",
+          "median": 46.19,
+          "queries": 3,
+          "runs": 200
+        },
+        {
+          "method": "slug-walk",
+          "median": 214.18,
+          "queries": 1497,
+          "runs": 20
+        },
+        {
+          "method": "built-on-read",
+          "median": 132.95,
+          "queries": 11,
+          "runs": 200
+        },
+        {
+          "method": "ancestors",
+          "median": 76.8,
+          "queries": 5,
+          "runs": 200
+        }
+      ]
+    },
+    {
+      "name": "List of 50 pages",
+      "rows": [
+        {
+          "method": "path",
+          "median": 13.4,
+          "queries": 2,
+          "runs": 200
+        },
+        {
+          "method": "slug-walk",
+          "median": 26.19,
+          "queries": 102,
+          "runs": 20
+        },
+        {
+          "method": "built-on-read",
+          "median": 27.03,
+          "queries": 4,
+          "runs": 200
+        },
+        {
+          "method": "ancestors",
+          "median": 17.76,
+          "queries": 3,
+          "runs": 200
+        }
+      ]
+    },
+    {
+      "name": "Sitemap of 10,000 pages",
+      "rows": [
+        {
+          "method": "path",
+          "median": 68.18,
+          "queries": 2,
+          "runs": 20
+        },
+        {
+          "method": "slug-walk",
+          "median": 86.23,
+          "queries": 2,
+          "runs": 20
+        },
+        {
+          "method": "built-on-read",
+          "median": 96.12,
+          "queries": 2,
+          "runs": 20
+        },
+        {
+          "method": "ancestors",
+          "median": 116.85,
+          "queries": 2,
+          "runs": 20
+        }
+      ]
+    }
+  ],
+  "moves": [
+    {
+      "name": "Rename with 1,000 pages below",
+      "rows": [
+        {
+          "method": "path-released",
+          "median": 40754.33,
+          "queries": 5026,
+          "runs": 2
+        },
+        {
+          "method": "path",
+          "median": 443,
+          "queries": 28,
+          "runs": 10
+        },
+        {
+          "method": "built-on-read",
+          "median": 137.44,
+          "queries": 14,
+          "runs": 10
+        },
+        {
+          "method": "ancestors",
+          "median": 148.46,
+          "queries": 14,
+          "runs": 10
+        }
+      ]
+    },
+    {
+      "name": "Move with 1,000 pages below",
+      "rows": [
+        {
+          "method": "path-released",
+          "median": 40541.52,
+          "queries": 5030,
+          "runs": 2
+        },
+        {
+          "method": "path",
+          "median": 471,
+          "queries": 32,
+          "runs": 10
+        },
+        {
+          "method": "built-on-read",
+          "median": 153.56,
+          "queries": 17,
+          "runs": 10
+        },
+        {
+          "method": "ancestors",
+          "median": 390.71,
+          "queries": 29,
+          "runs": 10
+        }
+      ]
+    }
+  ]
+}

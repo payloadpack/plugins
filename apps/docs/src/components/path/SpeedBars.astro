@@ -1,0 +1,185 @@
+---
+import { formatTime } from './speed'
+
+export type Bar = { label: string; median: number; title: string }
+export type Panel = { groups: { bars: Bar[]; label: string }[]; title?: string }
+
+interface Props {
+  caption: string
+  panels: Panel[]
+}
+
+const { caption, panels } = Astro.props
+
+// A bar this long or longer holds its time, and a shorter one has it right after.
+const HOLDS_ITS_TIME = 0.45
+
+// Closer than this, the fastest of a group isn't called faster.
+const TIE = 1.2
+
+// The bars of a group share a scale that ends at the slowest, and the fastest says how many times faster
+// it is than the next.
+function measureGroup(bars: Bar[]) {
+  const [fastest, next] = [...bars].sort((first, second) => first.median - second.median)
+  const slowest = Math.max(...bars.map(({ median }) => median))
+  const timesFaster = next ? next.median / fastest!.median : 1
+  return bars.map((bar) => {
+    const length = bar.median / slowest
+    const wins = bar === fastest && timesFaster >= TIE
+    return { ...bar, inside: length >= HOLDS_ITS_TIME, length, timesFaster: wins ? timesFaster : undefined, wins }
+  })
+}
+
+const formatTimesFaster = (times: number) =>
+  `${times.toLocaleString('en', { maximumFractionDigits: times < 10 ? 1 : 0 })}× faster`
+---
+
+<figure class="speed-bars">
+  <div class="speed-bars-panels not-content">
+    {
+      panels.map(({ groups, title }) => (
+        <section>
+          {title && <p class="speed-bars-title">{title}</p>}
+          {groups.map(({ bars, label }) => (
+            <div class="speed-bars-group">
+              <p class="speed-bars-group-label">{label}</p>
+              <ul>
+                {measureGroup(bars).map((bar) => (
+                  <li title={bar.title}>
+                    <span class="speed-bars-method">{bar.label}</span>
+                    <span class="speed-bars-track">
+                      <span
+                        class:list={['speed-bars-bar', { 'speed-bars-bar-fastest': bar.wins }]}
+                        style={`--length: ${bar.length.toFixed(4)}`}>
+                        {bar.inside && formatTime(bar.median)}
+                      </span>
+                      {!bar.inside && <span class="speed-bars-time">{formatTime(bar.median)}</span>}
+                      {bar.timesFaster && <span class="speed-bars-faster">{formatTimesFaster(bar.timesFaster)}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </section>
+      ))
+    }
+  </div>
+  <figcaption>{caption}</figcaption>
+  <details>
+    <summary>The numbers</summary>
+    <slot />
+  </details>
+</figure>
+
+<style>
+  /* The fastest bar of a group wears the brand's emerald, and the others stay neutral. */
+  .speed-bars {
+    /* Kept free after the longest bar, for what the fastest says. */
+    --speed-room: 5.5rem;
+    --speed-bar: color-mix(in oklab, var(--docs-foreground) 16%, transparent);
+    --speed-bar-fastest: #10b981;
+    --speed-bar-fastest-ink: #04281c;
+    margin-block: 1.5rem;
+  }
+
+  .speed-bars-panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+    gap: 1.5rem 2rem;
+    font-size: var(--sl-text-xs);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.25rem;
+  }
+
+  .speed-bars-title {
+    font-size: var(--sl-text-sm);
+    font-weight: 600;
+    color: var(--docs-foreground);
+  }
+
+  .speed-bars-group + .speed-bars-group,
+  .speed-bars-title + .speed-bars-group {
+    margin-block-start: 0.75rem;
+  }
+
+  .speed-bars-group-label {
+    color: var(--docs-muted-foreground);
+  }
+
+  /* The method names of a group take one column, as wide as the longest. */
+  .speed-bars-group ul {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 2px 0.5rem;
+    align-items: center;
+    margin: 0.25rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .speed-bars-group li {
+    display: contents;
+  }
+
+  .speed-bars-method {
+    color: var(--sl-color-gray-2);
+  }
+
+  .speed-bars-track {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .speed-bars-bar {
+    flex: none;
+    box-sizing: border-box;
+    width: calc((100% - var(--speed-room)) * var(--length));
+    min-width: 3px;
+    height: 1.25rem;
+    padding-inline: 0.375rem;
+    overflow: hidden;
+    border-radius: 0 4px 4px 0;
+    background: var(--speed-bar);
+    color: var(--docs-foreground);
+    text-align: end;
+  }
+
+  .speed-bars-bar:empty {
+    padding-inline: 0;
+  }
+
+  .speed-bars-bar-fastest {
+    background: var(--speed-bar-fastest);
+    color: var(--speed-bar-fastest-ink);
+    font-weight: 600;
+  }
+
+  .speed-bars-time {
+    color: var(--sl-color-gray-2);
+  }
+
+  .speed-bars-faster {
+    color: var(--docs-foreground);
+    font-weight: 600;
+  }
+
+  figcaption {
+    margin-block-start: 1rem;
+    font-size: var(--sl-text-sm);
+    color: var(--docs-muted-foreground);
+  }
+
+  details {
+    margin-block-start: 0.75rem;
+    font-size: var(--sl-text-sm);
+  }
+
+  summary {
+    cursor: pointer;
+    color: var(--sl-color-gray-2);
+  }
+</style>

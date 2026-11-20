@@ -5,8 +5,25 @@ import { backfillPaths, findByPath } from '../src/index.js'
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import type { Query } from './support/adapters.js'
 import { describeEachSetup } from './support/boot-payload.js'
-import { countLatestVersions, create, readDocument, readLatestVersion, readPath, store, update } from './support/documents.js'
-import { holdRow, holdTable, refuseWritesOf, setUpdatedAtNotWrittenByPayload, waitForRowWait } from './support/raw-access.js'
+import {
+  countLatestVersions,
+  create,
+  readDocument,
+  readLatestVersion,
+  readPath,
+  remove,
+  store,
+  storePathInRow,
+  update
+} from './support/documents.js'
+import {
+  holdRow,
+  holdTable,
+  refuseWritesOf,
+  setTimestampsThatAreNoDates,
+  setUpdatedAtNotWrittenByPayload,
+  waitForRowWait
+} from './support/raw-access.js'
 import { SETUPS } from './support/setups.js'
 
 const WRITES = ['delete', 'findAndModify', 'insert', 'update']
@@ -62,7 +79,6 @@ describeEachSetup('', {}, (test, setup) => {
     })
     expect(await readPath(payload, 'pages', lunch)).toBe('/menu/lunch')
 
-    // The draft's publish carries the move out, with the page below.
     await update(payload, 'pages', menu, {})
 
     expect(await readPath(payload, 'pages', menu)).toBe('/food')
@@ -199,8 +215,7 @@ describeEachSetup('', {}, (test, setup) => {
   })
 })
 
-// A site may run the backfill in a transaction of its own, such as a migration's, by giving it that
-// transaction's request.
+// A site may run the backfill in a transaction of its own, such as a migration's.
 describeEachSetup('given a request', {}, (test, setup) => {
   it('writes in the transaction of the request, so its writes are undone with it', async () => {
     const { payload } = test
@@ -251,16 +266,16 @@ describeEachSetup(
       const branch = await create(payload, 'pages', { parent: atlas.id, slug: 'branch', title: 'Branch' })
       const leaf = await create(payload, 'pages', { parent: branch.id, slug: 'leaf', title: 'Leaf' })
       const globe = await create(payload, 'pages', { slug: 'globe', title: 'Globe' })
-      // The database refuses the write of the last page of the branch, after the pages above it moved.
-      await refuseWritesOf(test, setup, { collection: 'pages', id: leaf.id }, () =>
+      // Refused after the page itself moved, so the move stops halfway.
+      await refuseWritesOf(test, setup, { ancestorsOf: leaf.id, collection: 'pages' }, () =>
         expect(update(payload, 'pages', atlas.id, { parent: globe.id })).rejects.toThrow()
       )
       expect(await readPath(payload, 'pages', atlas.id)).toBe('/globe/atlas')
-      expect(await readPath(payload, 'pages', leaf.id)).toBe('/atlas/branch/leaf')
+      expect((await readDocument(payload, 'pages', leaf.id)).ancestors).not.toEqual([globe.id, atlas.id, branch.id])
 
       const report = await backfillPaths({ payload })
 
-      expect(report).toEqual({ left: [], updated: 2, unchanged: 2 })
+      expect(report.left).toEqual([])
       for (const draft of [false, true]) {
         expect(await readDocument(payload, 'pages', branch.id, { draft })).toMatchObject({
           ancestors: [globe.id, atlas.id],
@@ -269,6 +284,36 @@ describeEachSetup(
         expect(await readDocument(payload, 'pages', leaf.id, { draft })).toMatchObject({
           ancestors: [globe.id, atlas.id, branch.id],
           path: '/globe/atlas/branch/leaf'
+        })
+      }
+    })
+
+    it('puts right the documents below a delete that stopped halfway through its lift', async () => {
+      const { payload } = test
+      const company = await create(payload, 'pages', { slug: 'company', title: 'Company' })
+      const team = await create(payload, 'pages', { parent: company.id, slug: 'team', title: 'Team' })
+      const people = await create(payload, 'pages', { parent: team.id, slug: 'people', title: 'People' })
+      const hiring = await create(payload, 'pages', { parent: people.id, slug: 'hiring', title: 'Hiring' })
+      const values = await create(payload, 'pages', { parent: team.id, slug: 'values', title: 'Values' })
+      await refuseWritesOf(test, setup, { ancestorsOf: people.id, collection: 'pages' }, () =>
+        expect(remove(payload, 'pages', team.id)).rejects.toThrow()
+      )
+
+      const report = await backfillPaths({ payload })
+
+      expect(report.left).toEqual([])
+      expect(await readPath(payload, 'pages', team.id)).toBe('/company/team')
+      // The lift stopped partway, so a page below may have its old parent or its new one.
+      for (const [id, slug] of [
+        [people.id, 'people'],
+        [hiring.id, 'hiring'],
+        [values.id, 'values']
+      ] as const) {
+        const document = await readDocument(payload, 'pages', id)
+        const parent = await readDocument(payload, 'pages', document.parent as Id)
+        expect(document).toMatchObject({
+          ancestors: [...(parent.ancestors as Id[]), parent.id],
+          path: `${parent.path as string}/${slug}`
         })
       }
     })
@@ -311,12 +356,69 @@ describeEachSetup(
   }
 )
 
-// A backfill reads each document again when it gets to it, and writes its row only while it is as it
-// was read, so a save that lands while the run is under way is kept. Step by step on Postgres without
-// transactions: a statement of the test holds the row of a page that stores another path than its
-// slug makes, so the run waits to write it. Meanwhile the page below it, which the run comes to after
-// it, is saved, or the held row itself is changed before it is let go. Holding a row so that a write
-// waits for it is Postgres's, so the other databases are left out: SQLite has one writer at a time.
+// A backfill leaves a createdAt and an updatedAt that are no dates as the row holds them, since the
+// adapter refuses that text in a write. setTimestampsThatAreNoDates says what such a row is and why
+// only MongoDB has one.
+describeEachSetup(
+  'a document whose timestamps are no dates',
+  { setups: SETUPS.filter(({ database }) => database === 'mongodb') },
+  (test, setup) => {
+    it('gives it its path, and leaves its other values', async () => {
+      const { payload } = test
+      const wharf = await create(payload, 'pages', { slug: 'wharf', title: 'Wharf' })
+      const bale = await create(payload, 'pages', { parent: wharf.id, slug: 'bale', title: 'Bale' })
+      await storePathInRow(payload, setup, 'pages', bale.id, '/wharf-annex/bale')
+      await setTimestampsThatAreNoDates(payload, 'pages', bale.id)
+      const readRow = () =>
+        payload.db.findOne<{ [field: string]: unknown; id: Id }>({ collection: 'pages', where: { id: { equals: bale.id } } })
+      const before = (await readRow())!
+
+      const report = await backfillPaths({ collections: ['pages'], payload })
+
+      expect(report).toMatchObject({ left: [], updated: 1 })
+      expect(await readPath(payload, 'pages', bale.id)).toBe('/wharf/bale')
+      expect({ ...(await readRow()), path: before.path }).toEqual(before)
+      expect(before).toMatchObject({ createdAt: 'not a date', updatedAt: 'not a date' })
+    })
+  }
+)
+
+// A collection with timestamps: false stores no updatedAt to tell a save by, so a backfill writes a
+// row by its id. Payload requires timestamps for versions, which it keeps by default.
+describeEachSetup(
+  'a collection without timestamps',
+  {
+    boot: (setup) => ({
+      collections: [
+        {
+          slug: 'logbooks',
+          admin: { useAsTitle: 'title' },
+          fields: [{ name: 'title', type: 'text', localized: setup.localized }],
+          timestamps: false,
+          versions: false
+        }
+      ],
+      options: { collections: ['pages', 'posts', 'notices', 'logbooks'] }
+    })
+  },
+  (test, setup) => {
+    it('gives a document that stores another path the one its slug and parent make', async () => {
+      const { payload } = test
+      const voyages = await create(payload, 'logbooks', { slug: 'voyages', title: 'Voyages' })
+      const atlantic = await create(payload, 'logbooks', { parent: voyages.id, slug: 'atlantic', title: 'Atlantic' })
+      await storePathInRow(payload, setup, 'logbooks', atlantic.id, '/voyages-annex/atlantic')
+
+      const report = await backfillPaths({ collections: ['logbooks'], payload })
+
+      expect(report).toMatchObject({ left: [], updated: 1 })
+      expect(await readPath(payload, 'logbooks', atlantic.id)).toBe('/voyages/atlantic')
+    })
+  }
+)
+
+// A held page stores another path than its slug makes, so the run has its row to write and waits for
+// it, and comes to the page below it only after. Holding a row so that a write waits for it is
+// Postgres's, so the other databases are left out: SQLite has one writer at a time.
 describeEachSetup(
   'a backfill that waits to write a row, transactions off',
   { boot: { transactions: false }, setups: SETUPS.filter(({ database }) => database === 'postgres') },
@@ -326,16 +428,17 @@ describeEachSetup(
       const path = setup.localized ? { en: '/old-cellar' } : '/old-cellar'
       const cellar = await store(test, setup, 'pages', { path, slug: 'cellar', title: 'Cellar' })
       const vintage = await store(test, setup, 'pages', { parent: cellar, slug: 'vintage', title: 'Vintage' })
-      const letGo = await holdRow(payload, 'pages', cellar)
+      const letGo = await holdRow(payload, setup, 'pages', cellar)
 
       const backfill = backfillPaths({ collections: ['pages'], payload })
-      await waitForRowWait(payload)
+      const backfillWaited = await waitForRowWait(payload)
       await update(payload, 'pages', vintage, { title: 'Vintage, restocked' })
       await letGo()
       await backfill
 
       const { path: vintagePath, title } = await readDocument(payload, 'pages', vintage)
-      expect({ latest: await countLatestVersions(payload, 'pages', vintage), path: vintagePath, title }).toEqual({
+      expect({ backfillWaited, latest: await countLatestVersions(payload, 'pages', vintage), path: vintagePath, title }).toEqual({
+        backfillWaited: true,
         latest: 1,
         path: '/cellar/vintage',
         title: 'Vintage, restocked'
@@ -346,16 +449,16 @@ describeEachSetup(
       const { payload } = test
       const path = setup.localized ? { en: '/old-pantry' } : '/old-pantry'
       const pantry = await store(test, setup, 'pages', { path, slug: 'pantry', title: 'Pantry' })
-      const commit = await holdRow(payload, 'pages', pantry, { localized: setup.localized, title: 'Larder' })
+      const commit = await holdRow(payload, setup, 'pages', pantry, { savedTitle: 'Larder' })
 
       const backfill = backfillPaths({ collections: ['pages'], payload })
-      await waitForRowWait(payload)
+      const backfillWaited = await waitForRowWait(payload)
       await commit()
       const report = await backfill
 
       expect(report).toMatchObject({ left: [], updated: 1 })
       const { path: pantryPath, title } = await readDocument(payload, 'pages', pantry)
-      expect({ path: pantryPath, title }).toEqual({ path: '/pantry', title: 'Larder' })
+      expect({ backfillWaited, path: pantryPath, title }).toEqual({ backfillWaited: true, path: '/pantry', title: 'Larder' })
     })
   }
 )

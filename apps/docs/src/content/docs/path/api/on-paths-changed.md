@@ -51,7 +51,6 @@ Each entry of `changedPaths` is one published document in one locale: `from` is 
 - It isn't called when there is nothing to list. A delete of a document in the trash lists no path of its own, since your site heard it when it went there, and still lists the documents below that were lifted.
 - A move of a big branch lists every published document below it, so a branch of thousands gives thousands of entries.
 - A bulk delete that deletes a document and one below it reports each delete on its own, and they may come in either order. Each lifted document is listed with where it ended up. A document that was lifted and then deleted in the same bulk delete is listed by both: with a `to` by the delete above it, and without one by its own.
-- A document that a move left as it was, because a save gave it a new slug or parent meanwhile, is still listed with the path the move meant for it. See [Limits](/path/limits/#a-document-stays-at-its-old-path-after-the-document-above-it-moved).
 - With localization, each entry has its `locale`, and only the locales the save changed are listed, which usually includes the ones that fall back to a renamed slug.
 - A collection with one path in every locale is listed in the same shape: its one path once for each locale your site finds the document in.
 

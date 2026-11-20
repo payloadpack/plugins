@@ -1,5 +1,5 @@
-import type { Payload } from 'payload'
-import { expect, it } from 'vitest'
+import { commitTransaction, createPayloadRequest, initTransaction, killTransaction, type Payload } from 'payload'
+import { expect, it, onTestFinished } from 'vitest'
 
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup } from './support/boot-payload.js'
@@ -13,7 +13,7 @@ import {
   restoreVersion,
   update
 } from './support/documents.js'
-import { refuseWritesOf } from './support/raw-access.js'
+import { holdRow, isRowFree, refuseWritesOf, waitForRowWait } from './support/raw-access.js'
 
 describeEachSetup('', {}, (test, setup) => {
   it('leaves every path, ancestor and version as it was when a move fails at one of its writes', async () => {
@@ -23,7 +23,7 @@ describeEachSetup('', {}, (test, setup) => {
     const leaf = await create(payload, 'pages', { parent: branch.id, slug: 'leaf', title: 'Leaf' })
     const globe = await create(payload, 'pages', { slug: 'globe', title: 'Globe' })
 
-    // The database refuses the last write the move makes: the latest versions below the page.
+    // Refuses the latest versions below, which are written after the documents below moved.
     await refuseWritesOf(test, setup, { collection: 'pages', path: '/globe/atlas/branch/leaf', versions: true }, () =>
       expect(update(payload, 'pages', atlas.id, { parent: globe.id })).rejects.toThrow()
     )
@@ -36,6 +36,24 @@ describeEachSetup('', {}, (test, setup) => {
     expect(stored.ancestors).toEqual([atlas.id, branch.id])
     expect(await readPath(payload, 'pages', atlas.id, { draft: true })).toBe('/atlas')
     expect((await readDocument(payload, 'pages', atlas.id)).parent).toBeFalsy()
+  })
+
+  it('leaves every path and version as it was when a rename fails at one of its writes', async () => {
+    const { payload } = test
+    const almanac = await create(payload, 'pages', { slug: 'almanac', title: 'Almanac' })
+    const season = await create(payload, 'pages', { parent: almanac.id, slug: 'season', title: 'Season' })
+    const tide = await create(payload, 'pages', { parent: season.id, slug: 'tide', title: 'Tide' })
+
+    // Refuses the last write the rename makes, the latest versions below.
+    await refuseWritesOf(test, setup, { collection: 'pages', path: '/calendar/season/tide', versions: true }, () =>
+      expect(update(payload, 'pages', almanac.id, { slug: 'calendar' })).rejects.toThrow()
+    )
+
+    for (const draft of [false, true]) {
+      expect(await readPath(payload, 'pages', almanac.id, { draft })).toBe('/almanac')
+      expect(await readPath(payload, 'pages', season.id, { draft })).toBe('/almanac/season')
+      expect(await readPath(payload, 'pages', tide.id, { draft })).toBe('/almanac/season/tide')
+    }
   })
 
   // MongoDB doesn't support parallel operations in one transaction. The SQL adapters run one statement
@@ -56,13 +74,134 @@ describeEachSetup('', {}, (test, setup) => {
       expect(queries.filter(({ parallel }) => parallel)).toEqual([])
     })
   }
+
+  // Two saves in one branch at once must not each hold a row the other waits for. Payload's write of a
+  // document holds its row so that the foreign key check of another save that names it as an ancestor
+  // waits, so the move takes its rows before it. Holding a row so that a write waits for it is
+  // Postgres's, and without transactions nothing is held.
+  if (setup.database === 'postgres') {
+    it("lets the foreign key check of another save through to the renamed page's row while the rename waits", async () => {
+      const { payload } = test
+      const ridge = await create(payload, 'pages', { slug: 'ridge', title: 'Ridge' })
+      const slope = await create(payload, 'pages', { parent: ridge.id, slug: 'slope', title: 'Slope' })
+      const cairn = await create(payload, 'pages', { parent: slope.id, slug: 'cairn', title: 'Cairn' })
+      const letGo = await holdRow(payload, setup, 'pages', cairn.id)
+
+      const rename = update(payload, 'pages', ridge.id, { slug: 'crest' })
+      const renameWaited = await waitForRowWait(payload)
+      const ridgeRowIsFree = await isRowFree(payload, setup, 'pages', ridge.id, 'KEY SHARE')
+      await letGo()
+      await rename
+
+      expect({
+        cairn: await readPath(payload, 'pages', cairn.id),
+        renameWaited,
+        ridgeRowIsFree,
+        slope: await readPath(payload, 'pages', slope.id)
+      }).toEqual({ cairn: '/crest/slope/cairn', renameWaited: true, ridgeRowIsFree: true, slope: '/crest/slope' })
+    })
+
+    // The save above stays open in a transaction of the test until the save below waits for it.
+    it.each([
+      { name: 'a rename below a rename', kind: 'rename' },
+      { name: 'a move below a move', kind: 'move' }
+    ] as const)(
+      'moves the documents below $name that waited for the one above with the same statements for 30 below as for 3',
+      async ({ kind }) => {
+        const { payload } = test
+        const readStatementsOfSaveThatWaited = async (size: number) => {
+          const prefix = `${kind}-${size}`
+          const [atlas, harbor, quay] = await Promise.all(
+            ['atlas', 'harbor', 'quay'].map(
+              async (top) => (await create(payload, 'pages', { slug: `${prefix}-${top}`, title: top })).id
+            )
+          )
+          const branch = (await create(payload, 'pages', { parent: atlas, slug: 'branch', title: 'Branch' })).id
+          const rows = await Promise.all(
+            Array.from(
+              { length: size },
+              async (_, number) => (await create(payload, 'pages', { parent: branch, slug: `row-${number}`, title: 'Row' })).id
+            )
+          )
+          const { above, ancestors, below, path } =
+            kind === 'rename'
+              ? {
+                  above: { slug: `${prefix}-atlas-renamed` },
+                  ancestors: [atlas, branch],
+                  below: { slug: 'branch-renamed' },
+                  path: `/${prefix}-atlas-renamed/branch-renamed`
+                }
+              : { above: { parent: harbor }, ancestors: [quay, branch], below: { parent: quay }, path: `/${prefix}-quay/branch` }
+          const req = await createPayloadRequest({ payload })
+          await initTransaction(req)
+          onTestFinished(() => killTransaction(req))
+          await update(payload, 'pages', atlas!, above, { req })
+
+          let saveWaited = false
+          const queries = await test.countQueries(async () => {
+            const save = update(payload, 'pages', branch, below)
+            saveWaited = await waitForRowWait(payload)
+            await commitTransaction(req)
+            await save
+          })
+
+          expect(saveWaited).toBe(true)
+          for (const draft of [false, true]) {
+            expect(await readDocument(payload, 'pages', branch, { draft })).toMatchObject({
+              ancestors: ancestors.slice(0, -1),
+              path
+            })
+            for (const [number, row] of rows.entries()) {
+              expect(await readDocument(payload, 'pages', row, { draft })).toMatchObject({
+                ancestors,
+                path: `${path}/row-${number}`
+              })
+            }
+          }
+          // What waitForRowWait asks, and the commit of atlas's save, are no statements of the save.
+          return queries
+            .filter(({ operation, sql }) => operation !== 'commit' && !sql?.text.includes('pg_stat_activity'))
+            .map(({ collection, operation }) => `${operation} ${collection}`)
+        }
+
+        expect(await readStatementsOfSaveThatWaited(30)).toEqual(await readStatementsOfSaveThatWaited(3))
+      }
+    )
+
+    it('holds no row below the row the rename of a page waits for', async () => {
+      const { payload } = test
+      const delta = await create(payload, 'pages', { slug: 'delta', title: 'Delta' })
+      const channel = await create(payload, 'pages', { parent: delta.id, slug: 'channel', title: 'Channel' })
+      const islets = await Promise.all(
+        Array.from(
+          { length: 30 },
+          async (_, number) =>
+            (await create(payload, 'pages', { parent: channel.id, slug: `islet-${number}`, title: 'Islet' })).id
+        )
+      )
+      const letGo = await holdRow(payload, setup, 'pages', channel.id)
+
+      const rename = update(payload, 'pages', delta.id, { slug: 'estuary' })
+      const renameWaited = await waitForRowWait(payload)
+      const heldIslets: Id[] = []
+      for (const islet of islets) if (!(await isRowFree(payload, setup, 'pages', islet, 'NO KEY UPDATE'))) heldIslets.push(islet)
+      await letGo()
+      await rename
+
+      const isletPaths = await Promise.all(islets.map((islet) => readPath(payload, 'pages', islet)))
+      expect({ heldIslets, isletPaths, renameWaited }).toEqual({
+        heldIslets: [],
+        isletPaths: islets.map((_, number) => `/estuary/channel/islet-${number}`),
+        renameWaited: true
+      })
+    })
+  }
 })
 
 type Row = { id: Id }
 
 const byId = (rows: Row[]) => [...rows].sort((row, other) => String(row.id).localeCompare(String(other.id)))
 
-// Every row of the collections and of their versions, as the database holds them.
 async function readEveryRow(payload: Payload) {
   const rows: Record<string, Row[]> = {}
   for (const collection of ['pages', 'posts', 'notices']) {
@@ -81,7 +220,6 @@ type Refusal = {
   prepare: (payload: Payload) => Promise<() => Promise<unknown>>
 }
 
-// The refusals an editor meets every day. Each one comes before anything is written.
 const REFUSALS: Refusal[] = [
   {
     message: 'Page "Taken" is already at this path, so change the slug or the parent.',
@@ -221,8 +359,6 @@ for (const transactions of [true, false]) {
       // plugin knows from the operation that the save is no draft save, so it refuses before the write.
       it('refuses to unpublish a page with a pending rename whose branch would land on a taken path, and leaves it as it was', async () => {
         const { payload } = test
-        // A page with a pending rename to blog: the page itself would be at /blog, which is free, and
-        // the page below it at /blog/abacus-ledger, where a post is.
         await create(payload, 'posts', { slug: 'abacus-ledger', title: 'abacus ledger post' })
         const page = await create(payload, 'pages', { slug: 'abacus', title: 'abacus' })
         const below = await create(payload, 'pages', { parent: page.id, slug: 'abacus-ledger', title: 'abacus ledger' })

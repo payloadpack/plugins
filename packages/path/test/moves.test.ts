@@ -1,19 +1,27 @@
+import type { CollectionSlug } from 'payload'
 import { expect, it } from 'vitest'
 
 import type { Id } from '../src/path/build-path-and-ancestors.js'
-import { describeEachSetup } from './support/boot-payload.js'
+import { describeEachSetup, titled, type TestPayload } from './support/boot-payload.js'
 import {
   catchFieldErrors,
+  changed,
   countLatestVersions,
   create,
   readDocument,
   readLatestVersion,
   readPath,
+  readRows,
   readVersionPaths,
+  remove,
   restoreVersion,
+  store,
+  storeDraftAncestorsInRow,
+  storeParentInRow,
+  storePathInRow,
   update
 } from './support/documents.js'
-import { holdRow, setTimestampsThatAreNoDates, setUpdatedAtNotWrittenByPayload, waitForRowWait } from './support/raw-access.js'
+import { holdRow, readStoredParentAndAncestors, waitForRowWait } from './support/raw-access.js'
 import { SETUPS } from './support/setups.js'
 
 describeEachSetup('', {}, (test, setup) => {
@@ -31,7 +39,6 @@ describeEachSetup('', {}, (test, setup) => {
     expect(await readPath(payload, 'pages', ferries.id)).toBe('/port/ferries')
     expect(await readPath(payload, 'pages', timetable.id)).toBe('/port/ferries/timetable')
     expect(await readPath(payload, 'pages', tickets.id)).toBe('/port/tickets')
-    // A draft keeps its own slug, under the page's new path.
     expect(await readPath(payload, 'pages', tickets.id, { draft: true })).toBe('/port/fares')
     // A restore takes its path from the parent and the slug, so older versions keep theirs.
     expect(await readVersionPaths(payload, 'pages', timetable.id)).toEqual([
@@ -39,6 +46,170 @@ describeEachSetup('', {}, (test, setup) => {
       '/harbour/ferries/timetable'
     ])
     expect(await readVersionPaths(payload, 'pages', tickets.id)).toEqual(['/port/fares', '/harbour/tickets'])
+  })
+
+  // Creates each page below the one before it, the first below the parent given, and returns their ids.
+  const createDown = async (slugs: string[], parent?: Id) => {
+    const ids: Id[] = []
+    for (const slug of slugs)
+      ids.push((await create(test.payload, 'pages', { parent: ids.at(-1) ?? parent, slug, title: slug })).id)
+    return ids
+  }
+
+  // A rename, a move or a delete of a page below the pages given, which returns the ancestors of the
+  // pages right below it after.
+  type Change = (page: Id, above: Id[]) => Promise<Id[]>
+  const rename =
+    (slug: string): Change =>
+    async (page, above) => {
+      await update(test.payload, 'pages', page, { slug })
+      return [...above, page]
+    }
+  const moveBelow =
+    (slugs: string[]): Change =>
+    async (page) => {
+      const newAboveIds = await createDown(slugs)
+      await update(test.payload, 'pages', page, { parent: newAboveIds.at(-1) ?? null })
+      return [...newAboveIds, page]
+    }
+  const deletePage: Change = async (page, above) => {
+    await remove(test.payload, 'pages', page)
+    return above
+  }
+
+  // A delete for good takes the deleted page out of the older versions itself on Postgres and SQLite,
+  // where their relationships to it go with it, so for a delete the latest version is compared only.
+  it.each([
+    { name: 'a renamed page', above: [], change: rename('grove'), olderVersions: true, page: 'orchard', path: '/grove/pear' },
+    {
+      name: 'a page moved to another parent',
+      above: [],
+      change: moveBelow(['field']),
+      olderVersions: true,
+      page: 'copse',
+      path: '/field/copse/pear'
+    },
+    { name: 'a deleted page', above: ['meadow'], change: deletePage, olderVersions: false, page: 'hedge', path: '/meadow/pear' }
+  ])(
+    'leaves every other value of a document below $name as it was, its updatedAt too, in the document and its versions',
+    async ({ above, change, olderVersions, page: slug, path }) => {
+      const { payload } = test
+      const aboveIds = await createDown(above)
+      const [page, pear] = await createDown([slug, 'pear'], aboveIds.at(-1))
+      await update(payload, 'pages', pear!, { title: 'Pear tree' }, { draft: true })
+      const readComparedRows = async () => {
+        const { documents, versions } = await readRows(payload, 'pages', [pear!])
+        return { documents, versions: versions.filter(({ latest }) => latest || olderVersions) }
+      }
+      const before = await readComparedRows()
+
+      const ancestors = await change(page!, aboveIds)
+
+      const newPathAndAncestors = { ancestors, parent: ancestors.at(-1), path: setup.localized ? { en: path, sv: path } : path }
+      expect(await readComparedRows()).toEqual({
+        documents: before.documents.map((document) => ({ ...document, ...newPathAndAncestors })),
+        versions: before.versions.map((version) =>
+          version.latest ? { ...version, version: { ...(version.version as object), ...newPathAndAncestors } } : version
+        )
+      })
+    }
+  )
+
+  it.each([
+    {
+      name: 'renamed four levels down',
+      above: ['office', 'floor', 'wing'],
+      change: rename('crew'),
+      slug: 'team',
+      start: '/office/floor/wing/crew/team'
+    },
+    {
+      name: 'moved four levels down to another parent',
+      above: ['tower', 'level', 'corner'],
+      change: moveBelow(['depot', 'hall', 'bay']),
+      slug: 'unit',
+      start: '/depot/hall/bay/unit/unit'
+    },
+    {
+      name: 'moved from four levels down to the top level',
+      above: ['school', 'grade', 'class'],
+      change: moveBelow([]),
+      slug: 'group',
+      start: '/group/group'
+    },
+    {
+      name: 'moved from the top level to four levels down',
+      above: [],
+      change: moveBelow(['city', 'venue', 'stage']),
+      slug: 'band',
+      start: '/city/venue/stage/band/band'
+    },
+    {
+      name: 'deleted four levels down',
+      above: ['museum', 'gallery', 'hall'],
+      change: deletePage,
+      slug: 'room',
+      start: '/museum/gallery/hall/room'
+    },
+    { name: 'deleted at the top level', above: [], change: deletePage, slug: 'crowd', start: '/crowd' }
+  ])(
+    'changes only the start of each path below a page $name, also where its slug comes again further down',
+    async ({ above, change, slug, start }) => {
+      const { payload } = test
+      const aboveIds = await createDown(above)
+      const [page, squad, anna] = await createDown([slug, slug, 'anna'], aboveIds.at(-1))
+
+      const ancestors = await change(page!, aboveIds)
+
+      for (const draft of [false, true]) {
+        expect(await readPath(payload, 'pages', squad!, { draft })).toBe(start)
+        expect(await readDocument(payload, 'pages', anna!, { draft })).toMatchObject({
+          ancestors: [...ancestors, squad],
+          path: `${start}/anna`
+        })
+      }
+    }
+  )
+
+  // An id an update pipeline writes as text where the database holds an ObjectId reads back the same
+  // through Payload, and a move that finds the documents below by it finds none of them.
+  it('stores the parent and ancestors below a moved and a deleted page as Payload stores them, so a later move finds the documents below', async () => {
+    const { payload } = test
+    const east = await create(payload, 'pages', { slug: 'east', title: 'East' })
+    const west = await create(payload, 'pages', { slug: 'west', title: 'West' })
+    const [rack, shelf, bin] = await createDown(['rack', 'shelf', 'bin'])
+    // At the top level Payload's page is moved there, which stores a parent of null, where on MongoDB a
+    // page created there stores none.
+    const readParentAndAncestorsBesidePayloadPage = async (id: Id, slug: string, parent?: Id) => {
+      const [payloadPage] = await createDown([slug], parent ?? west.id)
+      if (parent === undefined) await update(payload, 'pages', payloadPage!, { parent: null })
+      return {
+        page: await readStoredParentAndAncestors(test, setup, 'pages', id),
+        payloadPage: await readStoredParentAndAncestors(test, setup, 'pages', payloadPage!)
+      }
+    }
+
+    await update(payload, 'pages', rack!, { parent: east.id })
+    const parentAndAncestorsAfterMove = await readParentAndAncestorsBesidePayloadPage(bin!, 'crate', shelf!)
+    await remove(payload, 'pages', rack!)
+    const parentAndAncestorsAfterLift = await readParentAndAncestorsBesidePayloadPage(shelf!, 'drawer', east.id)
+    await remove(payload, 'pages', east.id)
+    const parentAndAncestorsAfterLiftToTopLevel = await readParentAndAncestorsBesidePayloadPage(shelf!, 'tray')
+    await update(payload, 'pages', shelf!, { parent: west.id })
+
+    expect(parentAndAncestorsAfterMove.page).toEqual(parentAndAncestorsAfterMove.payloadPage)
+    expect(parentAndAncestorsAfterLift.page).toEqual(parentAndAncestorsAfterLift.payloadPage)
+    expect(parentAndAncestorsAfterLift.page).toMatchObject({
+      document: { ancestors: { length: 1 } },
+      version: { ancestors: { length: 1 } }
+    })
+    expect(parentAndAncestorsAfterLiftToTopLevel.page).toEqual(parentAndAncestorsAfterLiftToTopLevel.payloadPage)
+    for (const draft of [false, true]) {
+      expect(await readDocument(payload, 'pages', bin!, { draft })).toMatchObject({
+        ancestors: [west.id, shelf],
+        path: '/west/shelf/bin'
+      })
+    }
   })
 
   it('moves a page and everything below it to a new parent', async () => {
@@ -152,7 +323,7 @@ describeEachSetup('', {}, (test, setup) => {
     const tools = await create(payload, 'pages', { parent: shed.id, slug: 'tools', title: 'Tools' })
     await update(payload, 'pages', shed.id, { parent: annex.id })
     // MongoDB stores no parent for a top-level page, and Payload's restore writes only what the
-    // version holds, so there the page keeps the parent it has, and the plugin gives it the path below it.
+    // version holds, so there the page keeps the parent it has.
     const keepsParent = setup.database === 'mongodb'
 
     await restoreVersion(payload, 'pages', shed.id)
@@ -195,25 +366,62 @@ describeEachSetup('', {}, (test, setup) => {
     expect(await readDocument(payload, 'pages', hut.id)).toMatchObject(expected)
   })
 
-  it('gives a document below a renamed page the path its own slug makes, whatever path it stored', async () => {
-    const { payload } = test
-    const arcade = await create(payload, 'pages', { slug: 'arcade', title: 'Arcade' })
-    const kiosk = await create(payload, 'pages', { parent: arcade.id, slug: 'kiosk', title: 'Kiosk' })
-    const stall = await create(payload, 'pages', { parent: arcade.id, slug: 'stall', title: 'Stall' })
-    // Stored at a path that nothing the plugin writes leaves behind. A move makes each path again
-    // from the slug and the parent, so it never rewrites what a path starts with.
-    const strayPath = '/arcade-annex/stall'
-    const stored = await payload.db.findOne({ collection: 'pages', where: { id: { equals: stall.id } } })
-    await payload.db.updateOne({
-      collection: 'pages',
-      data: { ...stored, path: setup.localized ? { en: strayPath, sv: strayPath } : strayPath },
-      id: stall.id
+  it.each([
+    { name: 'renamed', above: [], change: rename('mall'), page: 'arcade', path: '/mall' },
+    { name: 'moved to another parent', above: [], change: moveBelow(['square']), page: 'bazaar', path: '/square/bazaar' },
+    { name: 'deleted', above: ['market'], change: deletePage, page: 'souk', path: '/market' }
+  ])(
+    'gives a document below a page $name the path its own slug makes and the parent its ancestors end with, whatever it stored',
+    async ({ above, change, page: slug, path }) => {
+      const { payload } = test
+      const aboveIds = await createDown(above)
+      const [page] = await createDown([slug], aboveIds.at(-1))
+      const lane = await create(payload, 'pages', { slug: `${slug}-lane`, title: 'Lane' })
+      const kiosk = await create(payload, 'pages', { parent: page, slug: 'kiosk', title: 'Kiosk' })
+      const stall = await create(payload, 'pages', { parent: page, slug: 'stall', title: 'Stall' })
+      const booth = await create(payload, 'pages', { parent: page, slug: 'booth', title: 'Booth' })
+      const cart = await create(payload, 'pages', { parent: page, slug: 'cart', title: 'Cart' }, { draft: true })
+      const awning = await create(payload, 'pages', { parent: kiosk.id, slug: 'awning', title: 'Awning' })
+      // The cart is never published, so it takes its parent from its latest version.
+      const pagePath = ['', ...above, slug].join('/')
+      await storePathInRow(payload, setup, 'pages', stall.id, `${pagePath}-annex/stall`)
+      await storePathInRow(payload, setup, 'pages', booth.id, `${pagePath}/stand`)
+      await storeParentInRow(payload, 'pages', cart.id, lane.id)
+      await storeDraftAncestorsInRow(payload, 'pages', awning.id, [...aboveIds, kiosk.id])
+
+      const ancestors = await change(page!, aboveIds)
+
+      for (const [documentSlug, document] of Object.entries({ kiosk, stall, booth, cart })) {
+        expect(await readDocument(payload, 'pages', document.id)).toMatchObject({
+          ancestors,
+          parent: ancestors.at(-1),
+          path: `${path}/${documentSlug}`
+        })
+      }
+      expect(await readDocument(payload, 'pages', awning.id, { draft: true })).toMatchObject({
+        ancestors: [...ancestors, kiosk.id],
+        path: `${path}/kiosk/awning`
+      })
+    }
+  )
+
+  it('leaves a document as it is that holds a renamed page among its ancestors and a parent outside its branch', async () => {
+    const { changes, payload } = test
+    const silo = await create(payload, 'pages', { slug: 'silo', title: 'Silo' })
+    const yard = await create(payload, 'pages', { slug: 'yard', title: 'Yard' })
+    const crate = await create(payload, 'pages', { parent: silo.id, slug: 'crate', title: 'Crate' })
+    // A row out of step, as an import may leave it, which the rule builds nothing for.
+    await storeParentInRow(payload, 'pages', crate.id, yard.id)
+    changes.length = 0
+
+    await update(payload, 'pages', silo.id, { slug: 'hangar' })
+
+    expect(await readDocument(payload, 'pages', crate.id)).toMatchObject({
+      ancestors: [silo.id],
+      parent: yard.id,
+      path: '/silo/crate'
     })
-
-    await update(payload, 'pages', arcade.id, { slug: 'mall' })
-
-    expect(await readPath(payload, 'pages', kiosk.id)).toBe('/mall/kiosk')
-    expect(await readPath(payload, 'pages', stall.id)).toBe('/mall/stall')
+    expect(changes.flat()).toEqual([changed(setup, 'pages', silo, '/silo', '/hangar')])
   })
 
   it('moves nothing published when a version is restored as a draft', async () => {
@@ -246,133 +454,219 @@ describeEachSetup('', {}, (test, setup) => {
   })
 })
 
-// A move reads each row of its branch again right before it writes it, and writes it only while it is
-// as it was read, so a save of a document below that lands while the move is under way is kept. Step
-// by step on Postgres without transactions: a statement of the test holds the row of a document below
-// a page, so the page's rename reads its branch and then waits to write that row. Meanwhile a document
-// further along the branch is saved, or the held row itself is changed before it is let go. With
-// transactions such a save lands only after the move's transaction. Holding a row so that a write
-// waits for it is Postgres's, so the other databases are left out: SQLite has one writer at a time.
+// The move's statements write the path, the ancestors and the parent alone, so every other value a
+// save wrote meanwhile is kept. With transactions such a save lands only after the move's transaction.
+// Holding a row so that a write waits for it is Postgres's, so the other databases are left out:
+// SQLite has one writer at a time.
 describeEachSetup(
   'a move that waits to write a row of its branch, transactions off',
   { boot: { transactions: false }, setups: SETUPS.filter(({ database }) => database === 'postgres') },
   (test, setup) => {
+    // A document as a site had it before it added the plugin, without a path.
+    const storeBelow = (ancestors: Id[], slug: string, title: string) =>
+      store(test, setup, 'pages', { ancestors, parent: ancestors.at(-1), slug, title })
+
     it('keeps a change committed to a document below a renamed page while the move waits to write its row, and gives it its new path', async () => {
       const { payload } = test
       const tray = await create(payload, 'pages', { slug: 'tray', title: 'Tray' })
       const cup = await create(payload, 'pages', { parent: tray.id, slug: 'cup', title: 'Cup' })
-      const commit = await holdRow(payload, 'pages', cup.id, { localized: setup.localized, title: 'Teacup' })
+      const commit = await holdRow(payload, setup, 'pages', cup.id, { savedTitle: 'Teacup' })
 
       const rename = update(payload, 'pages', tray.id, { slug: 'platter' })
-      await waitForRowWait(payload)
+      const renameWaited = await waitForRowWait(payload)
       await commit()
       await rename
 
       const { path, title } = await readDocument(payload, 'pages', cup.id)
-      expect({ path, title }).toEqual({ path: '/platter/cup', title: 'Teacup' })
+      expect({ path, renameWaited, title }).toEqual({ path: '/platter/cup', renameWaited: true, title: 'Teacup' })
     })
 
-    it('keeps the title a document below a renamed page is saved with while the move is under way, with one latest version', async () => {
+    it.each([
+      { name: 'renamed', change: 'rename', slug: 'board' },
+      { name: 'moved to another parent', change: 'move', slug: 'dresser' },
+      { name: 'deleted', change: 'delete', slug: 'sideboard' }
+    ] as const)(
+      'keeps a change committed to a document stored without a path below a page $name while the move waits for its row',
+      async ({ change, slug }) => {
+        const { payload } = test
+        const room = await create(payload, 'pages', { slug: `${slug}-room`, title: 'Room' })
+        const hall = await create(payload, 'pages', { slug: `${slug}-hall`, title: 'Hall' })
+        const page = await create(payload, 'pages', { parent: room.id, slug, title: 'Page' })
+        const mug = await storeBelow([room.id, page.id], 'mug', 'Mug')
+        const commit = await holdRow(payload, setup, 'pages', mug, { savedTitle: 'Tankard' })
+
+        const move =
+          change === 'rename'
+            ? update(payload, 'pages', page.id, { slug: `${slug}-counter` })
+            : change === 'move'
+              ? update(payload, 'pages', page.id, { parent: hall.id })
+              : remove(payload, 'pages', page.id)
+        const moveWaited = await waitForRowWait(payload)
+        await commit()
+        await move
+
+        const { ancestors, parent, path, title } = await readDocument(payload, 'pages', mug)
+        expect({ ancestors, moveWaited, parent, path, title }).toEqual({
+          ...{
+            delete: { ancestors: [room.id], parent: room.id, path: `/${slug}-room/mug` },
+            move: { ancestors: [hall.id, page.id], parent: page.id, path: `/${slug}-hall/${slug}/mug` },
+            rename: { ancestors: [room.id, page.id], parent: page.id, path: `/${slug}-room/${slug}-counter/mug` }
+          }[change],
+          moveWaited: true,
+          title: 'Tankard'
+        })
+      }
+    )
+
+    it('keeps the title documents below a renamed page are saved with while the move is under way, published or as a draft, each with one latest version', async () => {
       const { payload } = test
       const shelf = await create(payload, 'pages', { slug: 'shelf', title: 'Shelf' })
-      const first = await create(payload, 'pages', { parent: shelf.id, slug: 'first-book', title: 'First book' })
-      const second = await create(payload, 'pages', { parent: shelf.id, slug: 'second-book', title: 'Second book' })
-      const letGo = await holdRow(payload, 'pages', first.id)
+      const first = await storeBelow([shelf.id], 'first-book', 'First book')
+      const second = await storeBelow([shelf.id], 'second-book', 'Second book')
+      const third = await storeBelow([shelf.id], 'third-book', 'Third book')
+      const letGo = await holdRow(payload, setup, 'pages', first)
 
       const rename = update(payload, 'pages', shelf.id, { slug: 'bookcase' })
-      await waitForRowWait(payload)
-      await update(payload, 'pages', second.id, { title: 'Second edition' })
+      const renameWaited = await waitForRowWait(payload)
+      await update(payload, 'pages', second, { title: 'Second edition' })
+      await update(payload, 'pages', third, { title: 'Third edition' }, { draft: true })
       await letGo()
       await rename
 
-      const { path, title } = await readDocument(payload, 'pages', second.id)
-      expect({ latest: await countLatestVersions(payload, 'pages', second.id), path, title }).toEqual({
-        latest: 1,
-        path: '/bookcase/second-book',
-        title: 'Second edition'
+      const readSavedDocument = async (id: Id, draft: boolean) => {
+        const { path, title } = await readDocument(payload, 'pages', id, { draft })
+        return { latest: await countLatestVersions(payload, 'pages', id), path, title }
+      }
+      expect({
+        draft: await readSavedDocument(third, true),
+        published: await readSavedDocument(second, false),
+        renameWaited
+      }).toEqual({
+        draft: { latest: 1, path: '/bookcase/third-book', title: 'Third edition' },
+        published: { latest: 1, path: '/bookcase/second-book', title: 'Second edition' },
+        renameWaited: true
       })
     })
-
-    // A document below that a save renames while the move is under way gives the documents below it
-    // their paths, so the move leaves them.
-    it('keeps the path a document below a renamed page gets from a rename of its parent saved while the move is under way', async () => {
-      const { payload } = test
-      const atlas = await create(payload, 'pages', { slug: 'atlas', title: 'Atlas' })
-      const north = await create(payload, 'pages', { parent: atlas.id, slug: 'north', title: 'North' })
-      const south = await create(payload, 'pages', { parent: atlas.id, slug: 'south', title: 'South' })
-      const coast = await create(payload, 'pages', { parent: south.id, slug: 'coast', title: 'Coast' })
-      const letGo = await holdRow(payload, 'pages', north.id)
-
-      const rename = update(payload, 'pages', atlas.id, { slug: 'world' })
-      await waitForRowWait(payload)
-      await update(payload, 'pages', south.id, { slug: 'tropics' })
-      await letGo()
-      await rename
-
-      expect({
-        draft: await readPath(payload, 'pages', coast.id, { draft: true }),
-        path: await readPath(payload, 'pages', coast.id)
-      }).toEqual({ draft: '/world/tropics/coast', path: '/world/tropics/coast' })
-    })
   }
 )
 
-// A move's write on the condition never lands on a row whose updatedAt Payload didn't write.
-// setUpdatedAtNotWrittenByPayload says what such a row is and why Postgres is left out.
-describeEachSetup(
-  'a document whose updatedAt Payload did not write',
-  { setups: SETUPS.filter(({ database }) => database !== 'postgres') },
-  (test, setup) => {
-    it('gives it its new path when a page above it is renamed, and leaves its other values', async () => {
+type IdKind = { name: string; collection: CollectionSlug; idOf?: (slug: string) => number | string }
+
+// The statements write the ids above a row into its ancestors, and on Postgres with transactions the
+// lock names the moved document's id, so each reaches the database in the collection's type of id.
+// Payload's default ids are tried above: a number the database counts up, and an ObjectId on MongoDB.
+const itMovesABranchWithIdsOf = (test: TestPayload, kinds: IdKind[]) =>
+  it.each(kinds)(
+    'renames, moves and lifts a branch with $name, and gives every document its path, ancestors and parent',
+    async ({ collection, idOf }) => {
       const { payload } = test
-      const quay = await create(payload, 'pages', { slug: 'quay', title: 'Quay' })
-      const crate = await create(payload, 'pages', { parent: quay.id, slug: 'crate', title: 'Crate' })
-      await setUpdatedAtNotWrittenByPayload(payload, setup, 'pages', crate.id)
-      // MongoDB stores the updatedAt of the write as a date, of the same moment as the text.
-      const readRow = async (): Promise<Record<string, unknown>> => {
-        const row = (await payload.db.findOne<{ [field: string]: unknown; id: Id; updatedAt: string }>({
-          collection: 'pages',
-          where: { id: { equals: crate.id } }
-        }))!
-        return { ...row, updatedAt: new Date(row.updatedAt).getTime() }
+      const make = async (slug: string, parent?: Id) =>
+        (await create(payload, collection, { ...(idOf ? { id: idOf(slug) } : {}), parent, slug, title: slug })).id
+      const dock = await make(`${collection}-dock`)
+      const pier = await make(`${collection}-pier`)
+      const shed = await make('shed', dock)
+      const crate = await make('crate', shed)
+      const rope = await make('rope', dock)
+      const expectRows = async (rows: [Id, Id[], string][]) => {
+        for (const [id, ancestors, path] of rows) {
+          for (const draft of [false, true]) {
+            const document = await readDocument(payload, collection, id, { draft })
+            expect({ ancestors: document.ancestors, parent: document.parent ?? null, path: document.path }).toEqual({
+              ancestors,
+              parent: ancestors.at(-1) ?? null,
+              path
+            })
+          }
+        }
       }
-      const before = await readRow()
 
-      await update(payload, 'pages', quay.id, { slug: 'dock' })
+      await update(payload, collection, dock, { slug: `${collection}-harbour` })
 
-      expect(await readPath(payload, 'pages', crate.id)).toBe('/dock/crate')
-      expect({ ...(await readRow()), path: before.path }).toEqual(before)
-    })
-  }
-)
+      await expectRows([
+        [shed, [dock], `/${collection}-harbour/shed`],
+        [crate, [dock, shed], `/${collection}-harbour/shed/crate`],
+        [rope, [dock], `/${collection}-harbour/rope`]
+      ])
 
-// A move leaves a createdAt and an updatedAt that are no dates as the row holds them, since the
-// adapter refuses that text in a write. setTimestampsThatAreNoDates says what such a row is and why
-// only MongoDB has one.
+      await update(payload, collection, shed, { parent: pier })
+
+      await expectRows([
+        [shed, [pier], `/${collection}-pier/shed`],
+        [crate, [pier, shed], `/${collection}-pier/shed/crate`],
+        [rope, [dock], `/${collection}-harbour/rope`]
+      ])
+
+      await remove(payload, collection, shed)
+
+      await expectRows([
+        [crate, [pier], `/${collection}-pier/crate`],
+        [rope, [dock], `/${collection}-harbour/rope`]
+      ])
+    }
+  )
+
 describeEachSetup(
-  'a document whose timestamps are no dates',
-  { setups: SETUPS.filter(({ database }) => database === 'mongodb') },
-  (test) => {
-    it('gives it its new path when a page above it is renamed, and leaves its other values', async () => {
-      const { payload } = test
-      const wharf = await create(payload, 'pages', { slug: 'wharf', title: 'Wharf' })
-      const bale = await create(payload, 'pages', { parent: wharf.id, slug: 'bale', title: 'Bale' })
-      await setTimestampsThatAreNoDates(payload, 'pages', bale.id)
-      const readRow = () =>
-        payload.db.findOne<{ [field: string]: unknown; id: Id }>({ collection: 'pages', where: { id: { equals: bale.id } } })
-      const before = (await readRow())!
+  'a collection with uuid ids',
+  { boot: { idType: 'uuid' }, setups: SETUPS.filter(({ database }) => database !== 'mongodb') },
+  (test) => itMovesABranchWithIdsOf(test, [{ name: 'uuid ids', collection: 'pages' }])
+)
 
-      await update(payload, 'pages', wharf.id, { slug: 'pier' })
+let ticketNumber = 0
 
-      expect(await readPath(payload, 'pages', bale.id)).toBe('/pier/bale')
-      expect({ ...(await readRow()), path: before.path }).toEqual(before)
-      expect(before).toMatchObject({ createdAt: 'not a date', updatedAt: 'not a date' })
+// The statements find the tables of a collection and of its versions by its slug, which the database
+// knows them by in another form where the slug has capitals or more than one word, and by another
+// name where the collection has a dbName.
+describeEachSetup(
+  'collections whose tables are not named as their slugs, and collections with ids of their own',
+  {
+    boot: (setup) => ({
+      collections: [
+        { ...titled('field-notes', setup.localized), dbName: 'journal' },
+        titled('FAQ-items', setup.localized),
+        titled('tickets', setup.localized, [{ name: 'id', type: 'number' }]),
+        titled('tags', setup.localized, [{ name: 'id', type: 'text' }])
+      ],
+      options: { collections: ['pages', 'posts', 'notices', 'field-notes', 'FAQ-items', 'tickets', 'tags'] }
     })
+  },
+  (test) => {
+    it.each([
+      { name: 'a slug of two words and a name of its own in the database', collection: 'field-notes', slug: 'birds' },
+      { name: 'a slug with capitals', collection: 'FAQ-items', slug: 'billing' }
+    ] as const)(
+      'gives the documents below a renamed and moved document of a collection with $name their paths and ancestors, drafts too',
+      async ({ collection, slug }) => {
+        const { payload } = test
+        const top = await create(payload, collection, { slug, title: 'Top' })
+        const other = await create(payload, collection, { slug: `${slug}-other`, title: 'Other' })
+        const middle = await create(payload, collection, { parent: top.id, slug: 'middle', title: 'Middle' })
+        const low = await create(payload, collection, { parent: middle.id, slug: 'low', title: 'Low' })
+
+        await update(payload, collection, top.id, { slug: `${slug}-renamed` })
+        await update(payload, collection, top.id, { parent: other.id })
+
+        for (const draft of [false, true]) {
+          expect(await readDocument(payload, collection, middle.id, { draft })).toMatchObject({
+            ancestors: [other.id, top.id],
+            path: `/${slug}-other/${slug}-renamed/middle`
+          })
+          expect(await readDocument(payload, collection, low.id, { draft })).toMatchObject({
+            ancestors: [other.id, top.id, middle.id],
+            path: `/${slug}-other/${slug}-renamed/middle/low`
+          })
+        }
+      }
+    )
+
+    itMovesABranchWithIdsOf(test, [
+      { name: 'number ids of its own', collection: 'tickets', idOf: () => ++ticketNumber },
+      { name: 'text ids of its own', collection: 'tags', idOf: (slug) => `tag-${slug}` }
+    ])
   }
 )
 
-// A collection with timestamps: false stores no updatedAt, so a move writes its rows by their ids.
-// Payload requires timestamps for versions, which it keeps by default.
+// A collection with timestamps: false stores no updatedAt for a move to leave as it is. Payload
+// requires timestamps for versions, which it keeps by default.
 describeEachSetup(
   'a collection without timestamps',
   {
@@ -389,7 +683,7 @@ describeEachSetup(
       options: { collections: ['pages', 'posts', 'notices', 'logbooks'] }
     })
   },
-  (test) => {
+  (test, setup) => {
     it('gives every document below a renamed document its new path', async () => {
       const { payload } = test
       const voyages = await create(payload, 'logbooks', { slug: 'voyages', title: 'Voyages' })

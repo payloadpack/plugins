@@ -53,8 +53,16 @@ What a delete does to the documents right below the deleted document: they move 
 _Avoid_: promote, orphan, reparent
 
 **Chunk**:
-The most documents or paths a move names in one statement or asks for in one read. A branch of any size is read and checked a chunk at a time.
+The most documents or paths a move names in one read or check, asks for in one read, or writes with one round of its statements. A branch of any size is read, checked and written a chunk at a time.
 _Avoid_: batch, and page, which is a document
+
+**Statements**:
+The package's own writes of the documents below a moved or deleted document and of their latest versions: a few for each chunk of rows, in the request's transaction. They store the path the move built for each row, and where the row holds other ones the ancestors and the parent, and leave every other value of the row.
+_Avoid_: query, raw SQL, bulk update
+
+**Round trip**:
+The time a query takes to reach the database and come back, on top of the database's own work. A site on the same machine as its database has next to none, and a site on another machine waits for it on every query.
+_Avoid_: lag, ping
 
 **Taken path**:
 A path a document is at. Every document takes its path, whatever its status, except one in the trash; a pending move takes nothing until the document moves. A document of a bulk update also takes the paths it is about to put documents at, until it has written, so two documents of one bulk update can't land on the same path. What it takes is kept by that bulk update only, so it never refuses anything after it.

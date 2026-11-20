@@ -1,12 +1,13 @@
+import { commitTransaction, createPayloadRequest, initTransaction } from 'payload'
 import { expect, it } from 'vitest'
 
 import { findByPath } from '../src/index.js'
+import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
+import { create, remove, store, update } from './support/documents.js'
 import { listIndexes, readSqlitePlan } from './support/raw-access.js'
 import { SETUPS } from './support/setups.js'
 
-// The one promise about speed: a site finds the document at a path with one indexed query per
-// collection. What a save or a move costs is not pinned.
 describeEachSetup(
   '',
   // The plugin is given pages and posts, so a query per collection is two.
@@ -52,6 +53,43 @@ describeEachSetup(
       })
 
       expect(reserved).toEqual([])
+    })
+
+    // Each branch fits in a chunk.
+    it('runs the same statements to rename, move or delete a document with 30 below as with 3 below', async () => {
+      const { payload } = test
+      const readStatements = async (size: number) => {
+        const other = await create(payload, 'pages', { slug: `other-${size}`, title: 'Other' })
+        const changes = {
+          delete: (top: Id) => remove(payload, 'pages', top),
+          move: (top: Id) => update(payload, 'pages', top, { parent: other.id }),
+          rename: (top: Id) => update(payload, 'pages', top, { slug: `rename-${size}-renamed` })
+        }
+        const statements: Record<string, string[]> = {}
+        for (const [name, change] of Object.entries(changes)) {
+          const top = await create(payload, 'pages', { slug: `${name}-${size}`, title: 'Top' })
+          const first = await create(payload, 'pages', { parent: top.id, slug: `${name}-${size}-first`, title: 'First' })
+          const req = await createPayloadRequest({ payload })
+          await initTransaction(req)
+          for (let number = 1; number < size; number++) {
+            const slug = `below-${number}`
+            const path = `/${name}-${size}/${name}-${size}-first/${slug}`
+            await store({ payload, req }, setup, 'pages', {
+              ancestors: [top.id, first.id],
+              parent: first.id,
+              path: setup.localized ? { en: path, sv: path } : path,
+              slug,
+              title: 'Below'
+            })
+          }
+          await commitTransaction(req)
+          const queries = await test.countQueries(() => change(top.id))
+          statements[name] = queries.map(({ collection, operation }) => `${operation} ${collection}`)
+        }
+        return statements
+      }
+
+      expect(await readStatements(30)).toEqual(await readStatements(3))
     })
   }
 )

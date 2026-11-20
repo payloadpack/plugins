@@ -4,6 +4,7 @@ import { sql as postgresSql } from '@payloadcms/db-postgres/drizzle'
 import type { SQLiteAdapter } from '@payloadcms/db-sqlite'
 import { sql as sqliteSql } from '@payloadcms/db-sqlite/drizzle'
 import type { Payload, PayloadRequest } from 'payload'
+import { onTestFinished } from 'vitest'
 
 import type { Query } from './adapters.js'
 import type { TestPayload } from './boot-payload.js'
@@ -13,6 +14,10 @@ import type { Setup } from './setups.js'
 const mongodbOf = (payload: Payload) => (payload.db as unknown as MongooseAdapter).connection.getClient().db()
 const postgresOf = (payload: Payload) => payload.db as unknown as PostgresAdapter
 const sqliteOf = (payload: Payload) => payload.db as unknown as SQLiteAdapter
+
+// MongoDB keeps an id as an ObjectId or as the number or text a site chose, and a test knows it as
+// text, so a field is compared to an id as text.
+const fieldHoldsId = (field: string, id: number | string) => ({ $eq: [{ $toString: `$${field}` }, String(id)] })
 
 type IndexRow = { definition: string; table: string }
 
@@ -30,10 +35,8 @@ function listSqlIndexes(payload: Payload, { database }: Setup): Promise<IndexRow
   )
 }
 
-/**
- * The indexes the database holds for a collection's tables, each as its table and columns, such as
- * pages_locales(path,_locale), or for MongoDB its collection and keys, such as pages(path.en).
- */
+// Each as its table and columns, such as pages_locales(path,_locale), or on MongoDB its collection and
+// keys, such as pages(path.en).
 export async function listIndexes({ payload }: TestPayload, setup: Setup, collection: string) {
   if (setup.database === 'mongodb') {
     const indexes = await mongodbOf(payload).collection(collection).indexes()
@@ -47,11 +50,8 @@ export async function listIndexes({ payload }: TestPayload, setup: Setup, collec
 
 type SqliteStatement = Exclude<Parameters<SQLiteAdapter['client']['execute']>[0], string>
 
-/**
- * The plan SQLite makes for a statement it ran, as the steps EXPLAIN QUERY PLAN lists. SQLite keeps
- * no statistics unless a site runs ANALYZE, so the plan depends on the statement alone, whatever the
- * tables hold.
- */
+// SQLite keeps no statistics unless a site runs ANALYZE, so the plan depends on the statement alone,
+// whatever the tables hold.
 export async function readSqlitePlan({ payload }: TestPayload, { sql }: Query) {
   if (!sql) throw new Error('Only a SQL statement has a plan.')
   const { rows } = await sqliteOf(payload).client.execute({
@@ -61,14 +61,18 @@ export async function readSqlitePlan({ payload }: TestPayload, { sql }: Query) {
   return rows.map(({ detail }) => String(detail))
 }
 
-// A write the database refuses: of one path, in a collection or its versions, or of one document.
-type RefusedWrite = { collection: string; path: string; versions: boolean } | { collection: string; id: number | string }
+// ancestorsOf refuses a write of other ancestors than the document stores.
+type RefusedWrite =
+  | { collection: string; path: string; versions: boolean }
+  | { ancestorsOf: number | string; collection: string }
+  | { collection: string; id: number | string }
 
 /**
- * Makes the database itself refuse a write while the work runs, so an operation fails at that write
- * the way it would on a real database error. A refused document fails at the first statement of its
- * write, so without a transaction it keeps every value it had. A statement that changes a table
- * takes no bound value, so the value is written into it, escaped by drizzle.
+ * The database itself refuses the write, so an operation fails the way it would on a real database
+ * error. A write of a refused document's row fails at its first statement, so without a transaction
+ * it keeps every value it had, where a refused path on Postgres and SQLite in a localized setup fails
+ * after the write took away the row's values of each locale. A statement that changes a table takes
+ * no bound value, so the value is written into it, escaped by drizzle.
  */
 export async function refuseWritesOf(
   { payload }: TestPayload,
@@ -81,10 +85,18 @@ export async function refuseWritesOf(
   if (setup.database === 'mongodb') {
     const db = mongodbOf(payload)
     const name = versions ? `_${collection}_versions` : collection
+    // Every other document, and this one while it keeps the ancestors it stores now.
+    const keepsAncestors = async (id: number | string) => {
+      const isDocument = fieldHoldsId('_id', id)
+      const { ancestors } = (await db.collection(name).findOne({ $expr: isDocument }))!
+      return { $or: [{ $expr: { $not: [isDocument] } }, { ancestors: { $eq: ancestors } }] }
+    }
     const validator =
       'path' in refused
         ? { [`${versions ? 'version.' : ''}path${setup.localized ? '.en' : ''}`]: { $ne: refused.path } }
-        : { $expr: { $ne: [{ $toString: '$_id' }, String(refused.id)] } }
+        : 'ancestorsOf' in refused
+          ? await keepsAncestors(refused.ancestorsOf)
+          : { $expr: { $not: [fieldHoldsId('_id', refused.id)] } }
     await db.command({ collMod: name, validator })
     try {
       return await work()
@@ -92,6 +104,8 @@ export async function refuseWritesOf(
       await db.command({ collMod: name, validator: {} })
     }
   }
+  // A document's ancestors are rows of the collection's table of relationships that name it as their
+  // parent, so a write of any of them is refused.
   const [tableName, columnName, value] =
     'path' in refused
       ? [
@@ -99,7 +113,9 @@ export async function refuseWritesOf(
           versions ? 'version_path' : 'path',
           refused.path
         ]
-      : [collection, 'id', refused.id]
+      : 'ancestorsOf' in refused
+        ? [`${collection}_rels`, 'parent_id', refused.ancestorsOf]
+        : [collection, 'id', refused.id]
   if (setup.database === 'postgres') {
     const { drizzle, tables } = postgresOf(payload)
     const table = tables[tableName]!
@@ -132,18 +148,65 @@ export async function refuseWritesOf(
   }
 }
 
-// MongoDB keeps an id as an ObjectId or as the number or text a site chose, and a test knows it as text.
+// For a collection with the plugin's own parent field only. Each id comes in the type the database
+// stores it in: an ObjectId, number or text on MongoDB, and its column's type on Postgres and SQLite.
+export async function readStoredParentAndAncestors(
+  { payload }: TestPayload,
+  setup: Setup,
+  collection: string,
+  id: number | string
+) {
+  if (setup.database === 'mongodb') {
+    const db = mongodbOf(payload)
+    const document = await db.collection(collection).findOne({ $expr: fieldHoldsId('_id', id) })
+    const version = await db.collection(`_${collection}_versions`).findOne({ $expr: fieldHoldsId('parent', id), latest: true })
+    return {
+      document: { ancestors: document?.ancestors, parent: document?.parent },
+      version: { ancestors: version?.version.ancestors, parent: version?.version.parent }
+    }
+  }
+  const { tables } = postgresOf(payload)
+  const [rows, rels, versions, versionRels] = [collection, `${collection}_rels`, `_${collection}_v`, `_${collection}_v_rels`].map(
+    (name) => tables[name]!
+  )
+  const idKey = `${collection}ID`
+  // The same statements on both, each in the drizzle its adapter brings.
+  const sql = (setup.database === 'postgres' ? postgresSql : sqliteSql) as typeof postgresSql
+  const latestVersionId = sql`SELECT ${versions.id} FROM ${versions} WHERE ${versions.parent} = ${id} AND ${versions.latest} = ${true}`
+  const readIds = async (statement: ReturnType<typeof postgresSql>) =>
+    setup.database === 'postgres'
+      ? (await postgresOf(payload).drizzle.execute<{ id: unknown }>(statement)).rows.map((row) => row.id)
+      : (await sqliteOf(payload).drizzle.all<{ id: unknown }>(statement as unknown as ReturnType<typeof sqliteSql>)).map(
+          (row) => row.id
+        )
+  return {
+    document: {
+      ancestors: await readIds(
+        sql`SELECT ${rels[idKey]} AS id FROM ${rels} WHERE ${rels.parent} = ${id} AND ${rels.path} = ${'ancestors'} ORDER BY ${rels.order}`
+      ),
+      parent: (await readIds(sql`SELECT ${rows.parent} AS id FROM ${rows} WHERE ${rows.id} = ${id}`))[0]
+    },
+    version: {
+      ancestors: await readIds(
+        sql`SELECT ${versionRels[idKey]} AS id FROM ${versionRels}
+          WHERE ${versionRels.path} = ${'version.ancestors'} AND ${versionRels.parent} IN (${latestVersionId})
+          ORDER BY ${versionRels.order}`
+      ),
+      parent: (
+        await readIds(sql`SELECT ${versions.version_parent} AS id FROM ${versions} WHERE ${versions.id} IN (${latestVersionId})`)
+      )[0]
+    }
+  }
+}
+
 const setOnMongodb = (payload: Payload, collection: string, id: number | string, values: Record<string, unknown>) =>
   mongodbOf(payload)
     .collection(collection)
-    .updateOne({ $expr: { $eq: [{ $toString: '$_id' }, String(id)] } }, { $set: values })
+    .updateOne({ $expr: fieldHoldsId('_id', id) }, { $set: values })
 
-/**
- * Stores a row's updatedAt as text that Payload didn't write, as an import or another tool may: on
- * SQLite in another form than Payload's, and on MongoDB as a string where Payload keeps a date. The
- * value Payload reads back from such a row doesn't find the row in a where. Postgres keeps updatedAt
- * in a timestamp column, so there every value reads back as what finds it.
- */
+// As an import or another tool may write it: on SQLite in another form than Payload's, and on MongoDB
+// as a string where Payload keeps a date. The value Payload reads back from such a row doesn't find
+// the row in a where. Postgres keeps updatedAt in a timestamp column, so every value finds it there.
 export async function setUpdatedAtNotWrittenByPayload(payload: Payload, setup: Setup, collection: string, id: number | string) {
   const updatedAt = '2026-01-01 00:00:00'
   if (setup.database === 'mongodb') {
@@ -155,75 +218,110 @@ export async function setUpdatedAtNotWrittenByPayload(payload: Payload, setup: S
   await drizzle.run(sqliteSql`UPDATE ${tables[collection]!} SET updated_at = ${updatedAt} WHERE id = ${id}`)
 }
 
-/**
- * Stores text that is no date as a row's createdAt and updatedAt on MongoDB, as an import or another
- * tool may. Payload reads such a row as it is and can save it, and the adapter refuses that text in a
- * write. Only MongoDB has such a row: Payload can't read one on SQLite, and Postgres keeps both in
- * timestamp columns.
- */
+// As an import or another tool may write them. Payload reads such a row and can save it, and the
+// adapter refuses that text in a write. Only MongoDB has such a row: Payload can't read one on SQLite,
+// and Postgres keeps both in timestamp columns.
 export const setTimestampsThatAreNoDates = (payload: Payload, collection: string, id: number | string) =>
   setOnMongodb(payload, collection, id, { createdAt: 'not a date', updatedAt: 'not a date' })
 
-/**
- * Holds a collection's table on Postgres in the transaction of a request, as a migration that changes
- * the table does, until that transaction ends: every other connection waits for the table, and the
- * request's own doesn't.
- */
+// Stands for a migration that changes the table: until the request's transaction ends, every other
+// connection waits for the table, and the request's own doesn't.
 export async function holdTable(payload: Payload, collection: string, req: PayloadRequest) {
   const { sessions, tables } = postgresOf(payload)
   const { db } = sessions[String(await req.transactionID)]!
   await db.execute(postgresSql`LOCK TABLE ${tables[collection]} IN ACCESS EXCLUSIVE MODE`)
 }
 
+async function lockRows(
+  payload: Payload,
+  { localized }: Setup,
+  tx: Pick<PostgresAdapter['drizzle'], 'execute'>,
+  collection: string,
+  id: number | string,
+  lockClause: string
+) {
+  const { tables } = postgresOf(payload)
+  const lock = postgresSql.raw(lockClause)
+  await tx.execute(postgresSql`SELECT id FROM ${tables[collection]} WHERE id = ${id} ${lock}`)
+  if (localized) {
+    await tx.execute(
+      postgresSql`SELECT id FROM ${tables[`${collection}_locales`]} WHERE _parent_id = ${id} AND _locale = 'en' ${lock}`
+    )
+  }
+}
+
 /**
- * Holds a row of a collection on Postgres in a transaction of its own, so a write of it waits, until
- * the returned function lets it go. A write of a row that names it as its parent doesn't wait.
+ * A write of the row waits, and a write of a row that names it as its parent doesn't. In a localized
+ * setup it holds the row of English in the table of locales too, which is where a move's statement
+ * writes the path of a localized collection.
  *
- * Given a title, it stands for a save in a transaction of its own that holds the row while a move or
- * a backfill reads it: as it lets go it gives the row that title, in English in a localized
- * collection, and a new updatedAt, and commits. The clock's time, not the transaction's start, so the
- * new updatedAt is later than any the row was read with.
+ * Given a saved title, it stands for a save that holds the row while a move or a backfill reads it,
+ * and gives the row that title and a new updatedAt as it lets go. The clock's time, not the
+ * transaction's start, so the new updatedAt is later than any the row was read with.
  */
 export async function holdRow(
   payload: Payload,
+  setup: Setup,
   collection: string,
   id: number | string,
-  saved?: { localized: boolean; title: string }
+  { savedTitle }: { savedTitle?: string } = {}
 ) {
   const { drizzle, tables } = postgresOf(payload)
+  const [row, locales] = [tables[collection], tables[`${collection}_locales`]]
   let letGo = () => {}
   const lettingGo = new Promise<void>((resolve) => (letGo = resolve))
   let held = () => {}
   const holding = new Promise<void>((resolve) => (held = resolve))
   const transaction = drizzle.transaction(async (tx) => {
-    await tx.execute(postgresSql`SELECT id FROM ${tables[collection]} WHERE id = ${id} FOR NO KEY UPDATE`)
+    await lockRows(payload, setup, tx, collection, id, 'FOR NO KEY UPDATE')
     held()
     await lettingGo
-    if (!saved) return
-    const { localized, title } = saved
-    await tx.execute(postgresSql`UPDATE ${tables[collection]} SET updated_at = clock_timestamp() WHERE id = ${id}`)
+    if (savedTitle === undefined) return
+    await tx.execute(postgresSql`UPDATE ${row} SET updated_at = clock_timestamp() WHERE id = ${id}`)
     await tx.execute(
-      localized
-        ? postgresSql`UPDATE ${tables[`${collection}_locales`]} SET title = ${title} WHERE _parent_id = ${id} AND _locale = 'en'`
-        : postgresSql`UPDATE ${tables[collection]} SET title = ${title} WHERE id = ${id}`
+      setup.localized
+        ? postgresSql`UPDATE ${locales} SET title = ${savedTitle} WHERE _parent_id = ${id} AND _locale = 'en'`
+        : postgresSql`UPDATE ${row} SET title = ${savedTitle} WHERE id = ${id}`
     )
   })
   await holding
-  return async () => {
+  const letGoAndCommit = async () => {
     letGo()
     await transaction
   }
+  // A test that fails before it lets the row go would leave it held, and the write that waits for it
+  // would never end.
+  onTestFinished(letGoAndCommit)
+  return letGoAndCommit
 }
 
-// Waits until a statement of this Postgres database waits for a row another transaction holds, or
-// gives up after a while, so work that doesn't wait doesn't hang the test.
+export async function isRowFree(
+  payload: Payload,
+  setup: Setup,
+  collection: string,
+  id: number | string,
+  mode: 'KEY SHARE' | 'NO KEY UPDATE'
+) {
+  try {
+    await postgresOf(payload).drizzle.transaction((tx) => lockRows(payload, setup, tx, collection, id, `FOR ${mode} NOWAIT`))
+    return true
+  } catch (error) {
+    // Postgres refuses a lock NOWAIT can't take at once with lock_not_available.
+    if ((error as { cause?: { code?: string } }).cause?.code === '55P03') return false
+    throw error
+  }
+}
+
+// Gives up after 10 seconds, so work that never waits doesn't hang the test. A test asserts it only
+// after it let the row go, so a failed assertion never leaves the row held.
 export async function waitForRowWait(payload: Payload) {
   const { drizzle, schemaName } = postgresOf(payload)
   for (const started = Date.now(); Date.now() - started < 10_000;) {
     const { rows } = await drizzle.execute<{ waiting: number }>(
       postgresSql`SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE ${`%${schemaName}%`}`
     )
-    if (rows[0]!.waiting > 0) return
+    if (rows[0]!.waiting > 0) return true
     await new Promise((resolve) => setTimeout(resolve, 20))
   }
+  return false
 }

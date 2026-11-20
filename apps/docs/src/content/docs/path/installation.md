@@ -33,7 +33,7 @@ bunx payload generate:importmap
 
 ## Transactions
 
-The plugin works with database transactions and without them, on MongoDB, Postgres and SQLite. It reads and writes through Payload's own database API, so there is nothing to set up per database.
+The plugin works with database transactions and without them, on MongoDB, Postgres and SQLite.
 
 With transactions, a save, move or delete that fails leaves everything as it was. Without them, which is SQLite's default, a move that stops halfway leaves some documents at their old paths, and [`backfillPaths`](/path/api/backfill-paths/) puts them right.
 

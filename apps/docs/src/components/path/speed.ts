@@ -1,7 +1,11 @@
+import remoteServerRun from '../../data/path-remote-server.json'
 import report from '../../data/path-speed.json'
 
 // The numbers of the last run of `bun run bench` in packages/path, which writes path-speed.json.
 export { report }
+
+// Each way to build paths, timed against a MongoDB server on another machine, which `bun run bench` doesn't run.
+export { remoteServerRun }
 
 export type Setup = (typeof report.setups)[number]
 export type Timing = { median: number; p95: number }

@@ -5,7 +5,6 @@ import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
 import { catchFieldErrors, changed, create, readDocument, readPath, remove, store, update } from './support/documents.js'
 
-// Payload's own hierarchy holds a topic's parent in a field Payload names, or one the site names.
 const HIERARCHIES = [
   { hierarchy: true, label: "with Payload's hierarchy", parentField: '_h_topics' },
   {
@@ -46,6 +45,20 @@ for (const { hierarchy, label, parentField } of HIERARCHIES) {
           collection: 'topics',
           document: { id: physics.id }
         })
+      })
+
+      it('gives every topic below a renamed topic its new path, latest versions too', async () => {
+        const { payload } = test
+        const history = await create(payload, 'topics', { slug: 'history', title: 'History' })
+        const ancient = await create(payload, 'topics', { ...below(history), slug: 'ancient', title: 'Ancient' })
+        const rome = await create(payload, 'topics', { ...below(ancient), slug: 'rome', title: 'Rome' })
+
+        await update(payload, 'topics', history.id, { slug: 'past' })
+
+        for (const draft of [false, true]) {
+          expect(await readPath(payload, 'topics', ancient.id, { draft })).toBe('/past/ancient')
+          expect(await readPath(payload, 'topics', rome.id, { draft })).toBe('/past/ancient/rome')
+        }
       })
 
       it('moves a topic and everything below it to a new parent, latest versions too, and reports the move', async () => {
@@ -90,13 +103,11 @@ for (const { hierarchy, label, parentField } of HIERARCHIES) {
 
         const published = await readDocument(payload, 'topics', masons.id)
         expect(published.path).toBe('/guilds/masons')
-        // The topic itself keeps the parent it was published below until the move happens.
         expect(String(published[parentField])).toBe(String(guilds.id))
         expect(await readPath(payload, 'topics', masons.id, { draft: true })).toBe('/trades/masons')
         expect(await readPath(payload, 'topics', lodges.id)).toBe('/guilds/masons/lodges')
         expect(changes).toEqual([])
 
-        // The draft's publish carries the move out, with the topic below.
         await update(payload, 'topics', masons.id, {})
 
         expect(await readPath(payload, 'topics', masons.id)).toBe('/trades/masons')
@@ -112,7 +123,8 @@ for (const { hierarchy, label, parentField } of HIERARCHIES) {
         const alloys = await create(payload, 'topics', { slug: 'alloys', title: 'Alloys' })
         const brass = await create(payload, 'topics', { ...below(metals), slug: 'brass', title: 'Brass' }, { draft: true })
 
-        // Payload writes a draft to the latest version only, and deletes with a topic every topic that itself holds it as its parent.
+        // Payload writes a draft to the latest version only, and deletes with a topic every topic that
+        // itself holds it as its parent.
         await update(payload, 'topics', brass.id, below(alloys), { draft: true })
 
         const moved = await readDocument(payload, 'topics', brass.id)
@@ -161,7 +173,6 @@ for (const { hierarchy, label, parentField } of HIERARCHIES) {
         expect(String(draft[parentField])).toBe(String(sports.id))
         expect(changes).toEqual([
           [
-            // The deleted topic, then the topics right below it, then the one deeper.
             changed(setup, 'topics', ballGames, '/sports/ball-games', null),
             changed(setup, 'topics', tennis, '/sports/ball-games/tennis', '/sports/tennis'),
             changed(setup, 'topics', golf, '/sports/ball-games/golf', '/sports/golf'),

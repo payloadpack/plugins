@@ -1,0 +1,58 @@
+---
+import SpeedBars, { type Panel } from './SpeedBars.astro'
+import { formatTime, remoteServerRun } from './speed'
+
+interface Props {
+  kind: 'links' | 'lookups' | 'moves'
+}
+
+const { kind } = Astro.props
+
+const { methods, ranOn } = remoteServerRun
+const groups = remoteServerRun[kind]
+const methodLabel = (method: string) => methods.find(({ id }) => id === method)!.label
+const formatQueries = (queries: number) => `${queries.toLocaleString('en')} ${queries === 1 ? 'query' : 'queries'}`
+
+const panels: Panel[] = [
+  {
+    groups: groups.map(({ name, rows }) => ({
+      bars: rows.map(({ median, method, queries, runs }) => ({
+        label: methodLabel(method),
+        median,
+        title: `${methodLabel(method)}, ${name}: ${formatTime(median)}, ${formatQueries(queries)}, median of ${runs} runs`
+      })),
+      label: name
+    }))
+  }
+]
+const caption = `MongoDB on another machine, ${ranOn.queryMilliseconds} ms per query, ${ranOn.pagesPerCollection.toLocaleString('en')} pages per collection. Shorter is better.`
+const shownMethods = methods.filter(({ id }) => groups.some(({ rows }) => rows.some(({ method }) => method === id)))
+---
+
+<SpeedBars caption={caption} panels={panels}>
+  <table>
+    <thead>
+      <tr>
+        <th />
+        {shownMethods.map(({ label }) => <th>{label}</th>)}
+      </tr>
+    </thead>
+    <tbody>
+      {
+        groups.map(({ name, rows }) => (
+          <tr>
+            <td>{name}</td>
+            {shownMethods.map(({ id }) => {
+              const row = rows.find(({ method }) => method === id)
+              return (
+                <td>
+                  {row ? `${formatTime(row.median)}, ${formatQueries(row.queries)}, ${row.runs} runs` : '-'}
+                </td>
+              )
+            })}
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</SpeedBars>
