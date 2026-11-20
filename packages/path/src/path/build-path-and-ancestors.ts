@@ -24,7 +24,7 @@ export type PathAndAncestors = { ancestors: Id[]; paths: Paths }
 export type ParentPathAndAncestors = PathAndAncestors & { id: Id }
 
 // What a path and ancestors are made from: the parent, and each locale's own slug.
-export type SlugsAndParent = { parentId: Id | null; slugs: Record<string, unknown> }
+type SlugsAndParent = { parentId: Id | null; slugs: Record<string, unknown> }
 
 export const HOME_PAGE_PATH = '/'
 

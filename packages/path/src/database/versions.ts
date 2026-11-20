@@ -91,7 +91,7 @@ export async function findLatestVersionsBelow(collection: string, id: Id, below:
 }
 
 // A document's latest version as the database holds it, or nothing for a document without one.
-export async function findLatestVersion(collection: string, id: Id, req: PayloadRequest): Promise<StoredVersion | undefined> {
+async function findLatestVersion(collection: string, id: Id, req: PayloadRequest): Promise<StoredVersion | undefined> {
   const [version] = await findLatestVersions(collection, { parent: { equals: id } }, req)
   return version
 }
