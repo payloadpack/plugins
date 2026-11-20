@@ -27,7 +27,7 @@ const found = await findByPath({ path: '/about/team', payload })
 
 ## Payload find options
 
-`findByPath` also takes the rest of `payload.find`'s options, such as `select`, `populate`, `where`, `user`, `req`, `context`, `fallbackLocale`, `joins`, `showHiddenFields` and `includeLockStatus`.
+`findByPath` also takes these options of `payload.find`, as Payload types them: `select`, `populate`, `where`, `user`, `req`, `context`, `fallbackLocale`, `joins`, `showHiddenFields` and `includeLockStatus`.
 
 ```ts
 const found = await findByPath({
@@ -45,7 +45,7 @@ const found = await findByPath({
 - **`select`:** Include or exclude fields as in `payload.find`. You still only get published documents, whatever your `select` leaves out.
 - **`where`:** Added to the path and published checks, never in their place. Every collection you search needs the fields your `where` names.
 - **`req`:** The lookup, and `paths: true`, read inside your request's transaction.
-- **Left out:** `collection` (use `collections`), `limit`, `page`, `pagination`, `sort` and `trash`, since a document in the trash has no path.
+- **Left out:** `collection` (use `collections`), `limit`, `page`, `pagination`, `sort` and `trash`, since a document in the trash has no path. An option Payload adds later reaches `findByPath` once a release of this package takes it.
 
 ## What it returns
 

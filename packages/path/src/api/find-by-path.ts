@@ -28,15 +28,45 @@ export type FoundByPath<Slug extends PathCollectionSlug = PathCollectionSlug, TS
   }
 }[Slug]
 
-type ForwardedFindOptions<Slug extends CollectionSlug> = Omit<
-  FindOptions<Slug, SelectType>,
-  'collection' | 'currentDepth' | 'draft' | 'limit' | 'locale' | 'page' | 'pagination' | 'select' | 'sort' | 'trash'
->
+// The options of Payload's find that findByPath passes on untouched. Nothing else a caller passes
+// reaches the find.
+const PASSED_FIND_OPTIONS = [
+  'context',
+  'fallbackLocale',
+  'includeLockStatus',
+  'joins',
+  'populate',
+  'showHiddenFields',
+  'user'
+] as const
+type PassedFindOption = (typeof PASSED_FIND_OPTIONS)[number]
 
-type FindByPathArguments<
-  Slug extends PathCollectionSlug,
-  TSelect extends SelectFor<Slug> = never
-> = ForwardedFindOptions<Slug> & {
+// The ones it takes with Payload's own type and uses itself: with a default of its own, added to
+// its own where, or to see the request's transaction.
+type UsedFindOption = 'depth' | 'disableErrors' | 'overrideAccess' | 'req' | 'where'
+
+// The ones it sets itself or leaves out, since a path finds one document, and a document in the
+// trash has none.
+type OwnFindOption =
+  'collection' | 'currentDepth' | 'draft' | 'limit' | 'locale' | 'page' | 'pagination' | 'select' | 'sort' | 'trash'
+
+// A Payload whose find gains an option, or loses one named above, fails to compile here until the
+// option is decided on.
+type FindOptionName = keyof FindOptions<CollectionSlug, SelectType>
+type DecidedFindOption = OwnFindOption | PassedFindOption | UsedFindOption
+type IsNever<Name extends never> = Name
+type UndecidedFindOption = IsNever<Exclude<FindOptionName, DecidedFindOption>>
+type RemovedFindOption = IsNever<Exclude<DecidedFindOption, FindOptionName>>
+
+function pickPassedFindOptions(options: Partial<Record<PassedFindOption, unknown>>) {
+  const passed = PASSED_FIND_OPTIONS.filter((name) => options[name] !== undefined).map((name) => [name, options[name]])
+  return Object.fromEntries(passed) as Pick<FindOptions<CollectionSlug, SelectType>, PassedFindOption>
+}
+
+type FindByPathArguments<Slug extends PathCollectionSlug, TSelect extends SelectFor<Slug> = never> = Pick<
+  FindOptions<Slug, SelectType>,
+  PassedFindOption | UsedFindOption
+> & {
   /** The collections to look in, among the plugin's. Without it, every one of them. */
   collections?: Slug[]
   /**
@@ -89,8 +119,9 @@ function buildWhere(path: string, published: boolean, where: Where | undefined):
 
 /**
  * The document at a path, across the collections the plugin is given, for a site's route: one
- * indexed query per collection, run at once, and none for a reserved path. It forwards Payload's
- * find options, defaulting depth to 0, draft to false, overrideAccess to true and disableErrors to true.
+ * indexed query per collection, run at once, and none for a reserved path. It takes the options of
+ * Payload's find that fit one path, defaulting depth to 0, draft to false, overrideAccess to true and
+ * disableErrors to true.
  */
 export function findByPath<Slug extends PathCollectionSlug = PathCollectionSlug, TSelect extends SelectFor<Slug> = never>(
   args: FindByPathArguments<Slug, TSelect> & { paths: true }
@@ -111,16 +142,17 @@ export async function findByPath<Slug extends PathCollectionSlug = PathCollectio
   req,
   select,
   where,
-  ...findOptions
+  ...otherArguments
 }: FindByPathArguments<Slug, TSelect>) {
   const slugs = pickCollections(collections, getPathConfig(payload))
   if (getReservedPathRefusal(path, payload)) return null
+  const passedFindOptions = pickPassedFindOptions(otherArguments)
 
   const findInCollection = async (collection: CollectionSlug): Promise<FoundByPath<Slug, TSelect> | null> => {
     const published = !draft && hasDraftsEnabled(payload.collections[collection].config)
     const { querySelect, stripStatus } = buildSelectWithStatus(select as SelectType | undefined, published)
     const { docs } = await payload.find({
-      ...findOptions,
+      ...passedFindOptions,
       collection,
       depth,
       disableErrors,
@@ -130,8 +162,6 @@ export async function findByPath<Slug extends PathCollectionSlug = PathCollectio
       pagination: false,
       req,
       select: querySelect as SelectFor<CollectionSlug> | undefined,
-      // A document in the trash takes no path, also for a caller without the types that passes trash.
-      trash: false,
       where: buildWhere(path, published, where)
     })
     const foundDocument = published ? docs.find(({ _status }) => _status === 'published') : docs[0]
