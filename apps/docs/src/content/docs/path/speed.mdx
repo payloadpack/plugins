@@ -4,6 +4,7 @@ description: What a lookup, a save and a move cost, in queries and in millisecon
 ---
 
 import SpeedChart from '../../../components/path/SpeedChart.astro'
+import SpeedRoundTrip from '../../../components/path/SpeedRoundTrip.astro'
 import SpeedTable from '../../../components/path/SpeedTable.astro'
 
 ## In queries
@@ -41,6 +42,41 @@ The pages are a top-level page with 100 pages below it, a page three levels down
 
 Slug by slug runs one query per segment, each on its index on slug and parent, so it takes longer the deeper a page sits.
 
+The databases of this benchmark run on the same machine as the site, where a query takes a fraction of a millisecond. That is why ten queries cost about as little as one here.
+
+### With the database on another machine
+
+Every query waits for the round trip to the database. `findByPath` asks one query per collection, at the same time, at any depth. Slug by slug asks one per segment, and each needs the page the one before found, so they can't run at the same time.
+
+<SpeedRoundTrip kind="lookups" />
+
+Both look in one collection here. Path costs one round trip wherever the page sits, and slug by slug costs one per segment.
+
+To place your own site, time one query from where it runs to its database.
+
+### Showing a page's path
+
+A lookup goes from a path to a page. A menu, a list of posts and a sitemap go the other way: each link needs the path of its page. With path it is on the document. With a slug and a parent it is built from the pages above, for every link.
+
+A site reads the pages above in one of two ways:
+
+- **Link by link**: each link asks for its parent, then for that page's parent, up to the top.
+- **A level at a time**: all the links ask for their parents in one query, then for those pages' parents in the next.
+
+<SpeedRoundTrip kind="link-queries" />
+
+<SpeedRoundTrip kind="menu" />
+
+Link by link runs its walks at the same time, so its time grows less than its queries do.
+
+### When a slug and a parent do as well
+
+- A top-level page is one query either way.
+- With the database on the same machine, SQLite included, the walk takes 1 to 3 ms at ten segments.
+- A sitemap can read every page once and build the paths in memory: 49 ms against 36 ms for 10,000 pages on MongoDB, on the same machine.
+- A rename or a move writes one page. Path also writes every page below it, as [Moving a branch](#moving-a-branch) shows.
+- Asking for all of a path's slugs in one query takes the depth out of the lookup. It reads every page that has one of those slugs, in any branch, so with 1,000 pages ending in the same slug it took 13 ms on MongoDB and 22 ms on Postgres, on the same machine, against 0.2 ms and 0.3 ms. A link still has no path to show.
+
 ### Moving a branch
 
 <SpeedChart kind="moves" />
@@ -73,3 +109,5 @@ cd packages/path && bun run bench
 ```
 
 It starts its own databases, seeds them and prints these tables, which takes about an hour, mostly seeding. That full run then writes its numbers to `apps/docs/src/data/path-speed.json`, which the tables and charts on this page read, and to the table in the package's README. A smaller run, such as `BENCH_DOCUMENTS=4000 bun run bench`, only prints them.
+
+The benchmark doesn't add a round trip yet. The numbers under [With the database on another machine](#with-the-database-on-another-machine) and [Showing a page's path](#showing-a-pages-path) are from a run of their own.

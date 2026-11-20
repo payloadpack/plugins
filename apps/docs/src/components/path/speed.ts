@@ -1,7 +1,11 @@
+import roundTripRun from '../../data/path-round-trip.json'
 import report from '../../data/path-speed.json'
 
 // The numbers of the last run of `bun run bench` in packages/path, which writes path-speed.json.
 export { report }
+
+// Lookups and links timed once with a round trip added to each query, which `bun run bench` doesn't run.
+export { roundTripRun }
 
 export type Setup = (typeof report.setups)[number]
 export type Timing = { median: number; p95: number }

@@ -1,0 +1,270 @@
+{
+  "ranOn": {
+    "date": "2026-11-19",
+    "linkByLinkRuns": 20,
+    "lookupRuns": 300,
+    "menuRuns": 200,
+    "pagesPerCollection": 10000
+  },
+  "methods": [
+    {
+      "id": "path",
+      "label": "path"
+    },
+    {
+      "id": "slug-walk",
+      "label": "slug by slug"
+    },
+    {
+      "id": "level-at-a-time",
+      "label": "a level at a time"
+    },
+    {
+      "id": "link-by-link",
+      "label": "link by link"
+    }
+  ],
+  "roundTrips": [0, 1, 5],
+  "databases": [
+    {
+      "database": "mongodb",
+      "lookups": [
+        {
+          "depth": 1,
+          "method": "path",
+          "queries": 1,
+          "medians": [0.27, 1.55, 6.52]
+        },
+        {
+          "depth": 1,
+          "method": "slug-walk",
+          "queries": 1,
+          "medians": [0.18, 1.58, 6.65]
+        },
+        {
+          "depth": 3,
+          "method": "path",
+          "queries": 1,
+          "medians": [0.2, 1.57, 6.9]
+        },
+        {
+          "depth": 3,
+          "method": "slug-walk",
+          "queries": 3,
+          "medians": [0.54, 5.98, 21.46]
+        },
+        {
+          "depth": 7,
+          "method": "path",
+          "queries": 1,
+          "medians": [0.19, 1.67, 7.23]
+        },
+        {
+          "depth": 7,
+          "method": "slug-walk",
+          "queries": 7,
+          "medians": [1.14, 11.61, 48.69]
+        }
+      ],
+      "linkQueries": [
+        {
+          "name": "Menu of 20 links",
+          "method": "path",
+          "queries": 2
+        },
+        {
+          "name": "Menu of 20 links",
+          "method": "level-at-a-time",
+          "queries": 8
+        },
+        {
+          "name": "Menu of 20 links",
+          "method": "link-by-link",
+          "queries": 59
+        },
+        {
+          "name": "Menu of 100 links",
+          "method": "path",
+          "queries": 2
+        },
+        {
+          "name": "Menu of 100 links",
+          "method": "level-at-a-time",
+          "queries": 8
+        },
+        {
+          "name": "Menu of 100 links",
+          "method": "link-by-link",
+          "queries": 297
+        },
+        {
+          "name": "Menu of 500 links",
+          "method": "path",
+          "queries": 3
+        },
+        {
+          "name": "Menu of 500 links",
+          "method": "level-at-a-time",
+          "queries": 11
+        },
+        {
+          "name": "Menu of 500 links",
+          "method": "link-by-link",
+          "queries": 1497
+        },
+        {
+          "name": "List of 50 pages",
+          "method": "path",
+          "queries": 2
+        },
+        {
+          "name": "List of 50 pages",
+          "method": "level-at-a-time",
+          "queries": 4
+        },
+        {
+          "name": "List of 50 pages",
+          "method": "link-by-link",
+          "queries": 102
+        }
+      ],
+      "menu": {
+        "name": "Menu of 100 links",
+        "rows": [
+          {
+            "method": "path",
+            "medians": [2.3, 5.37, 15.58]
+          },
+          {
+            "method": "level-at-a-time",
+            "medians": [4.71, 16.68, 58.83]
+          },
+          {
+            "method": "link-by-link",
+            "medians": [24.0, 33.37, 69.56]
+          }
+        ]
+      }
+    },
+    {
+      "database": "postgres",
+      "lookups": [
+        {
+          "depth": 1,
+          "method": "path",
+          "queries": 1,
+          "medians": [0.3, 1.73, 7.63]
+        },
+        {
+          "depth": 1,
+          "method": "slug-walk",
+          "queries": 1,
+          "medians": [0.31, 1.83, 7.53]
+        },
+        {
+          "depth": 3,
+          "method": "path",
+          "queries": 1,
+          "medians": [0.32, 1.77, 7.23]
+        },
+        {
+          "depth": 3,
+          "method": "slug-walk",
+          "queries": 3,
+          "medians": [0.9, 5.3, 23.52]
+        },
+        {
+          "depth": 7,
+          "method": "path",
+          "queries": 1,
+          "medians": [0.29, 1.69, 7.67]
+        },
+        {
+          "depth": 7,
+          "method": "slug-walk",
+          "queries": 7,
+          "medians": [2.01, 12.88, 55.49]
+        }
+      ],
+      "linkQueries": [
+        {
+          "name": "Menu of 20 links",
+          "method": "path",
+          "queries": 2
+        },
+        {
+          "name": "Menu of 20 links",
+          "method": "level-at-a-time",
+          "queries": 8
+        },
+        {
+          "name": "Menu of 20 links",
+          "method": "link-by-link",
+          "queries": 59
+        },
+        {
+          "name": "Menu of 100 links",
+          "method": "path",
+          "queries": 2
+        },
+        {
+          "name": "Menu of 100 links",
+          "method": "level-at-a-time",
+          "queries": 8
+        },
+        {
+          "name": "Menu of 100 links",
+          "method": "link-by-link",
+          "queries": 297
+        },
+        {
+          "name": "Menu of 500 links",
+          "method": "path",
+          "queries": 2
+        },
+        {
+          "name": "Menu of 500 links",
+          "method": "level-at-a-time",
+          "queries": 7
+        },
+        {
+          "name": "Menu of 500 links",
+          "method": "link-by-link",
+          "queries": 1496
+        },
+        {
+          "name": "List of 50 pages",
+          "method": "path",
+          "queries": 2
+        },
+        {
+          "name": "List of 50 pages",
+          "method": "level-at-a-time",
+          "queries": 4
+        },
+        {
+          "name": "List of 50 pages",
+          "method": "link-by-link",
+          "queries": 102
+        }
+      ],
+      "menu": {
+        "name": "Menu of 100 links",
+        "rows": [
+          {
+            "method": "path",
+            "medians": [3.0, 5.83, 15.51]
+          },
+          {
+            "method": "level-at-a-time",
+            "medians": [5.17, 16.6, 56.5]
+          },
+          {
+            "method": "link-by-link",
+            "medians": [54.06, 86.84, 231.61]
+          }
+        ]
+      }
+    }
+  ]
+}

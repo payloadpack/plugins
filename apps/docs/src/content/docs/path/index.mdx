@@ -34,6 +34,12 @@ A document sits below a parent of its own collection, held in the plugin's own p
   </Card>
 </CardGrid>
 
+## Why the path is stored
+
+A slug and a parent are enough to find a page: ask for each segment of the path in turn. That is one query per segment, and every link your site shows needs the same walk the other way to know where its page is.
+
+With the path stored, a lookup is one query per collection at any depth, and a link's path is on the document it points at. [Speed](/path/speed/#with-the-database-on-another-machine) has both measured, and says [when a slug and a parent do as well](/path/speed/#when-a-slug-and-a-parent-do-as-well).
+
 ## Requirements
 
 | Package or database | Version or setup          |
