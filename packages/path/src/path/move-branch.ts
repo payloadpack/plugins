@@ -47,17 +47,21 @@ type BranchMoveRequest = {
 }
 
 // A row that the move or its statements change, with the path and ancestors the move built for it,
-// the slugs and parent they are built from, and whether the statements can't give it those, so it
-// needs a write of its own.
-type RowMove = { needsOwnWrite: boolean; pathAndAncestors: PathAndAncestors; slugsAndParent: SlugsAndParent }
+// the slugs and parent they are built from, the paths it stores, and whether the statements can't
+// give it those the move built, so it needs a write of its own.
+type RowMove = {
+  needsOwnWrite: boolean
+  pathAndAncestors: PathAndAncestors
+  slugsAndParent: SlugsAndParent
+  storedPaths: Paths
+}
 
-// The rows a move changes, top-down, each document with the paths its row stores, and every document
-// the branch holds below its first, which the id names, with what the statements write into the rows
-// below it.
+// The rows a move changes, top-down, and every document the branch holds below its first, which the
+// id names, with what the statements write into the rows below it.
 export type BranchMove = {
   below: StoredDocument[]
   collection: string
-  documents: (RowMove & { document: StoredDocument; storedPaths: Paths })[]
+  documents: (RowMove & { document: StoredDocument })[]
   id: Id
   // Whether findBranchMove held the branch until the request ends, so the save may have waited for a
   // move above it.
@@ -121,53 +125,44 @@ export async function findBranchMove({
     : new Map<string, StoredVersion>()
   // What each document that others hang from gives them now, by its id: the document itself its new
   // path and ancestors, and a deleted document the ones it hung from, so a lift needs no rule of its
-  // own. A row that hangs from a document outside the branch gets no write of its own and no check of
-  // where it lands, but the statements find the rows below by their ancestors, so they still put the
-  // new start in its path where it has the old one, and the new ancestors in its ancestors.
+  // own.
   const parents = new Map<string, ParentPathAndAncestors | null>([[String(id), parent]])
-  // The path and ancestors a row gets below its parent's new ones, with what they are built from, or
-  // nothing for a row that hangs from a document outside the branch.
-  const buildPathAndAncestorsBelow = (documentAndLatestVersion: DocumentAndLatestVersion, kind: 'document' | 'draft') => {
+  // What the move does to a row, with the path and ancestors it gets and what they are built from, or
+  // nothing where the row stores them already and the statements leave it so. A row gets them below
+  // its parent's new ones, by the rule.
+  // - A row that hangs from a document outside the branch stores the moved document among its
+  //   ancestors all the same, so the statements find it. It gets what they make of what it stores, so
+  //   where it lands is checked and onPathsChanged hears of it, and it is never written by itself,
+  //   which would give it another parent than the one it holds.
+  // - A write of its own also gives a row the parent its ancestors hang from, and the statements
+  //   change a parent only where it is the moved document, so they serve only a row whose parent
+  //   agrees with its ancestors.
+  const buildRowMove = (documentAndLatestVersion: DocumentAndLatestVersion, kind: 'document' | 'draft'): RowMove | undefined => {
+    // The row itself: the document's, or for a draft the latest version's, under its document's id.
+    const { document: row } = documentAndLatestVersion
     const slugsAndParent = getSlugsAndParent(documentAndLatestVersion, kind, collection, payload)
     const { parentId, slugs } = slugsAndParent
     const newParent = parentId === null ? null : parents.get(String(parentId))
-    return newParent === undefined
-      ? undefined
-      : { pathAndAncestors: buildPathAndAncestors(slugs, newParent, collection, payload), slugsAndParent }
-  }
-  // What the move does to a row that stores these, with what it built for the row, or nothing where
-  // the row stores what it built and the statements leave it so. A write of its own also gives a row
-  // the parent its ancestors hang from, and the statements change a parent only where it is the moved
-  // document, so they serve only a row whose parent agrees with its ancestors.
-  const buildRowMove = (
-    row: Omit<StoredDocument, 'id'>,
-    storedPathAndAncestors: PathAndAncestors,
-    builtPathAndAncestors: Omit<RowMove, 'needsOwnWrite'>
-  ): RowMove | undefined => {
+    const storedPathAndAncestors = getStoredPathAndAncestors(row, slug, payload)
     const replacedPathAndAncestors = buildReplacedPathAndAncestors(storedPathAndAncestors, id, starts)
-    const { pathAndAncestors } = builtPathAndAncestors
+    const hangsOutsideBranch = newParent === undefined
+    const pathAndAncestors = hangsOutsideBranch
+      ? replacedPathAndAncestors
+      : buildPathAndAncestors(slugs, newParent, collection, payload)
+    if (kind === 'document') parents.set(String(row.id), { ...pathAndAncestors, id: row.id })
     const statementsBuildPathAndAncestors = hasSamePathAndAncestors(pathAndAncestors, replacedPathAndAncestors)
     if (statementsBuildPathAndAncestors && hasSamePathAndAncestors(pathAndAncestors, storedPathAndAncestors)) return
     const parentAgrees = hasParentOfAncestors(row, storedPathAndAncestors.ancestors, parentField)
-    return { ...builtPathAndAncestors, needsOwnWrite: !statementsBuildPathAndAncestors || !parentAgrees }
+    const needsOwnWrite = !hangsOutsideBranch && (!statementsBuildPathAndAncestors || !parentAgrees)
+    return { needsOwnWrite, pathAndAncestors, slugsAndParent, storedPaths: storedPathAndAncestors.paths }
   }
   const getDepth = ({ ancestors }: StoredDocument) => ancestors?.length ?? 0
   for (const document of below.sort((upper, lower) => getDepth(upper) - getDepth(lower))) {
-    const builtPathAndAncestors = buildPathAndAncestorsBelow({ document, version: versions.get(String(document.id)) }, 'document')
-    if (!builtPathAndAncestors) continue
-    parents.set(String(document.id), { ...builtPathAndAncestors.pathAndAncestors, id: document.id })
-    const storedPathAndAncestors = getStoredPathAndAncestors(document, slug, payload)
-    const rowMove = buildRowMove(document, storedPathAndAncestors, builtPathAndAncestors)
-    if (rowMove) move.documents.push({ ...rowMove, document, storedPaths: storedPathAndAncestors.paths })
+    const rowMove = buildRowMove({ document, version: versions.get(String(document.id)) }, 'document')
+    if (rowMove) move.documents.push({ ...rowMove, document })
   }
   for (const version of versions.values()) {
-    const builtPathAndAncestors = buildPathAndAncestorsBelow(
-      { document: { ...version.version, id: version.parent }, version },
-      'draft'
-    )
-    if (!builtPathAndAncestors) continue
-    const storedPathAndAncestors = getStoredPathAndAncestors(version.version, slug, payload)
-    const rowMove = buildRowMove(version.version, storedPathAndAncestors, builtPathAndAncestors)
+    const rowMove = buildRowMove({ document: { ...version.version, id: version.parent }, version }, 'draft')
     if (rowMove) move.versions.push({ ...rowMove, version })
   }
   return move

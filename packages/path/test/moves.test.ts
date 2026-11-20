@@ -5,6 +5,7 @@ import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup, titled, type TestPayload } from './support/boot-payload.js'
 import {
   catchFieldErrors,
+  changed,
   countLatestVersions,
   create,
   readDocument,
@@ -416,6 +417,31 @@ describeEachSetup('', {}, (test, setup) => {
       })
     }
   )
+
+  it('checks where a document lands that holds a renamed page among its ancestors and a parent outside its branch, and names it to the site', async () => {
+    const { changes, payload } = test
+    const silo = await create(payload, 'pages', { slug: 'silo', title: 'Silo' })
+    const yard = await create(payload, 'pages', { slug: 'yard', title: 'Yard' })
+    const crate = await create(payload, 'pages', { parent: silo.id, slug: 'crate', title: 'Crate' })
+    const tin = await create(payload, 'pages', { slug: 'tin', title: 'Tin' })
+    // Two rows out of step, as an import may leave them. The crate's ancestors and path say below the
+    // silo and its parent field names a page outside the silo's branch, so a rename of the silo
+    // builds nothing for it by the rule, and its statements find it all the same. The tin is at a
+    // path below a warehouse.
+    await storeStrayParent(payload, 'pages', crate.id, yard.id)
+    await storeStrayPath(payload, setup, 'pages', tin.id, '/warehouse/crate')
+
+    expect(await catchFieldErrors(update(payload, 'pages', silo.id, { slug: 'warehouse' }))).toMatchObject([
+      { message: 'Page "Tin" is already at /warehouse/crate, so change the slug or the parent.', path: 'slug' }
+    ])
+    expect(await readPath(payload, 'pages', crate.id)).toBe('/silo/crate')
+    changes.length = 0
+
+    await update(payload, 'pages', silo.id, { slug: 'hangar' })
+
+    expect(await readDocument(payload, 'pages', crate.id)).toMatchObject({ parent: yard.id, path: '/hangar/crate' })
+    expect(changes.flat()).toContainEqual(changed(setup, 'pages', crate, '/silo/crate', '/hangar/crate'))
+  })
 
   it('moves nothing published when a version is restored as a draft', async () => {
     const { changes, payload } = test
