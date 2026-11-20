@@ -50,15 +50,22 @@ describe('pathPlugin', () => {
   it.each([
     { database: 'Postgres', db: postgresAdapter({ pool: { connectionString: 'postgres://never-opened' } }), sql: postgresSql },
     { database: 'SQLite', db: sqliteAdapter({ client: { url: 'file:never-opened.db' } }), sql: sqliteSql }
-  ])('refuses a site on $database that gives it no sql, and takes one that does', async ({ db, sql }) => {
-    const configOn = (options: Parameters<typeof pathPlugin>[0]) =>
-      buildConfig({ collections: [collection('pages')], db, plugins: [pathPlugin(options)], secret: 'path-tests' } as Config)
+  ])(
+    'refuses a site on $database that gives it no sql or another tag than its adapter exports, and takes one that gives the adapter its own or has no collection with parents',
+    async ({ db, sql }) => {
+      const configOn = (options: Parameters<typeof pathPlugin>[0]) =>
+        buildConfig({ collections: [collection('pages')], db, plugins: [pathPlugin(options)], secret: 'path-tests' } as Config)
+      const sqlMissingError =
+        '@payloadpack/path needs the sql your database adapter exports on Postgres and SQLite, so import it next to the adapter and pass it to pathPlugin() as sql.'
+      // A tag that is no drizzle sql, as a database client's own sql is.
+      const tagOfAnotherPackage = ((strings: TemplateStringsArray) => strings.join('')) as unknown as typeof sql
 
-    await expect(configOn({ collections: ['pages'] })).rejects.toThrow(
-      '@payloadpack/path needs the sql your database adapter exports on Postgres and SQLite, so import it next to the adapter and pass it to pathPlugin() as sql.'
-    )
-    await expect(configOn({ collections: ['pages'], sql })).resolves.toBeDefined()
-  })
+      await expect(configOn({ collections: ['pages'] })).rejects.toThrow(sqlMissingError)
+      await expect(configOn({ collections: ['pages'], sql: tagOfAnotherPackage })).rejects.toThrow(sqlMissingError)
+      await expect(configOn({ collections: ['pages'], sql })).resolves.toBeDefined()
+      await expect(configOn({ collections: [{ parent: false, slug: 'pages' }] })).resolves.toBeDefined()
+    }
+  )
 
   it('refuses a collection with a field of its own named like one it adds', async () => {
     const pages = collection('pages', [{ name: 'slug', type: 'text' }])

@@ -23,6 +23,7 @@ import {
   getCollection,
   getFieldOptions,
   hasPayloadHierarchy,
+  isDrizzleSql,
   resolvePathConfig,
   storePathConfig,
   type FieldOptions,
@@ -86,7 +87,10 @@ export function pathPlugin(options: PathPluginOptions): Plugin {
     if (repeatedSlugs.length > 0) throw new Error(repeatedCollectionsError(repeatedSlugs))
     const missingSlugs = slugs.filter((slug) => !config.collections?.some((collection) => collection.slug === slug))
     if (missingSlugs.length > 0) throw new Error(missingCollectionsError(missingSlugs))
-    if (usesSql(config.db?.name) && !options.sql) throw new Error(SQL_MISSING_ERROR)
+    // Only the documents below a moved document are written with the sql, and only a collection with
+    // parents has any.
+    const writesBelowWithSql = usesSql(config.db?.name) && pathConfig.collections.some(({ hasParent }) => hasParent)
+    if (writesBelowWithSql && !isDrizzleSql(options.sql)) throw new Error(SQL_MISSING_ERROR)
     return {
       ...config,
       collections: config.collections?.map((collection) => {
