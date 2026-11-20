@@ -6,14 +6,13 @@ import { inject } from 'vitest'
 
 import type { DatabaseName } from './setups.js'
 
-// A statement the database ran, in the order it ran. Parallel marks a MongoDB command that started
-// while another was running; the SQL adapters run one statement at a time on a connection. A SQL
-// statement keeps its text and the values bound to it.
+// parallel marks a MongoDB command that started while another was running. The SQL adapters run one
+// statement at a time on a connection.
 export type Query = { collection: string; operation: string; parallel: boolean; sql?: { params: unknown[]; text: string } }
 
 const MONGODB_DATA_COMMANDS = ['aggregate', 'count', 'delete', 'find', 'findAndModify', 'getMore', 'insert', 'update']
 
-// The table a SQL statement works on: the first one it names outside parentheses, where subqueries sit.
+// Only the text outside parentheses, where subqueries name tables of their own.
 function readTable(text: string) {
   let depth = 0
   let topLevel = ''
@@ -26,7 +25,6 @@ function readTable(text: string) {
   return table
 }
 
-// Keeps the statements the database runs while some work runs, and none at other times.
 export function recordQueries() {
   let recording: Query[] | undefined
   return {
@@ -47,8 +45,7 @@ export function recordQueries() {
 type AdapterOptions = {
   // MongoDB only: each document of a bulk operation gets a transaction of its own.
   bulkOperationsSingleTransaction: boolean
-  // Postgres and SQLite only: uuid gives every collection without an id field of its own a uuid for
-  // an id, instead of the number the database counts up.
+  // Postgres and SQLite only: a uuid for the id of every collection without an id field of its own.
   idType?: 'uuid'
   transactions: boolean
 }
@@ -59,10 +56,6 @@ function findServer(database: DatabaseName) {
   return server
 }
 
-/**
- * The adapter of one database, with a database of its own by name on the server the global setup
- * started, handing each statement it runs to record.
- */
 export function buildAdapter(
   database: DatabaseName,
   name: string,

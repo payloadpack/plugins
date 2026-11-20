@@ -35,10 +35,8 @@ function listSqlIndexes(payload: Payload, { database }: Setup): Promise<IndexRow
   )
 }
 
-/**
- * The indexes the database holds for a collection's tables, each as its table and columns, such as
- * pages_locales(path,_locale), or for MongoDB its collection and keys, such as pages(path.en).
- */
+// Each as its table and columns, such as pages_locales(path,_locale), or on MongoDB its collection and
+// keys, such as pages(path.en).
 export async function listIndexes({ payload }: TestPayload, setup: Setup, collection: string) {
   if (setup.database === 'mongodb') {
     const indexes = await mongodbOf(payload).collection(collection).indexes()
@@ -52,11 +50,8 @@ export async function listIndexes({ payload }: TestPayload, setup: Setup, collec
 
 type SqliteStatement = Exclude<Parameters<SQLiteAdapter['client']['execute']>[0], string>
 
-/**
- * The plan SQLite makes for a statement it ran, as the steps EXPLAIN QUERY PLAN lists. SQLite keeps
- * no statistics unless a site runs ANALYZE, so the plan depends on the statement alone, whatever the
- * tables hold.
- */
+// SQLite keeps no statistics unless a site runs ANALYZE, so the plan depends on the statement alone,
+// whatever the tables hold.
 export async function readSqlitePlan({ payload }: TestPayload, { sql }: Query) {
   if (!sql) throw new Error('Only a SQL statement has a plan.')
   const { rows } = await sqliteOf(payload).client.execute({
@@ -66,20 +61,18 @@ export async function readSqlitePlan({ payload }: TestPayload, { sql }: Query) {
   return rows.map(({ detail }) => String(detail))
 }
 
-// A write the database refuses: of one path, in a collection or its versions, of other ancestors than
-// a document stores, or of one document's row.
+// ancestorsOf refuses a write of other ancestors than the document stores.
 type RefusedWrite =
   | { collection: string; path: string; versions: boolean }
   | { ancestorsOf: number | string; collection: string }
   | { collection: string; id: number | string }
 
 /**
- * Makes the database itself refuse a write while the work runs, so an operation fails at that write
- * the way it would on a real database error. A write of a refused document's row fails at its first
- * statement, so without a transaction it keeps every value it had, where a refused path on Postgres
- * and SQLite in a localized setup fails after the write took away the row's values of each locale. A
- * statement that changes a table takes no bound value, so the value is written into it, escaped by
- * drizzle.
+ * The database itself refuses the write, so an operation fails the way it would on a real database
+ * error. A write of a refused document's row fails at its first statement, so without a transaction
+ * it keeps every value it had, where a refused path on Postgres and SQLite in a localized setup fails
+ * after the write took away the row's values of each locale. A statement that changes a table takes
+ * no bound value, so the value is written into it, escaped by drizzle.
  */
 export async function refuseWritesOf(
   { payload }: TestPayload,
@@ -155,12 +148,8 @@ export async function refuseWritesOf(
   }
 }
 
-/**
- * The parent and the ancestors of a document and of its latest version, as the database stores them,
- * in a collection with the plugin's own parent field: on MongoDB the ObjectIds, numbers or text of the
- * row, and on Postgres and SQLite the parent's column and the rows of the relationships table,
- * top-down, in the type of their columns.
- */
+// For a collection with the plugin's own parent field only. Each id comes in the type the database
+// stores it in: an ObjectId, number or text on MongoDB, and its column's type on Postgres and SQLite.
 export async function readStoredParentAndAncestors(
   { payload }: TestPayload,
   setup: Setup,
@@ -215,12 +204,9 @@ const setOnMongodb = (payload: Payload, collection: string, id: number | string,
     .collection(collection)
     .updateOne({ $expr: fieldHoldsId('_id', id) }, { $set: values })
 
-/**
- * Stores a row's updatedAt as text that Payload didn't write, as an import or another tool may: on
- * SQLite in another form than Payload's, and on MongoDB as a string where Payload keeps a date. The
- * value Payload reads back from such a row doesn't find the row in a where. Postgres keeps updatedAt
- * in a timestamp column, so there every value reads back as what finds it.
- */
+// As an import or another tool may write it: on SQLite in another form than Payload's, and on MongoDB
+// as a string where Payload keeps a date. The value Payload reads back from such a row doesn't find
+// the row in a where. Postgres keeps updatedAt in a timestamp column, so every value finds it there.
 export async function setUpdatedAtNotWrittenByPayload(payload: Payload, setup: Setup, collection: string, id: number | string) {
   const updatedAt = '2026-01-01 00:00:00'
   if (setup.database === 'mongodb') {
@@ -232,31 +218,20 @@ export async function setUpdatedAtNotWrittenByPayload(payload: Payload, setup: S
   await drizzle.run(sqliteSql`UPDATE ${tables[collection]!} SET updated_at = ${updatedAt} WHERE id = ${id}`)
 }
 
-/**
- * Stores text that is no date as a row's createdAt and updatedAt on MongoDB, as an import or another
- * tool may. Payload reads such a row as it is and can save it, and the adapter refuses that text in a
- * write. Only MongoDB has such a row: Payload can't read one on SQLite, and Postgres keeps both in
- * timestamp columns.
- */
+// As an import or another tool may write them. Payload reads such a row and can save it, and the
+// adapter refuses that text in a write. Only MongoDB has such a row: Payload can't read one on SQLite,
+// and Postgres keeps both in timestamp columns.
 export const setTimestampsThatAreNoDates = (payload: Payload, collection: string, id: number | string) =>
   setOnMongodb(payload, collection, id, { createdAt: 'not a date', updatedAt: 'not a date' })
 
-/**
- * Holds a collection's table on Postgres in the transaction of a request, as a migration that changes
- * the table does, until that transaction ends: every other connection waits for the table, and the
- * request's own doesn't.
- */
+// Stands for a migration that changes the table: until the request's transaction ends, every other
+// connection waits for the table, and the request's own doesn't.
 export async function holdTable(payload: Payload, collection: string, req: PayloadRequest) {
   const { sessions, tables } = postgresOf(payload)
   const { db } = sessions[String(await req.transactionID)]!
   await db.execute(postgresSql`LOCK TABLE ${tables[collection]} IN ACCESS EXCLUSIVE MODE`)
 }
 
-/**
- * Locks a document's row of a collection on Postgres in a transaction with a lock clause, such as FOR
- * NO KEY UPDATE, and in a localized setup its row of English in the table of locales too, the rows
- * holdRow holds and isRowFree tries.
- */
 async function lockRows(
   payload: Payload,
   { localized }: Setup,
@@ -276,15 +251,13 @@ async function lockRows(
 }
 
 /**
- * Holds a document's row of a collection on Postgres in a transaction of its own, so a write of it
- * waits, until the returned function lets it go. In a localized setup it holds the document's row of
- * English in the collection's table of locales too, which is where a move's statement writes the path
- * of a localized collection. A write of a row that names it as its parent doesn't wait.
+ * A write of the row waits, and a write of a row that names it as its parent doesn't. In a localized
+ * setup it holds the row of English in the table of locales too, which is where a move's statement
+ * writes the path of a localized collection.
  *
- * Given a saved title, it stands for a save in a transaction of its own that holds the row while a
- * move or a backfill reads it: as it lets go it gives the row that title, in English in a localized
- * setup, and a new updatedAt, and commits. The clock's time, not the transaction's start, so the new
- * updatedAt is later than any the row was read with.
+ * Given a saved title, it stands for a save that holds the row while a move or a backfill reads it,
+ * and gives the row that title and a new updatedAt as it lets go. The clock's time, not the
+ * transaction's start, so the new updatedAt is later than any the row was read with.
  */
 export async function holdRow(
   payload: Payload,
@@ -322,11 +295,6 @@ export async function holdRow(
   return letGoAndCommit
 }
 
-/**
- * Whether another connection can lock a document's row of a collection on Postgres at once, in the
- * given mode, and in a localized setup its row of English in the table of locales too, as holdRow
- * holds them. It lets the locks go before it returns.
- */
 export async function isRowFree(
   payload: Payload,
   setup: Setup,
@@ -344,9 +312,8 @@ export async function isRowFree(
   }
 }
 
-// Whether a statement of this Postgres database waits for a row another transaction holds within 10
-// seconds, so work that doesn't wait doesn't hang the test. A test asserts it only after it let the
-// row go, so a failed assertion never leaves the row held.
+// Gives up after 10 seconds, so work that never waits doesn't hang the test. A test asserts it only
+// after it let the row go, so a failed assertion never leaves the row held.
 export async function waitForRowWait(payload: Payload) {
   const { drizzle, schemaName } = postgresOf(payload)
   for (const started = Date.now(); Date.now() - started < 10_000;) {

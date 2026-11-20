@@ -20,10 +20,9 @@ import {
   type StoredDocument
 } from './documents.js'
 
-// A version as the database adapter returns it. Its own parent is the document it is a version of.
+// A version's own parent is the document it is a version of.
 export type StoredVersion = { [key: string]: unknown; id: Id; parent: Id; version: Omit<StoredDocument, 'id'> }
 
-// The id of the document a version is of, or nothing for a version that isn't stored.
 export async function findDocumentIdOfVersion(collection: string, id: Id, req: PayloadRequest): Promise<Id | undefined> {
   const { docs } = await req.payload.db.findVersions({
     collection,
@@ -35,13 +34,11 @@ export async function findDocumentIdOfVersion(collection: string, id: Id, req: P
   return (docs[0] as StoredVersion | undefined)?.parent
 }
 
-// A document as the database holds it: the document itself and, in a collection with drafts, its
-// latest version.
 export type DocumentAndLatestVersion = { document: StoredDocument; version?: StoredVersion }
 
 const LATEST: Where = { latest: { equals: true } }
 
-// The latest versions among a collection's versions, newest first, as Payload itself finds one.
+// Newest first, as Payload itself finds a latest version.
 async function findLatestVersions(collection: string, where: Where, req: PayloadRequest) {
   const { docs } = await req.payload.db.findVersions<StoredVersion['version']>({
     collection,
@@ -55,7 +52,6 @@ async function findLatestVersions(collection: string, where: Where, req: Payload
 
 const updatedAtOf = ({ updatedAt }: StoredVersion) => new Date(updatedAt as Date | string).getTime()
 
-// Keeps each document's newest version among the ones found, by the document's id.
 function keepNewest(versions: Map<string, StoredVersion>, found: StoredVersion[]) {
   for (const version of found) {
     const known = versions.get(String(version.parent))
@@ -64,18 +60,13 @@ function keepNewest(versions: Map<string, StoredVersion>, found: StoredVersion[]
   return versions
 }
 
-// The latest version of each document of a collection, by the document's id.
 export async function findLatestVersionByDocument(collection: string, req: PayloadRequest) {
   return keepNewest(new Map(), await findLatestVersions(collection, {}, req))
 }
 
-/**
- * The latest versions a move of the documents below a document reaches, by their document's id:
- * those of the documents below it, and those whose draft would put their document below it while
- * the document itself is elsewhere. The documents are named a chunk at a time. The question that
- * names the first chunk also asks for the versions whose draft would put their document below, and
- * is read a chunk at a time, so a branch that fits in one chunk takes one question.
- */
+// A move reaches the latest versions of the documents below, and those whose draft would put their
+// document below while the document itself is elsewhere. The read that names the first chunk of
+// documents asks for those too, so a branch that fits in one chunk takes one read.
 export async function findLatestVersionsBelow(collection: string, id: Id, below: Id[], req: PayloadRequest) {
   const [first = [], ...rest] = inChunks(below)
   const reached: Where = {
@@ -90,7 +81,6 @@ export async function findLatestVersionsBelow(collection: string, id: Id, below:
   return versions
 }
 
-// A document's latest version as the database holds it, or nothing for a document without one.
 async function findLatestVersion(collection: string, id: Id, req: PayloadRequest): Promise<StoredVersion | undefined> {
   const [version] = await findLatestVersions(collection, { parent: { equals: id } }, req)
   return version
@@ -107,8 +97,6 @@ export async function findDocumentAndLatestVersion(
   return { document, version: await findLatestVersion(collection.slug, id, req) }
 }
 
-// A stored document's path and ancestors, or the ones its latest draft would give it, below the
-// parent that counts for it as that parent is stored.
 export async function findParentAndBuildPathAndAncestors(
   stored: DocumentAndLatestVersion,
   kind: 'document' | 'draft',
@@ -120,9 +108,9 @@ export async function findParentAndBuildPathAndAncestors(
   return buildPathAndAncestors(slugsAndParent.slugs, parent, collection, req.payload)
 }
 
-// Writes a latest version's row whole, as setPathAndAncestors says, and by its id, so a save of that
-// version between its read and this write is written over. MongoDB changes the object it is given, so
-// the row it is made from is not read again afterwards.
+// The whole row is sent, since on MongoDB an update of a version replaces its whole content, and by
+// its id, so a save of that version between its read and this write is written over. MongoDB changes
+// the object it is given, so the row it is made from is not read again afterwards.
 export async function setDraftPathAndAncestors(
   collection: string,
   version: StoredVersion,
@@ -136,13 +124,8 @@ export async function setDraftPathAndAncestors(
 type DocumentAndDraft = { document: PathAndAncestors; draft: PathAndAncestors }
 type Wrote = { document: boolean; draft: boolean }
 
-/**
- * Stores a document's path and ancestors, and the ones its latest draft would give it, in each of
- * the two rows that stores other ones, and says which of them it wrote. With ifUnchanged the
- * document's row is written only while it is as it was read, as setPathAndAncestors says, and when a
- * save came first it writes neither row and says nothing, since the draft's were built from the rows
- * that save changed. The latest version is written by its id either way.
- */
+// With ifUnchanged, a save that came first means neither row is written and nothing is returned: the
+// draft's path and ancestors were built from the rows that save changed.
 export function setDocumentAndDraftPathAndAncestors(
   collection: string,
   stored: DocumentAndLatestVersion,

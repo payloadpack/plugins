@@ -79,7 +79,6 @@ describeEachSetup('', {}, (test, setup) => {
     })
     expect(await readPath(payload, 'pages', lunch)).toBe('/menu/lunch')
 
-    // The draft's publish carries the move out, with the page below.
     await update(payload, 'pages', menu, {})
 
     expect(await readPath(payload, 'pages', menu)).toBe('/food')
@@ -216,8 +215,7 @@ describeEachSetup('', {}, (test, setup) => {
   })
 })
 
-// A site may run the backfill in a transaction of its own, such as a migration's, by giving it that
-// transaction's request.
+// A site may run the backfill in a transaction of its own, such as a migration's.
 describeEachSetup('given a request', {}, (test, setup) => {
   it('writes in the transaction of the request, so its writes are undone with it', async () => {
     const { payload } = test
@@ -268,8 +266,7 @@ describeEachSetup(
       const branch = await create(payload, 'pages', { parent: atlas.id, slug: 'branch', title: 'Branch' })
       const leaf = await create(payload, 'pages', { parent: branch.id, slug: 'leaf', title: 'Leaf' })
       const globe = await create(payload, 'pages', { slug: 'globe', title: 'Globe' })
-      // The database refuses the write of the ancestors of the last page of the branch, after the
-      // page itself moved.
+      // Refused after the page itself moved, so the move stops halfway.
       await refuseWritesOf(test, setup, { ancestorsOf: leaf.id, collection: 'pages' }, () =>
         expect(update(payload, 'pages', atlas.id, { parent: globe.id })).rejects.toThrow()
       )
@@ -298,8 +295,6 @@ describeEachSetup(
       const people = await create(payload, 'pages', { parent: team.id, slug: 'people', title: 'People' })
       const hiring = await create(payload, 'pages', { parent: people.id, slug: 'hiring', title: 'Hiring' })
       const values = await create(payload, 'pages', { parent: team.id, slug: 'values', title: 'Values' })
-      // The database refuses the write of the ancestors of one page the delete lifts, so a page below
-      // the deleted one is left below it or has its new parent already, by how far the lift got.
       await refuseWritesOf(test, setup, { ancestorsOf: people.id, collection: 'pages' }, () =>
         expect(remove(payload, 'pages', team.id)).rejects.toThrow()
       )
@@ -308,7 +303,7 @@ describeEachSetup(
 
       expect(report.left).toEqual([])
       expect(await readPath(payload, 'pages', team.id)).toBe('/company/team')
-      // Each page is where its slug and its parent put it, whichever parent the lift left it with.
+      // The lift stopped partway, so a page below may have its old parent or its new one.
       for (const [id, slug] of [
         [people.id, 'people'],
         [hiring.id, 'hiring'],
@@ -421,12 +416,9 @@ describeEachSetup(
   }
 )
 
-// A backfill reads each document again when it gets to it, and writes its row only while it is as it
-// was read, so a save that lands while the run is under way is kept. Step by step on Postgres without
-// transactions: a statement of the test holds the row of a page that stores another path than its
-// slug makes, so the run waits to write it. Meanwhile the page below it, which the run comes to after
-// it, is saved, or the held row itself is changed before it is let go. Holding a row so that a write
-// waits for it is Postgres's, so the other databases are left out: SQLite has one writer at a time.
+// A held page stores another path than its slug makes, so the run has its row to write and waits for
+// it, and comes to the page below it only after. Holding a row so that a write waits for it is
+// Postgres's, so the other databases are left out: SQLite has one writer at a time.
 describeEachSetup(
   'a backfill that waits to write a row, transactions off',
   { boot: { transactions: false }, setups: SETUPS.filter(({ database }) => database === 'postgres') },

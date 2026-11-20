@@ -19,8 +19,7 @@ describeEachSetup('', {}, (test, setup) => {
     const arcade = await create(payload, 'pages', { slug: 'arcade', title: 'Arcade' })
     const kiosk = await create(payload, 'pages', { parent: arcade.id, slug: 'kiosk', title: 'Kiosk' })
     const stall = await create(payload, 'pages', { parent: arcade.id, slug: 'stall', title: 'Stall' })
-    // Stored at a path that nothing the plugin writes leaves behind. A lift makes each path again from
-    // the slug and the parent, so it never rewrites what a path starts with.
+    // A lift makes each path from its slug and parent, so it never rewrites what a path starts with.
     await storePathInRow(payload, setup, 'pages', stall.id, '/arcade-annex/stall')
 
     await remove(payload, 'pages', arcade.id)
@@ -121,9 +120,8 @@ describeEachSetup('', {}, (test, setup) => {
   })
 })
 
-// The guides a site's own beforeDelete refuses to delete, and the ones whose delete it holds back for
-// a moment. The plugin lifts the documents below after the collection's own beforeDelete hooks, so a
-// delete they refuse moves nothing, and in a bulk delete the lift of a held guide comes last.
+// The plugin lifts after the collection's own beforeDelete hooks, so a delete they refuse moves
+// nothing, and in a bulk delete the lift of a held guide comes last.
 const keptGuides = new Set<string>()
 const heldGuides = new Set<string>()
 

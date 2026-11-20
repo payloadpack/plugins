@@ -23,8 +23,7 @@ describeEachSetup('', {}, (test, setup) => {
     const leaf = await create(payload, 'pages', { parent: branch.id, slug: 'leaf', title: 'Leaf' })
     const globe = await create(payload, 'pages', { slug: 'globe', title: 'Globe' })
 
-    // The database refuses the write of the paths of the latest versions below the page, after the
-    // documents below moved.
+    // Refuses the latest versions below, which are written after the documents below moved.
     await refuseWritesOf(test, setup, { collection: 'pages', path: '/globe/atlas/branch/leaf', versions: true }, () =>
       expect(update(payload, 'pages', atlas.id, { parent: globe.id })).rejects.toThrow()
     )
@@ -45,7 +44,7 @@ describeEachSetup('', {}, (test, setup) => {
     const season = await create(payload, 'pages', { parent: almanac.id, slug: 'season', title: 'Season' })
     const tide = await create(payload, 'pages', { parent: season.id, slug: 'tide', title: 'Tide' })
 
-    // The database refuses the last write the rename makes: the latest versions below the page.
+    // Refuses the last write the rename makes, the latest versions below.
     await refuseWritesOf(test, setup, { collection: 'pages', path: '/calendar/season/tide', versions: true }, () =>
       expect(update(payload, 'pages', almanac.id, { slug: 'calendar' })).rejects.toThrow()
     )
@@ -76,12 +75,10 @@ describeEachSetup('', {}, (test, setup) => {
     })
   }
 
-  // Two saves in one branch at once wait for each other's rows, and must not each hold a row the other
-  // waits for. Step by step on Postgres with transactions: a statement of the test holds a row of the
-  // branch, so a rename of the page at the top waits for it, and another connection then tries to lock
-  // a row the rename may hold. Payload's write of a document holds its row so that the foreign key
-  // check of another save that names it as an ancestor waits, so the move takes its rows before it.
-  // Holding a row so that a write waits for it is Postgres's, and without transactions nothing is held.
+  // Two saves in one branch at once must not each hold a row the other waits for. Payload's write of a
+  // document holds its row so that the foreign key check of another save that names it as an ancestor
+  // waits, so the move takes its rows before it. Holding a row so that a write waits for it is
+  // Postgres's, and without transactions nothing is held.
   if (setup.database === 'postgres') {
     it("lets the foreign key check of another save through to the renamed page's row while the rename waits", async () => {
       const { payload } = test
@@ -104,9 +101,7 @@ describeEachSetup('', {}, (test, setup) => {
       }).toEqual({ cairn: '/crest/slope/cairn', renameWaited: true, ridgeRowIsFree: true, slope: '/crest/slope' })
     })
 
-    // A save that waits for a move above it to end finds its document moved, and gives the rows below
-    // the paths and ancestors they have below where it is now. The save above stays open in a
-    // transaction of the test until the save below waits for it.
+    // The save above stays open in a transaction of the test until the save below waits for it.
     it.each([
       { name: 'a rename below a rename', kind: 'rename' },
       { name: 'a move below a move', kind: 'move' }
@@ -114,9 +109,6 @@ describeEachSetup('', {}, (test, setup) => {
       'moves the documents below $name that waited for the one above with the same statements for 30 below as for 3',
       async ({ kind }) => {
         const { payload } = test
-        // Atlas, harbor and quay at the top level, a branch below atlas and rows below the branch. Atlas
-        // is saved, the branch is saved while atlas's save holds the branch, and the statements of the
-        // branch's save are returned, once each row is where its slug and parent put it.
         const readStatementsOfSaveThatWaited = async (size: number) => {
           const prefix = `${kind}-${size}`
           const [atlas, harbor, quay] = await Promise.all(
@@ -210,7 +202,6 @@ type Row = { id: Id }
 
 const byId = (rows: Row[]) => [...rows].sort((row, other) => String(row.id).localeCompare(String(other.id)))
 
-// Every row of the collections and of their versions, as the database holds them.
 async function readEveryRow(payload: Payload) {
   const rows: Record<string, Row[]> = {}
   for (const collection of ['pages', 'posts', 'notices']) {
@@ -229,7 +220,6 @@ type Refusal = {
   prepare: (payload: Payload) => Promise<() => Promise<unknown>>
 }
 
-// The refusals an editor meets every day. Each one comes before anything is written.
 const REFUSALS: Refusal[] = [
   {
     message: 'Page "Taken" is already at this path, so change the slug or the parent.',
@@ -369,8 +359,6 @@ for (const transactions of [true, false]) {
       // plugin knows from the operation that the save is no draft save, so it refuses before the write.
       it('refuses to unpublish a page with a pending rename whose branch would land on a taken path, and leaves it as it was', async () => {
         const { payload } = test
-        // A page with a pending rename to blog: the page itself would be at /blog, which is free, and
-        // the page below it at /blog/abacus-ledger, where a post is.
         await create(payload, 'posts', { slug: 'abacus-ledger', title: 'abacus ledger post' })
         const page = await create(payload, 'pages', { slug: 'abacus', title: 'abacus' })
         const below = await create(payload, 'pages', { parent: page.id, slug: 'abacus-ledger', title: 'abacus ledger' })

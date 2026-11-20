@@ -3,11 +3,8 @@ import type { PayloadRequest } from 'payload'
 
 import type { RowFields, RowKind } from './branch.js'
 
-/**
- * The write on MongoDB: one bulk write of an update per row, which the driver sends as one command.
- * mongoose casts each id and value as the model stores it, and stamps a new updatedAt without
- * timestamps: false.
- */
+// Through the model, so mongoose casts each id and value to what the collection stores. Without
+// timestamps: false it would stamp a new updatedAt.
 export async function setPathAndAncestorsFieldsInMongodb(
   collection: string,
   kind: RowKind,

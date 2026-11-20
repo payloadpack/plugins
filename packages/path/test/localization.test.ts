@@ -21,7 +21,7 @@ const LOCALIZED_SETUPS = SETUPS.filter(({ localized }) => localized)
 
 const inSwedish = { locale: 'sv' }
 
-// Each locale's stored path, read from the database, where Payload's own fallback can't fill one in.
+// Read from the database, where Payload's own fallback can't fill a locale in.
 const readStoredPaths = async (payload: Payload, collection: CollectionSlug, id: Id) =>
   (await payload.db.findOne<{ id: Id; path: unknown }>({ collection, where: { id: { equals: id } } }))?.path
 
@@ -43,7 +43,6 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test, setup) => {
     expect(await readPath(payload, 'pages', about.id, inSwedish)).toBe('/om-oss')
     expect(await readPath(payload, 'pages', team.id)).toBe('/about/team')
     expect(await readPath(payload, 'pages', team.id, inSwedish)).toBe('/om-oss/team')
-    // Every locale's path is stored, and none holds its locale.
     const stored = await payload.db.findOne<{ id: Id; path: unknown }>({
       collection: 'pages',
       where: { id: { equals: team.id } }
@@ -84,7 +83,6 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test, setup) => {
       await catchFieldErrors(update(payload, 'pages', reachUs.id, { slug: 'contact' }, { draft: true, locale: 'sv' }))
     ).toMatchObject(refusal)
 
-    // With a Swedish slug of its own, Contact leaves /contact free in Swedish and keeps it in English.
     await update(payload, 'pages', contact.id, { slug: 'kontakt' }, { draft: true, locale: 'sv' })
     await update(payload, 'pages', reachUs.id, { slug: 'contact' }, inSwedish)
 
@@ -413,7 +411,6 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test, setup) => {
       [
         { collection: 'pages', from: '/viaduct', id: bridge.id, locale: 'en', to: '/bridge' },
         { collection: 'pages', from: '/viadukt', id: bridge.id, locale: 'sv', to: '/bro' },
-        // The page below has a slug per locale, and is named with each locale's own paths.
         { collection: 'pages', from: '/viaduct/toll', id: toll.id, locale: 'en', to: '/bridge/toll' },
         { collection: 'pages', from: '/viadukt/tull', id: toll.id, locale: 'sv', to: '/bro/tull' }
       ]
@@ -469,7 +466,6 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test, setup) => {
     expect(await findByPath({ draft: true, locale: 'sv', path: '/cellar', payload })).toMatchObject({
       document: { id: cellar.id }
     })
-    // A page saved below it afterwards gets its path in every locale.
     const corks = await create(payload, 'pages', { parent: cellar.id, slug: 'corks', title: 'Corks' })
     expect(await readStoredPaths(payload, 'pages', corks.id)).toEqual({ en: '/cellar/corks', sv: '/cellar/corks' })
 
@@ -478,8 +474,6 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test, setup) => {
     expect(await readStoredPaths(payload, 'pages', casks.id)).toEqual({ en: '/wine-cellar/casks', sv: '/wine-cellar/casks' })
   })
 
-  // A site that publishes the default locale first: the post waits as a draft in Swedish, with a
-  // Swedish slug of its own, and holds that path until its Swedish is published.
   it('keeps the path a post waits at in a locale it is not published in yet, through a publish in the default locale, so no other document takes it', async () => {
     const { payload } = test
     const post = await create(payload, 'posts', { slug: 'launch', title: 'Launch' })
@@ -660,8 +654,8 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test, setup) => {
   })
 })
 
-// Norwegian falls back to English. Swedish has no fallbackLocale and fallback is off, so it skips the
-// default locale and takes the first slug in the order the locales are listed.
+// Swedish has no fallbackLocale and fallback is off, so it skips the default locale and takes the
+// first slug in the order the locales are listed.
 const FALLBACK_CHAIN = {
   defaultLocale: 'en',
   fallback: false,

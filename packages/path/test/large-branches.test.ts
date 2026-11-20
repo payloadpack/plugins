@@ -6,13 +6,9 @@ import { CHUNK_SIZE } from '../src/utils/in-chunks.js'
 import { describeEachSetup } from './support/boot-payload.js'
 import { catchFieldErrors, create, readDocument, readPath, remove, store, update } from './support/documents.js'
 
-// A move reads its branch, asks for the latest versions and checks the paths a chunk at a time. This
-// branch takes more than one chunk of each: a depot with an inner depot and a chunk of crates right
-// below it, and a spare crate below the inner depot. The inner depot is the first document below and
-// the spare crate the last, so they fall in the first chunk and in the last one. The documents below
-// the depot are stored through the database adapter, with the ancestors a move finds them by and no
-// path, and one rename of the depot gives each its path and ancestors by the rule. That costs a
-// fraction of a save per document, or of a backfill. The tests run in order on the one branch.
+// The inner depot is the first document below and the spare crate the last, so they fall in the first
+// chunk and in the last one. The documents below are stored without a path and given theirs by one
+// rename of the depot, a fraction of a save each. The tests run in order on the one branch.
 
 const LAST_CRATE = `crate-${CHUNK_SIZE - 1}`
 
@@ -20,7 +16,6 @@ describeEachSetup(
   'with a branch bigger than one chunk',
   { boot: { options: { collections: ['pages', { basePath: '/warehouse/depot', slug: 'posts' }, 'notices'] } } },
   (test, setup) => {
-    // Filled in when the branch is stored, before the first test.
     const branch = {} as { depot: Id; firstCrate: Id; innerDepot: Id; lastCrate: Id; spareCrate: Id }
 
     beforeAll(async () => {
@@ -40,7 +35,7 @@ describeEachSetup(
       await commitTransaction(stored.req)
       await update(payload, 'pages', depot, { slug: 'depot' })
       Object.assign(branch, { depot, firstCrate: crates[0], innerDepot, lastCrate: crates.at(-1), spareCrate })
-      // A pending move in the last chunk: the spare crate's draft has another slug.
+      // A pending move in the last chunk.
       await update(payload, 'pages', spareCrate, { slug: 'spare' }, { draft: true })
       if (!setup.localized) return
       // The last crate isn't published in Swedish, so there it is where its draft's slug says. That
@@ -84,7 +79,6 @@ describeEachSetup(
 
       await remove(payload, 'pages', branch.depot)
 
-      // The inner depot takes the deleted depot's path, and the spare crate the one the first crate was at.
       expect(await readPath(payload, 'pages', branch.innerDepot)).toBe('/yard/depot')
       expect(await readPath(payload, 'pages', branch.spareCrate)).toBe('/yard/depot/crate-0')
       expect(await readPath(payload, 'pages', branch.spareCrate, { draft: true })).toBe('/yard/depot/spare')

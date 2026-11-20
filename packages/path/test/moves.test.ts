@@ -39,7 +39,6 @@ describeEachSetup('', {}, (test, setup) => {
     expect(await readPath(payload, 'pages', ferries.id)).toBe('/port/ferries')
     expect(await readPath(payload, 'pages', timetable.id)).toBe('/port/ferries/timetable')
     expect(await readPath(payload, 'pages', tickets.id)).toBe('/port/tickets')
-    // A draft keeps its own slug, under the page's new path.
     expect(await readPath(payload, 'pages', tickets.id, { draft: true })).toBe('/port/fares')
     // A restore takes its path from the parent and the slug, so older versions keep theirs.
     expect(await readVersionPaths(payload, 'pages', timetable.id)).toEqual([
@@ -79,7 +78,7 @@ describeEachSetup('', {}, (test, setup) => {
   }
 
   // A delete for good takes the deleted page out of the older versions itself on Postgres and SQLite,
-  // where their relationships to it go with it, so there the latest version is compared only.
+  // where their relationships to it go with it, so for a delete the latest version is compared only.
   it.each([
     { name: 'a renamed page', above: [], change: rename('grove'), olderVersions: true, page: 'orchard', path: '/grove/pear' },
     {
@@ -116,8 +115,6 @@ describeEachSetup('', {}, (test, setup) => {
     }
   )
 
-  // A page with a page of its slug below it, and one below that, as in /team/team/anna, four levels
-  // down or at the top level.
   it.each([
     {
       name: 'renamed four levels down',
@@ -181,9 +178,8 @@ describeEachSetup('', {}, (test, setup) => {
     const east = await create(payload, 'pages', { slug: 'east', title: 'East' })
     const west = await create(payload, 'pages', { slug: 'west', title: 'West' })
     const [rack, shelf, bin] = await createDown(['rack', 'shelf', 'bin'])
-    // What a page stores, and what Payload stores for a page it saves below the same parent. At the top
-    // level that is a page Payload moves there, which stores a parent of null, where on MongoDB a page
-    // created there stores none.
+    // At the top level Payload's page is moved there, which stores a parent of null, where on MongoDB a
+    // page created there stores none.
     const readParentAndAncestorsBesidePayloadPage = async (id: Id, slug: string, parent?: Id) => {
       const [payloadPage] = await createDown([slug], parent ?? west.id)
       if (parent === undefined) await update(payload, 'pages', payloadPage!, { parent: null })
@@ -327,7 +323,7 @@ describeEachSetup('', {}, (test, setup) => {
     const tools = await create(payload, 'pages', { parent: shed.id, slug: 'tools', title: 'Tools' })
     await update(payload, 'pages', shed.id, { parent: annex.id })
     // MongoDB stores no parent for a top-level page, and Payload's restore writes only what the
-    // version holds, so there the page keeps the parent it has, and the plugin gives it the path below it.
+    // version holds, so there the page keeps the parent it has.
     const keepsParent = setup.database === 'mongodb'
 
     await restoreVersion(payload, 'pages', shed.id)
@@ -386,9 +382,7 @@ describeEachSetup('', {}, (test, setup) => {
       const booth = await create(payload, 'pages', { parent: page, slug: 'booth', title: 'Booth' })
       const cart = await create(payload, 'pages', { parent: page, slug: 'cart', title: 'Cart' }, { draft: true })
       const awning = await create(payload, 'pages', { parent: kiosk.id, slug: 'awning', title: 'Awning' })
-      // One below another path than the page's, and one below the page's with another slug. One never
-      // published, which takes its parent from its latest version, with another page in its own parent
-      // field. And a latest version whose ancestors lack the page.
+      // The cart is never published, so it takes its parent from its latest version.
       const pagePath = ['', ...above, slug].join('/')
       await storePathInRow(payload, setup, 'pages', stall.id, `${pagePath}-annex/stall`)
       await storePathInRow(payload, setup, 'pages', booth.id, `${pagePath}/stand`)
@@ -416,9 +410,7 @@ describeEachSetup('', {}, (test, setup) => {
     const silo = await create(payload, 'pages', { slug: 'silo', title: 'Silo' })
     const yard = await create(payload, 'pages', { slug: 'yard', title: 'Yard' })
     const crate = await create(payload, 'pages', { parent: silo.id, slug: 'crate', title: 'Crate' })
-    // A row out of step, as an import may leave it. The crate's ancestors and path say below the silo
-    // and its parent field names a page outside the silo's branch, so a rename of the silo builds
-    // nothing for it by the rule and writes nothing to it.
+    // A row out of step, as an import may leave it, which the rule builds nothing for.
     await storeParentInRow(payload, 'pages', crate.id, yard.id)
     changes.length = 0
 
@@ -462,12 +454,8 @@ describeEachSetup('', {}, (test, setup) => {
   })
 })
 
-// A move that is under way keeps a save of a document below that lands meanwhile. Step by step on
-// Postgres without transactions: a statement of the test holds the row of a document below a page,
-// so the page's rename, move or delete reads its branch and then waits to write that row. Meanwhile
-// a document further along the branch is saved, or the held row itself is changed before it is let
-// go. The move's statements write the path, the ancestors and the parent alone, so every other value
-// such a save wrote is kept. With transactions such a save lands only after the move's transaction.
+// The move's statements write the path, the ancestors and the parent alone, so every other value a
+// save wrote meanwhile is kept. With transactions such a save lands only after the move's transaction.
 // Holding a row so that a write waits for it is Postgres's, so the other databases are left out:
 // SQLite has one writer at a time.
 describeEachSetup(
@@ -564,13 +552,9 @@ describeEachSetup(
 
 type IdKind = { name: string; collection: CollectionSlug; idOf?: (slug: string) => number | string }
 
-/**
- * A rename, a move and a lift of a branch, after each of which every document of the branch and its
- * latest version store the path, ancestors and parent its slug and parent make. The statements write
- * the ids above a row into its ancestors, and on Postgres with transactions the lock names the moved
- * document's id, so each reaches the database in the type the collection keeps its ids in. Payload's
- * default ids are tried above: a number the database counts up, and an ObjectId on MongoDB.
- */
+// The statements write the ids above a row into its ancestors, and on Postgres with transactions the
+// lock names the moved document's id, so each reaches the database in the collection's type of id.
+// Payload's default ids are tried above: a number the database counts up, and an ObjectId on MongoDB.
 const itMovesABranchWithIdsOf = (test: TestPayload, kinds: IdKind[]) =>
   it.each(kinds)(
     'renames, moves and lifts a branch with $name, and gives every document its path, ancestors and parent',
@@ -631,8 +615,7 @@ let ticketNumber = 0
 
 // The statements find the tables of a collection and of its versions by its slug, which the database
 // knows them by in another form where the slug has capitals or more than one word, and by another
-// name where the collection has a dbName. And they write the ids of a collection with an id field of
-// its own in the type it keeps them in, as itMovesABranchWithIdsOf says.
+// name where the collection has a dbName.
 describeEachSetup(
   'collections whose tables are not named as their slugs, and collections with ids of their own',
   {

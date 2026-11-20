@@ -18,7 +18,7 @@ import { SETUPS } from './support/setups.js'
 
 const MISSING_SLUG = [{ message: 'Give this document a slug, or a title to make one from.', path: 'slug' }]
 
-// Guides have a title that isn't localized, beside the slug, which a localized setup has one of per locale.
+// Guides have a title that isn't localized, beside a slug per locale in a localized setup.
 const GUIDES = { collections: [titled('guides', false)], options: { collections: ['pages', 'posts', 'notices', 'guides'] } }
 
 // As the admin does the moment an editor opens "Create new" in a collection with autosave.
@@ -89,7 +89,7 @@ describeEachSetup('', { boot: GUIDES }, (test, setup) => {
   })
 
   if (setup.localized) {
-    // Each locale's slug in the latest version. MongoDB leaves a locale without one out.
+    // MongoDB leaves a locale without a slug out.
     const readSlugs = async (id: Id) => {
       const slugs = (await readLatestVersion(test.payload, 'pages', id)).slug as Record<string, unknown>
       return { en: slugs.en ?? null, sv: slugs.sv ?? null }
@@ -133,7 +133,8 @@ describeEachSetup('', { boot: GUIDES }, (test, setup) => {
 
       expect(page.path).toBe('/visit')
       expect(await readSlugs(visit.id)).toEqual({ en: 'visit', sv: null })
-      // Without drafts a locale has a path only with a slug of its own, so it keeps the one it falls back to.
+      // Without drafts a locale has a path only with a slug of its own, so it keeps the one it falls
+      // back to.
       expect(notice).toMatchObject({ path: '/closed', slug: 'closed' })
     })
 
@@ -171,8 +172,7 @@ describeEachSetup('', { boot: GUIDES }, (test, setup) => {
       draft: true,
       overrideAccess: true
     })
-    // Stored through the database adapter without a slug and without a path field at all, which an
-    // update pipeline on MongoDB would give an empty object of locales.
+    // An update pipeline on MongoDB would give a missing path field an empty object of locales.
     const pageWithoutPathField = await store(test, setup, 'pages', {
       ancestors: [reception.id],
       parent: reception.id,
@@ -203,9 +203,9 @@ describeEachSetup('', { boot: GUIDES }, (test, setup) => {
 })
 
 // In a localized collection a stored document may fall back to another locale's slug, so the hook
-// before the write reads the stored slugs before it refuses a publish without one. The refusal comes
-// before the write, so the document is left as it was, also in a bulk update, where Payload commits
-// the other documents in the same transaction, and without transactions.
+// before the write reads the stored slugs before it refuses a publish without one. A bulk update
+// commits the other documents in the same transaction, and without transactions nothing is undone,
+// so the refusal comes before the write.
 for (const transactions of [true, false]) {
   describeEachSetup(
     `a publish without a slug, transactions ${transactions ? 'on' : 'off'}`,

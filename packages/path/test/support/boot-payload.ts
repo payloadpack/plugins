@@ -23,16 +23,14 @@ const RESERVED_SEGMENTS = {
   root: { admin: 'the CMS', api: "the CMS's API" }
 }
 
-// The collections of every test config, each one given to the plugin unless a test says otherwise.
 const STANDARD_COLLECTIONS = ['pages', 'posts', 'notices']
 
 let databaseCount = 0
 let startCount = 0
 
-// The two locales of a localized setup, falling back to English.
 const LOCALIZATION = { defaultLocale: 'en', fallback: true, locales: LOCALES }
 
-// The fields the plugin adds to a collection, for one that holds them without the plugin.
+// A standard collection the plugin isn't given holds its fields all the same, with none of its hooks.
 const pathFields = (collection: CollectionSlug, localized: boolean): Field[] => [
   parentField(collection),
   slugField({ localized, slugify: defaultSlugify, useAsTitle: 'title' }),
@@ -47,8 +45,8 @@ export const titled = (slug: string, localized: boolean, fields: Field[] = []): 
   versions: { drafts: true }
 })
 
-// A collection without drafts, where every save publishes. Its title is required, so on Postgres and
-// SQLite a locale's row can't exist before the document is saved in that locale.
+// Its title is required, so on Postgres and SQLite a locale's row can't exist before the document is
+// saved in that locale.
 const notices = (localized: boolean, fields: Field[]): CollectionConfig => ({
   slug: 'notices',
   admin: { useAsTitle: 'title' },
@@ -56,7 +54,7 @@ const notices = (localized: boolean, fields: Field[]): CollectionConfig => ({
 })
 
 export type TestPayload = {
-  // The changed paths of each call of onPathsChanged, in the order of the calls.
+  // One entry per call of onPathsChanged, in order.
   changes: ChangedPath[][]
   countQueries: ReturnType<typeof recordQueries>['countQueries']
   payload: Payload
@@ -68,19 +66,14 @@ type StartOptions = {
   collections?: CollectionConfig[]
   // Postgres and SQLite only: a uuid for the id of every collection without an id field of its own.
   idType?: 'uuid'
-  // The site's localization: in a localized setup in place of the two locales falling back to
-  // English, and in a setup without, a site that has locales and localizes nothing of its own.
+  // In a setup without localization, a site that has locales and localizes nothing of its own.
   localization?: Exclude<Config['localization'], false | undefined>
-  // The collections a localized setup gives the plugin without localized: true, so they have one slug
-  // and one path, the same in every locale. It gives every other one with it.
   notLocalized?: CollectionSlug[]
   options?: Partial<PathPluginOptions>
-  // Payload's own routes, in place of /admin and /api.
   routes?: Config['routes']
   transactions?: boolean
-  // The benchmark seeds a database without the plugin and opens it again with it, by its name, which
-  // startPayload returns. Without the plugin, the standard collections hold its fields and none of
-  // its hooks, as does a standard collection the plugin isn't given.
+  // The benchmark seeds a database without the plugin and opens it again with it, by the name
+  // startPayload returns.
   database?: string
   plugin?: boolean
 }
@@ -142,13 +135,8 @@ export async function startPayload(
   return { changes, countQueries, database: name, payload }
 }
 
-/**
- * A describe block per setup, each booting Payload once before its tests and destroying it after
- * them. The body gets the booted instance, filled in before the first test runs.
- *
- * The tests of one block share one database, so slugs must be unique within a block: a test that
- * reuses another test's slug is refused with "already at this path".
- */
+// The tests of one block share one database, so slugs must be unique within a block: a test that
+// reuses another test's slug is refused with "already at this path".
 export function describeEachSetup(
   label: string,
   { boot = {}, setups = SETUPS }: { boot?: StartOptions | ((setup: Setup) => StartOptions); setups?: Setup[] },

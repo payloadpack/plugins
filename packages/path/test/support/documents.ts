@@ -5,12 +5,10 @@ import { LOCALES, type Setup } from './setups.js'
 
 type Document = { [key: string]: unknown; id: Id }
 
-// A collection without drafts has no status to send.
 const hasDrafts = (payload: Payload, collection: CollectionSlug) =>
   Boolean(payload.collections[collection].config.versions?.drafts)
 
-// Creates a document as the server, published unless draft is set, and in the transaction of a
-// request that has one, which stays open.
+// Runs in the transaction of a request that has one, and leaves it open.
 export function create(
   payload: Payload,
   collection: CollectionSlug,
@@ -26,8 +24,7 @@ export function create(
   }) as Promise<Document>
 }
 
-// Saves a document as the server, published unless draft is set, and in the transaction of a request
-// that has one, which stays open.
+// Runs in the transaction of a request that has one, and leaves it open.
 export function update(
   payload: Payload,
   collection: CollectionSlug,
@@ -52,15 +49,10 @@ export function update(
   }) as Promise<Document>
 }
 
-// What a stored document holds beside its slug and title, such as its parent in the collection's parent field.
 type Seed = { [field: string]: unknown; slug?: string; title: string }
 
-/**
- * Stores a document as a site held it before it added the plugin: through the database adapter, so
- * no hook ran, and it has a slug and a parent and neither a path nor ancestors, unless the seed
- * holds them. Published, with a latest version that says the same unless a draft says otherwise. In
- * the transaction of a request that has one, which stays open.
- */
+// A document as a site held it before it added the plugin: through the database adapter, so no hook
+// gives it a path or ancestors.
 export async function store(
   { payload, req }: { payload: Payload; req?: PayloadRequest },
   { localized }: Setup,
@@ -94,30 +86,23 @@ export async function store(
   return id as Id
 }
 
-// Stores values in a document's row through the database adapter, so no hook runs and the row keeps
-// every other value.
+// Through the database adapter, so no hook runs, and with the whole row, so it keeps every other value.
 async function storeInRow(payload: Payload, collection: CollectionSlug, id: Id, values: Record<string, unknown>) {
   const row = await payload.db.findOne({ collection, where: { id: { equals: id } } })
   await payload.db.updateOne({ collection, data: { ...row, ...values }, id })
 }
 
-/**
- * Stores a path that nothing the plugin writes leaves behind in a document's row, in every locale,
- * through the database adapter, so no hook runs and the row keeps every other value. A move and a
- * backfill give such a row the path its slug and its parent make.
- */
 export function storePathInRow(payload: Payload, { localized }: Setup, collection: CollectionSlug, id: Id, path: string) {
   const paths = localized ? Object.fromEntries(LOCALES.map((locale) => [locale, path])) : path
   return storeInRow(payload, collection, id, { path: paths })
 }
 
-// Stores a parent that disagrees with a document's ancestors in its row, as storePathInRow stores a path.
 export function storeParentInRow(payload: Payload, collection: CollectionSlug, id: Id, parent: Id) {
   return storeInRow(payload, collection, id, { parent })
 }
 
-// Stores ancestors that nothing the plugin writes leaves behind in a document's latest version,
-// through the database adapter, so no hook runs and the version keeps every other value.
+// Through the database adapter, so no hook runs, and with the whole version, so it keeps every other
+// value.
 export async function storeDraftAncestorsInRow(payload: Payload, collection: CollectionSlug, id: Id, ancestors: Id[]) {
   const latestVersion = await findLatestVersionRow(payload, collection, id)
   await payload.db.updateVersion({
@@ -127,11 +112,8 @@ export async function storeDraftAncestorsInRow(payload: Payload, collection: Col
   })
 }
 
-/**
- * A document as onPathsChanged names it, with the path a site found it at before and the one it
- * finds it at now, either of which may be none. One made by create is published in English only, so
- * with localization it is named in that locale only, also where its Swedish path moved along.
- */
+// A document made by create is published in English only, so with localization onPathsChanged names
+// it in that locale only, also where its Swedish path moved along.
 export const changed = (
   { localized }: Setup,
   collection: CollectionSlug,
@@ -169,8 +151,7 @@ export async function readPath(
   return (await readDocument(payload, collection, id, options)).path
 }
 
-// Restores a version of a document, the first one unless another is counted out from it, as an
-// editor does from its version history.
+// version counts from the oldest version, which it restores by default.
 export async function restoreVersion(
   payload: Payload,
   collection: CollectionSlug,
@@ -188,10 +169,8 @@ export async function restoreVersion(
   return payload.restoreVersion({ collection, draft, id: docs[version]!.id, locale, overrideAccess: true })
 }
 
-// The where that finds a document's latest version among its versions.
 const whereLatestVersion = (id: Id): Where => ({ and: [{ parent: { equals: id } }, { latest: { equals: true } }] })
 
-// The row of a document's latest version as the database holds it, with every locale's values.
 async function findLatestVersionRow(payload: Payload, collection: CollectionSlug, id: Id) {
   const { docs } = await payload.db.findVersions<Document>({
     collection,
@@ -202,18 +181,16 @@ async function findLatestVersionRow(payload: Payload, collection: CollectionSlug
   return docs[0]!
 }
 
-// A document's latest version as the database holds it, with every locale's values.
+// As the database holds it, with every locale's values.
 export async function readLatestVersion(payload: Payload, collection: CollectionSlug, id: Id) {
   return (await findLatestVersionRow(payload, collection, id)).version
 }
 
-// How many latest versions a document has.
 export async function countLatestVersions(payload: Payload, collection: CollectionSlug, id: Id) {
   const { docs } = await payload.db.findVersions({ collection, pagination: false, where: whereLatestVersion(id) })
   return docs.length
 }
 
-// The paths of a document's versions, latest first.
 export async function readVersionPaths(payload: Payload, collection: CollectionSlug, id: Id, where: Where = {}) {
   const { docs } = await payload.findVersions({
     collection,
@@ -226,7 +203,6 @@ export async function readVersionPaths(payload: Payload, collection: CollectionS
   return docs.map(({ version }) => (version as Record<string, unknown>).path)
 }
 
-// The rows of some documents of a collection and of their versions, as the database holds them.
 export async function readRows(payload: Payload, collection: CollectionSlug, ids: Id[]) {
   const { docs: documents } = await payload.db.find({
     collection,
@@ -240,7 +216,6 @@ export async function readRows(payload: Payload, collection: CollectionSlug, ids
   return { documents, versions }
 }
 
-// A ValidationError's field errors, as REST would show them.
 export async function catchFieldErrors(work: Promise<unknown>) {
   try {
     await work

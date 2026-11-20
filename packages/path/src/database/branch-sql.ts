@@ -30,12 +30,11 @@ function getSql({ drizzle }: SqlAdapter, tableName: string) {
   return sql!
 }
 
-// What the statements and the lock start from: drizzle's sql, the adapter, a statement run in the
-// request's transaction, and the table of the collection's documents, which the adapter keeps with
-// every relationship to the collection. A collection with ancestors always has one, to itself.
 async function getStatementSetup(collection: string, req: PayloadRequest) {
   const adapter = req.payload.db as unknown as SqlAdapter
   const db = adapter.sessions[String(await req.transactionID)]?.db ?? adapter.drizzle
+  // The adapter names a collection's table in every relationship to the collection, and a collection
+  // with ancestors always has one, to itself. That saves guessing the table's name from the slug.
   const toCollection = `${collection}ID`
   const documentsName = Object.values(adapter.rawRelations).find((relations) => relations[toCollection])![toCollection].to
   const sql = getSql(adapter, documentsName)
@@ -61,12 +60,9 @@ export async function lockBranchInPostgres(collection: string, id: Id, req: Payl
     ORDER BY ${ancestorCount} FOR NO KEY UPDATE`)
 }
 
-/**
- * The write on Postgres and SQLite: an update of the path column, one of the parent column for the
- * rows that get another parent, and a delete and an insert for the rows that get other ancestors,
- * which are rows of their own in the table of relationships. Each statement reads its rows out of one
- * bound value, a JSON list, so it is the same statement whatever the number of rows it is given.
- */
+// Each statement reads its rows out of one bound JSON list, so it is the same statement for 3 rows as
+// for 1,000. Ancestors are rows of their own in the table of relationships, so they get a delete and
+// an insert where the path and the parent get an update.
 export async function setPathAndAncestorsFieldsInSql(collection: string, kind: RowKind, rows: RowFields[], req: PayloadRequest) {
   const { payload } = req
   const { adapter, documentsName, execute, sql } = await getStatementSetup(collection, req)

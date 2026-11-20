@@ -5,8 +5,8 @@ import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
 import { catchFieldErrors, changed, create, readPath, update } from './support/documents.js'
 
-// A collection whose deleted documents go to the trash first. Trashing is a save that sets deletedAt,
-// and taking a document out of the trash is one that clears it, so the plugin's save hooks see both.
+// Putting a document in the trash is a save that sets deletedAt, and taking it out is one that clears
+// it, so the plugin's save hooks see both.
 describeEachSetup(
   'with a collection that has a trash',
   {
@@ -53,7 +53,6 @@ describeEachSetup(
       expect(await readTrashed(guide.id)).toMatchObject({ ancestors: [], path: '/guide' })
       expect(await readPath(payload, 'articles', intro.id)).toBe('/guide/intro')
       expect(await findByPath({ path: '/guide/intro', payload })).toMatchObject({ document: { id: intro.id } })
-      // Another document takes the path, in this collection or in another.
       const page = await create(payload, 'pages', { slug: 'guide', title: 'Guide page' })
       expect(page.path).toBe('/guide')
     })
@@ -99,7 +98,6 @@ describeEachSetup(
       expect(await findByPath({ draft: true, path: '/brief', payload })).toMatchObject({ document: { id: brief.id } })
       // Only the published one shows at its path again.
       expect(changes).toEqual([[changed(setup, 'articles', memo, null, '/memo')]])
-      // Both take their paths again.
       expect(await catchFieldErrors(create(payload, 'pages', { slug: 'brief', title: 'Brief page' }))).toMatchObject([
         { message: 'Article "Brief" is already at this path, so change the slug or the parent.', path: 'slug' }
       ])
@@ -183,7 +181,7 @@ describeEachSetup(
       await payload.delete({ collection: 'articles', id: series.id, overrideAccess: true, trash: true })
 
       expect(await readPath(payload, 'articles', part.id)).toBe('/part')
-      // The site heard of the document's own path when it went to the trash, so only the lifted one is named.
+      // The site heard of the series' path when it went to the trash, so only the lifted one is named.
       expect(changes).toEqual([[changed(setup, 'articles', part, '/series/part', '/part')]])
     })
 

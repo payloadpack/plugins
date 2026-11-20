@@ -8,9 +8,6 @@ import { create, remove, store, update } from './support/documents.js'
 import { listIndexes, readSqlitePlan } from './support/raw-access.js'
 import { SETUPS } from './support/setups.js'
 
-// The promises about speed: a site finds the document at a path with one indexed query per
-// collection, and a move runs the same statements whatever the size of its branch. How many that is
-// is not pinned.
 describeEachSetup(
   '',
   // The plugin is given pages and posts, so a query per collection is two.
@@ -58,7 +55,7 @@ describeEachSetup(
       expect(reserved).toEqual([])
     })
 
-    // Each branch fits in a chunk: one document right below the top, and the others below that one.
+    // Each branch fits in a chunk.
     it('runs the same statements to rename, move or delete a document with 30 below as with 3 below', async () => {
       const { payload } = test
       const readStatements = async (size: number) => {
@@ -72,7 +69,6 @@ describeEachSetup(
         for (const [name, change] of Object.entries(changes)) {
           const top = await create(payload, 'pages', { slug: `${name}-${size}`, title: 'Top' })
           const first = await create(payload, 'pages', { parent: top.id, slug: `${name}-${size}-first`, title: 'First' })
-          // The others are stored in one transaction, with what a save would give them.
           const req = await createPayloadRequest({ payload })
           await initTransaction(req)
           for (let number = 1; number < size; number++) {

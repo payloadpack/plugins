@@ -6,7 +6,7 @@ import { describeEachSetup, titled } from './support/boot-payload.js'
 import { catchFieldErrors, create, readDocument, readPath, remove, store, update } from './support/documents.js'
 
 // What a statement could take for its own: both quotes, the end of a statement, a comment, a
-// parameter and an escape. A database must store each as the text it is.
+// parameter and an escape.
 const HOSTILE = `it's "x"; -- $1 \\`
 
 const BASE_PATH = `/${HOSTILE}`
@@ -126,9 +126,8 @@ describeEachSetup(
   }
 )
 
-// A site's own slugify that keeps a slug as it is typed, so a slug can hold the two characters a
-// pattern of SQL matches other text with, and a letter outside the basic plane, which JavaScript
-// counts as two characters and each database as one.
+// So a slug can hold % and _, which a pattern of SQL matches other text with, and a letter outside
+// the basic plane, which JavaScript counts as two characters and each database as one.
 const slugifyAsTyped: Slugify = ({ valueToSlugify }) => (typeof valueToSlugify === 'string' ? valueToSlugify : undefined)
 
 describeEachSetup(
