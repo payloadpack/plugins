@@ -1,39 +1,27 @@
 import type { MongooseAdapter } from '@payloadcms/db-mongodb'
-import type { CollectionSlug, PayloadRequest } from 'payload'
-import { hasDraftsEnabled } from 'payload/shared'
+import type { PayloadRequest } from 'payload'
 
 import type { Id } from '../path/build-path-and-ancestors.js'
-import type { BranchMove } from '../path/move-branch.js'
 import type { StartsBelow } from '../path/starts-below.js'
-import { getParentFieldName, isLocalized } from '../plugin/options.js'
 import { fieldKey } from '../utils/locales.js'
 
-type Model = MongooseAdapter['collections'][string]
-
 /**
- * The statements on MongoDB, for the documents below and then for their latest versions: an update
+ * The statements on MongoDB, for the documents below or for their latest versions: an update
  * pipeline for the locales whose start changes, an update of the parent, and an update pipeline for
  * the ancestors. $literal holds every value of a pipeline, so none is read as a field. The filter of
  * the paths takes only a row whose path starts with an old start, because the pipeline gives a row
  * without a path an empty object of locales.
  */
-export async function setPathAndAncestorsBelowInMongodb(
-  { collection, id }: Pick<BranchMove, 'collection' | 'id'>,
-  { ancestors, liftedTo, paths }: StartsBelow,
-  req: PayloadRequest
-) {
-  const { payload } = req
-  const localized = isLocalized(collection, payload)
-  const parentField = getParentFieldName(collection, payload)
+export async function buildStatementsBelowInMongodb(collection: string, id: Id, localized: boolean, req: PayloadRequest) {
   // One update serves every locale, so a locale whose path doesn't start with the old start keeps it.
-  const buildPathUpdate = (field: string) => {
-    const pathReplacements = paths.map(({ from, locale, to }) => {
+  const buildPathUpdate = (field: string, paths: StartsBelow['paths']) => {
+    const pathReplacements = paths.map(({ locale, newStart, oldStart }) => {
       const pathKey = fieldKey(field, locale, localized)
       const storedPath = `$${pathKey}`
-      const oldStart = { $literal: `${from}/` }
-      const hasOldStart = { $eq: [{ $substrCP: [storedPath, 0, { $strLenCP: oldStart }] }, oldStart] }
-      const pathAfterOldStart = { $substrCP: [storedPath, { $strLenCP: { $literal: from } }, { $strLenCP: storedPath }] }
-      const replacedPath = { $cond: [hasOldStart, { $concat: [{ $literal: to }, pathAfterOldStart] }, storedPath] }
+      const oldStartAndSlash = { $literal: `${oldStart}/` }
+      const hasOldStart = { $eq: [{ $substrCP: [storedPath, 0, { $strLenCP: oldStartAndSlash }] }, oldStartAndSlash] }
+      const pathAfterOldStart = { $substrCP: [storedPath, { $strLenCP: { $literal: oldStart } }, { $strLenCP: storedPath }] }
+      const replacedPath = { $cond: [hasOldStart, { $concat: [{ $literal: newStart }, pathAfterOldStart] }, storedPath] }
       return { hasOldStart, pathKey, replacedPath }
     })
     return {
@@ -41,7 +29,7 @@ export async function setPathAndAncestorsBelowInMongodb(
       pipeline: [{ $set: Object.fromEntries(pathReplacements.map(({ pathKey, replacedPath }) => [pathKey, replacedPath])) }]
     }
   }
-  const { collections, sessions, versions } = payload.db as unknown as MongooseAdapter
+  const { collections, sessions, versions } = req.payload.db as unknown as MongooseAdapter
   // mongoose casts a filter and not a pipeline, so an id goes into one as the documents store it in
   // their ancestors: an ObjectId, or the number or text a collection of ids of its own has.
   const castIds = (ids: Id[]) => [
@@ -59,24 +47,27 @@ export async function setPathAndAncestorsBelowInMongodb(
   }
   // mongoose takes a pipeline only with updatePipeline, and stamps a new updatedAt without timestamps: false.
   const updateOptions = { session: sessions[String(await req.transactionID)], timestamps: false, updatePipeline: true }
-  // Writes the rows below that a filter finds in a model, at the fields under a prefix. The filter
-  // finds a row by the moved document among its ancestors, which a lift takes out of them, so the
-  // ancestors come last, after the paths and the parent of the rows right below. The parent is a plain
-  // update, which mongoose casts.
-  const setRowsBelow = async (model: Model, rowsBelowFilter: Record<string, unknown>, fieldPrefix: string) => {
-    if (paths.length > 0) {
-      const { filter, pipeline } = buildPathUpdate(`${fieldPrefix}path`)
-      await model.updateMany({ ...rowsBelowFilter, ...filter }, pipeline, updateOptions)
-    }
-    if (liftedTo !== undefined && parentField !== undefined) {
-      const parentKey = `${fieldPrefix}${parentField}`
-      await model.updateMany({ ...rowsBelowFilter, [parentKey]: id }, { $set: { [parentKey]: liftedTo } }, updateOptions)
-    }
-    if (ancestors) {
-      await model.updateMany(rowsBelowFilter, buildAncestorsUpdate(`${fieldPrefix}ancestors`, ancestors), updateOptions)
+  return (rowKind: 'documents' | 'versions') => {
+    // The model of the documents or of their versions, the key a field the statements write has there,
+    // and the filter that finds the rows below there: the ones that hold the moved document among their
+    // ancestors, and of the versions the latest only.
+    const isDocuments = rowKind === 'documents'
+    const model = isDocuments ? collections[collection]! : versions[collection]!
+    const getRowFieldKey = (field: string) => (isDocuments ? field : `version.${field}`)
+    const rowsBelowFilter = isDocuments ? { ancestors: id } : { latest: true, 'version.ancestors': id }
+    return {
+      setAncestors: async (ancestors: Id[]) => {
+        await model.updateMany(rowsBelowFilter, buildAncestorsUpdate(getRowFieldKey('ancestors'), ancestors), updateOptions)
+      },
+      // The parent is a plain update, which mongoose casts.
+      setLiftedParent: async (parentField: string, liftParentId: Id | null) => {
+        const parentKey = getRowFieldKey(parentField)
+        await model.updateMany({ ...rowsBelowFilter, [parentKey]: id }, { $set: { [parentKey]: liftParentId } }, updateOptions)
+      },
+      setPathStarts: async (paths: StartsBelow['paths']) => {
+        const { filter, pipeline } = buildPathUpdate(getRowFieldKey('path'), paths)
+        await model.updateMany({ ...rowsBelowFilter, ...filter }, pipeline, updateOptions)
+      }
     }
   }
-  await setRowsBelow(collections[collection]!, { ancestors: id }, '')
-  if (!hasDraftsEnabled(payload.collections[collection as CollectionSlug].config)) return
-  await setRowsBelow(versions[collection]!, { latest: true, 'version.ancestors': id }, 'version.')
 }

@@ -33,16 +33,16 @@ import {
 } from './build-path-and-ancestors.js'
 import { getStartsBelow, type StartsBelow } from './starts-below.js'
 
-export type BranchMoveRequest = {
+type BranchMoveRequest = {
   collection: CollectionConfig
-  // Where the document was before the move, which the paths below start with, or nothing where that
-  // isn't known.
-  from: PathAndAncestors | undefined
   // The document whose branch moves, or the deleted document whose branch is lifted.
   id: Id
   // What the documents right below hang from now: the document with its new path and ancestors, for
   // a lift its parent, or nothing at the top level.
   parent: ParentPathAndAncestors | null
+  // Where the document was before the move, which the paths below start with, or nothing where that
+  // isn't known.
+  pathAndAncestorsBefore: PathAndAncestors | undefined
   req: PayloadRequest
 }
 
@@ -59,6 +59,9 @@ export type BranchMove = {
   collection: string
   documents: (RowMove & { document: StoredDocument; storedPaths: Paths })[]
   id: Id
+  // Whether findBranchMove held the branch until the request ends, so the save may have waited for a
+  // move above it.
+  isBranchHeld: boolean
   starts: StartsBelow
   versions: (RowMove & { version: StoredVersion })[]
 }
@@ -73,9 +76,9 @@ function buildReplacedPathAndAncestors({ ancestors, paths }: PathAndAncestors, i
   const movedDocumentIndex = ancestors.findIndex((ancestor) => String(ancestor) === String(id))
   if (movedDocumentIndex === -1) return { ancestors, paths }
   const replacedPaths = { ...paths }
-  for (const { from, locale, to } of starts.paths) {
+  for (const { locale, newStart, oldStart } of starts.paths) {
     const path = paths[locale]
-    if (path?.startsWith(`${from}/`)) replacedPaths[locale] = `${to}${path.slice(from.length)}`
+    if (path?.startsWith(`${oldStart}/`)) replacedPaths[locale] = `${newStart}${path.slice(oldStart.length)}`
   }
   const ancestorsBelowMovedDocument = ancestors.slice(movedDocumentIndex + 1)
   return {
@@ -91,15 +94,21 @@ function buildReplacedPathAndAncestors({ ancestors, paths }: PathAndAncestors, i
  * checkBranchMove refuses a move, and moveBranch stores one. It locks the branch first where the
  * database can, so no other save changes it before the request ends.
  */
-export async function findBranchMove({ collection, from, id, parent, req }: BranchMoveRequest): Promise<BranchMove> {
+export async function findBranchMove({
+  collection,
+  id,
+  parent,
+  pathAndAncestorsBefore,
+  req
+}: BranchMoveRequest): Promise<BranchMove> {
   const { payload } = req
   const { slug } = collection
-  const starts = getStartsBelow(slug, { from, id, parent }, payload)
-  const move: BranchMove = { below: [], collection: slug, documents: [], id, starts, versions: [] }
+  const starts = getStartsBelow(slug, { id, parent, pathAndAncestorsBefore }, payload)
+  const move: BranchMove = { below: [], collection: slug, documents: [], id, isBranchHeld: false, starts, versions: [] }
   // In a collection without parents nothing sits below a document, so there is no branch to read.
   const parentField = getParentFieldName(slug, payload)
   if (parentField === undefined) return move
-  await lockBranch(slug, id, req)
+  move.isBranchHeld = await lockBranch(slug, id, req)
   if ((await countBelow(slug, id, req)) > 0) move.below = await findDocumentsBelow(slug, id, req)
   const { below } = move
   const versions = hasDraftsEnabled(collection)
@@ -133,27 +142,32 @@ export async function findBranchMove({ collection, from, id, parent, req }: Bran
   const buildRowMove = (
     row: Omit<StoredDocument, 'id'>,
     storedPathAndAncestors: PathAndAncestors,
-    builtBelow: Omit<RowMove, 'needsOwnWrite'>
+    builtPathAndAncestors: Omit<RowMove, 'needsOwnWrite'>
   ): RowMove | undefined => {
     const replacedPathAndAncestors = buildReplacedPathAndAncestors(storedPathAndAncestors, id, starts)
-    const statementsBuildIt = hasSamePathAndAncestors(builtBelow.pathAndAncestors, replacedPathAndAncestors)
-    if (statementsBuildIt && hasSamePathAndAncestors(builtBelow.pathAndAncestors, storedPathAndAncestors)) return
+    const { pathAndAncestors } = builtPathAndAncestors
+    const statementsBuildPathAndAncestors = hasSamePathAndAncestors(pathAndAncestors, replacedPathAndAncestors)
+    if (statementsBuildPathAndAncestors && hasSamePathAndAncestors(pathAndAncestors, storedPathAndAncestors)) return
     const parentAgrees = hasParentOfAncestors(row, storedPathAndAncestors.ancestors, parentField)
-    return { ...builtBelow, needsOwnWrite: !statementsBuildIt || !parentAgrees }
+    return { ...builtPathAndAncestors, needsOwnWrite: !statementsBuildPathAndAncestors || !parentAgrees }
   }
   const getDepth = ({ ancestors }: StoredDocument) => ancestors?.length ?? 0
   for (const document of below.sort((upper, lower) => getDepth(upper) - getDepth(lower))) {
-    const builtBelow = buildPathAndAncestorsBelow({ document, version: versions.get(String(document.id)) }, 'document')
-    if (!builtBelow) continue
-    parents.set(String(document.id), { ...builtBelow.pathAndAncestors, id: document.id })
+    const builtPathAndAncestors = buildPathAndAncestorsBelow({ document, version: versions.get(String(document.id)) }, 'document')
+    if (!builtPathAndAncestors) continue
+    parents.set(String(document.id), { ...builtPathAndAncestors.pathAndAncestors, id: document.id })
     const storedPathAndAncestors = getStoredPathAndAncestors(document, slug, payload)
-    const rowMove = buildRowMove(document, storedPathAndAncestors, builtBelow)
+    const rowMove = buildRowMove(document, storedPathAndAncestors, builtPathAndAncestors)
     if (rowMove) move.documents.push({ ...rowMove, document, storedPaths: storedPathAndAncestors.paths })
   }
   for (const version of versions.values()) {
-    const builtBelow = buildPathAndAncestorsBelow({ document: { ...version.version, id: version.parent }, version }, 'draft')
+    const builtPathAndAncestors = buildPathAndAncestorsBelow(
+      { document: { ...version.version, id: version.parent }, version },
+      'draft'
+    )
+    if (!builtPathAndAncestors) continue
     const storedPathAndAncestors = getStoredPathAndAncestors(version.version, slug, payload)
-    const rowMove = builtBelow && buildRowMove(version.version, storedPathAndAncestors, builtBelow)
+    const rowMove = buildRowMove(version.version, storedPathAndAncestors, builtPathAndAncestors)
     if (rowMove) move.versions.push({ ...rowMove, version })
   }
   return move
@@ -193,13 +207,15 @@ export const getLandings = ({ collection, documents }: BranchMove): TakenPath[] 
  */
 export async function moveBranch(move: BranchMove, req: PayloadRequest) {
   const { collection } = move
-  if ([...move.documents, ...move.versions].some(({ needsOwnWrite }) => !needsOwnWrite)) await setPathAndAncestorsBelow(move, req)
+  if ([...move.documents, ...move.versions].some(({ needsOwnWrite }) => !needsOwnWrite)) {
+    await setPathAndAncestorsBelow(collection, move.id, move.starts, req)
+  }
   const { config } = req.payload.collections[collection as CollectionSlug]
   // The statements may have lifted a row written by itself already, so a row is built from the same
   // parent whether it holds the deleted document or the parent it is lifted to.
-  const { liftedTo } = move.starts
+  const { liftParentId } = move.starts
   const withLiftedParent = ({ parentId, slugs }: SlugsAndParent): SlugsAndParent => ({
-    parentId: liftedTo !== undefined && String(parentId) === String(move.id) ? liftedTo : parentId,
+    parentId: liftParentId !== undefined && String(parentId) === String(move.id) ? liftParentId : parentId,
     slugs
   })
   const hasSlugsAndParentOfMove = (

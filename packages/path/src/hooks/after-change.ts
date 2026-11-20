@@ -60,7 +60,7 @@ export const setPathAfterChange: CollectionAfterChangeHook = async ({ collection
     // whoever wrote them.
     const isElsewhere = operation === 'update' && !(before && hasSamePathAndAncestors(before, built))
     const branchMove = isElsewhere
-      ? await findBranchMove({ collection, from: before, id: doc.id, parent: { ...built, id: doc.id }, req })
+      ? await findBranchMove({ collection, id: doc.id, parent: { ...built, id: doc.id }, pathAndAncestorsBefore: before, req })
       : undefined
     if (branchMove) await checkBranchMove(branchMove, req)
 
