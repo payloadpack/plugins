@@ -374,7 +374,7 @@ describeEachSetup('given pages and posts', { boot: { options: { collections: ['p
 describeEachSetup('without the plugin', { boot: { plugin: false } }, (test) => {
   it('asks for pathPlugin in the Payload config', async () => {
     await expect(findByPath({ path: '/', payload: test.payload })).rejects.toThrow(
-      '@payloadpack/path: add pathPlugin() to the Payload config before calling findByPath, findPaths or backfillPaths'
+      '@payloadpack/path: add pathPlugin() to the Payload config, with a collection in collections or wrapped in withPath, before calling findByPath, findPaths or backfillPaths'
     )
   })
 })

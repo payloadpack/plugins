@@ -80,6 +80,10 @@ _Avoid_: migrate, rebuild, reindex
 Said of a collection whose documents have a slug and a path per locale: one given with `localized: true`, in a site with localization. The documents of every other collection have one slug and one path, the same in every locale. Config says `localized`.
 _Avoid_: synced, shared path, per market
 
+**Plugin's collections**:
+The collections whose documents get a path: each one listed in the plugin's `collections` or wrapped in `withPath` in its own config, never both. Code says `pathCollections` for all of them.
+_Avoid_: marked, tagged or registered collection
+
 **Field options**:
 What a site sets on the slug field or the plugin's own parent field with `slugField` and `parentField`, as Payload's own field config. The plugin keeps each field's name, type and whether it is localized.
 _Avoid_: field overrides, field config

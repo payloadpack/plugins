@@ -1,7 +1,7 @@
 import type { Payload } from 'payload'
 import { afterAll, describe, it } from 'vitest'
 
-import { findByPath, type PathPluginOptions } from '../src/index.js'
+import { findByPath, type PathCollection } from '../src/index.js'
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { startPayload } from '../test/support/boot-payload.js'
 import { create, readDocument, update } from '../test/support/documents.js'
@@ -78,7 +78,7 @@ const MOVES = [
 ]
 
 const BASE_PATHS = { [NESTED_PAGES]: '', pages: '', [PLAIN_PAGES]: '', posts: '/blog' }
-const COLLECTIONS: PathPluginOptions['collections'] = ['pages', { basePath: BASE_PATHS.posts, slug: 'posts' }]
+const COLLECTIONS: PathCollection[] = ['pages', { basePath: BASE_PATHS.posts, slug: 'posts' }]
 
 // SQLite writes one document at a time.
 const SEED_CONCURRENCY = { mongodb: 16, postgres: 8, sqlite: 1 }

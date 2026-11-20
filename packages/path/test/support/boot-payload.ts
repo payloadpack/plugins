@@ -100,15 +100,14 @@ export async function startPayload(
     const given = typeof collection === 'string' ? { slug: collection } : collection
     return setup.localized && !notLocalized.includes(given.slug) ? { ...given, localized: true } : collection
   }
+  const pathCollections = (options.collections ?? STANDARD_COLLECTIONS).map(withLocalized)
   const pluginOptions: PathPluginOptions = {
     onPathsChanged: ({ changedPaths }) => void changes.push(changedPaths),
     reservedSegments: RESERVED_SEGMENTS,
     ...options,
-    collections: (options.collections ?? STANDARD_COLLECTIONS).map(withLocalized)
+    collections: pathCollections
   }
-  const given = plugin
-    ? pluginOptions.collections.map((collection) => (typeof collection === 'string' ? collection : collection.slug))
-    : []
+  const given = plugin ? pathCollections.map((collection) => (typeof collection === 'string' ? collection : collection.slug)) : []
   const ownFields = (collection: CollectionSlug) => (given.includes(collection) ? [] : pathFields(collection, setup.localized))
   const config = await buildConfig({
     collections: [

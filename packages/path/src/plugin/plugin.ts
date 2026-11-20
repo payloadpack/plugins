@@ -21,6 +21,7 @@ import {
   buildTypescriptSchema,
   getCollection,
   getFieldOptions,
+  getPathCollections,
   hasPayloadHierarchy,
   resolvePathConfig,
   storePathConfig,
@@ -28,7 +29,7 @@ import {
   type PathPluginOptions
 } from './options.js'
 
-function withPath(
+function buildCollectionWithPath(
   collection: CollectionConfig,
   {
     fieldOptions,
@@ -70,13 +71,16 @@ function withPath(
 }
 
 /**
- * Gives the documents of the collections it is given a stored path: the parent's path, a slash and
- * the slug, below the collection's base path. Each collection's documents sit below its own, by the
- * plugin's parent field or by the one of Payload's own hierarchy, or below none.
+ * Gives the documents of the collections it is given, in collections or with withPath, a stored path:
+ * the parent's path, a slash and the slug, below the collection's base path. Each collection's
+ * documents sit below its own, by the plugin's parent field or by the one of Payload's own hierarchy,
+ * or below none.
  */
-export function pathPlugin(options: PathPluginOptions): Plugin {
+export function pathPlugin(options: PathPluginOptions = {}): Plugin {
   return (config) => {
-    const pathConfig = resolvePathConfig(options, config)
+    const pathCollections = getPathCollections(options, config)
+    if (pathCollections.length === 0) return config
+    const pathConfig = resolvePathConfig(options, pathCollections, config)
     const slugs = pathConfig.collections.map(({ slug }) => slug)
     const repeatedSlugs = [...new Set(slugs.filter((slug, index) => slugs.indexOf(slug) !== index))]
     if (repeatedSlugs.length > 0) throw new Error(repeatedCollectionsError(repeatedSlugs))
@@ -87,8 +91,8 @@ export function pathPlugin(options: PathPluginOptions): Plugin {
       collections: config.collections?.map((collection) => {
         const pathCollection = getCollection(collection.slug, pathConfig)
         if (!pathCollection) return collection
-        const fieldOptions = getFieldOptions(collection.slug, options)
-        return withPath(collection, { ...pathCollection, fieldOptions, slugify: pathConfig.slugify })
+        const fieldOptions = getFieldOptions(collection.slug, pathCollections)
+        return buildCollectionWithPath(collection, { ...pathCollection, fieldOptions, slugify: pathConfig.slugify })
       }),
       custom: storePathConfig(config.custom, pathConfig),
       typescript: { ...config.typescript, schema: [...(config.typescript?.schema ?? []), buildTypescriptSchema(slugs)] }

@@ -28,7 +28,7 @@ import SidebarPreview from '../../../components/path/SidebarPreview.astro'
 
    <SidebarPreview />
 
-   Pages sit below pages and posts below posts. See [Collections](/path/configuration/#collections) for base paths like `/blog`, flat collections without a parent, and Payload's hierarchy.
+   Pages sit below pages and posts below posts. See [Collections](/path/configuration/#collections) for base paths like `/blog`, flat collections without a parent, and Payload's hierarchy. To keep a collection's path settings in its own config, wrap it in [`withPath`](/path/configuration/#in-the-collections-own-config) instead.
 
 3. **Generate the import map** so Payload registers the slug field component (`@payloadpack/path/client#SlugField`). Payload's dev server does this automatically.
 

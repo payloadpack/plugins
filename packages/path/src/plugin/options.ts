@@ -66,39 +66,40 @@ export const buildTypescriptSchema =
     required: [...(Array.isArray(jsonSchema.required) ? jsonSchema.required : []), GENERATED_TYPES_KEY]
   })
 
+/** What sets a collection whose documents get a path apart, given to withPath or with its slug in collections. */
+export type PathCollectionOptions = {
+  /** What the paths of its top-level documents start with, such as /blog. Without one they start at the root. */
+  basePath?: string
+  /**
+   * true when, in a site with localization, its documents have a slug and a path per locale. Without
+   * it they have one slug and one path, the same in every locale.
+   */
+  localized?: true
+  /** What the site sets on the slug field. */
+  slugField?: SlugFieldOptions
+} & (
+  | {
+      parent?: never
+      /** What the site sets on the plugin's own parent field, which a collection with Payload's hierarchy doesn't get. */
+      parentField?: ParentFieldOptions
+    }
+  | {
+      /** false when its documents have no parent, so each one's path is the base path, a slash and its slug. */
+      parent: false
+      parentField?: never
+    }
+)
+
 /** A collection whose documents get a path: its slug alone, or its slug with what sets the collection apart. */
-export type PathCollection =
-  | CollectionSlug
-  | ({
-      /** What the paths of its top-level documents start with, such as /blog. Without one they start at the root. */
-      basePath?: string
-      /**
-       * true when, in a site with localization, its documents have a slug and a path per locale. Without
-       * it they have one slug and one path, the same in every locale.
-       */
-      localized?: true
-      slug: CollectionSlug
-      /** What the site sets on the slug field. */
-      slugField?: SlugFieldOptions
-    } & (
-      | {
-          parent?: never
-          /** What the site sets on the plugin's own parent field, which a collection with Payload's hierarchy doesn't get. */
-          parentField?: ParentFieldOptions
-        }
-      | {
-          /** false when its documents have no parent, so each one's path is the base path, a slash and its slug. */
-          parent: false
-          parentField?: never
-        }
-    ))
+export type PathCollection = CollectionSlug | (PathCollectionOptions & { slug: CollectionSlug })
 
 export type PathPluginOptions = {
   /**
-   * The collections whose documents get a path. Each one's documents sit below documents of its own,
-   * by the plugin's parent field, or by Payload's own where the collection has Payload's hierarchy.
+   * The collections whose documents get a path, beside the ones wrapped in withPath. Each one's
+   * documents sit below documents of its own, by the plugin's parent field, or by Payload's own where
+   * the collection has Payload's hierarchy.
    */
-  collections: PathCollection[]
+  collections?: PathCollection[]
   /**
    * The top-level document with this slug, in a collection without a base path, is the home page and
    * answers /. Defaults to 'home'.
@@ -133,7 +134,9 @@ type PathConfig = {
 
 export type ReasonBySegment = Record<string, string | undefined>
 
-const CUSTOM_KEY = 'payloadpackPath'
+// Each entry in a custom is named for what writes it: withPath in a collection's, pathPlugin() in the config's.
+export const WITH_PATH_KEY = 'withPath'
+const PATH_PLUGIN_KEY = 'pathPlugin'
 
 export const NO_BASE_PATH = ''
 
@@ -160,10 +163,19 @@ function resolveCollection(collection: PathCollection, { localization }: Config)
 const resolveReserved = (segments: ReservedSegments): ReasonBySegment =>
   Array.isArray(segments) ? Object.fromEntries(segments.map((segment) => [segment, undefined])) : segments
 
-export function resolvePathConfig(options: PathPluginOptions, config: Config): PathConfig {
+// A collection gets a path in the plugin's collections or wrapped in withPath, which keeps what sets it
+// apart in the collection's own custom, the one Payload keeps on the server.
+export function getPathCollections({ collections = [] }: PathPluginOptions, config: Config): PathCollection[] {
+  const wrappedCollections = (config.collections ?? []).flatMap(({ custom, slug }) =>
+    custom?.[WITH_PATH_KEY] ? [{ ...(custom[WITH_PATH_KEY] as PathCollectionOptions), slug }] : []
+  )
+  return [...collections, ...wrappedCollections]
+}
+
+export function resolvePathConfig(options: PathPluginOptions, pathCollections: PathCollection[], config: Config): PathConfig {
   const { anyDepth = [], root } = options.reservedSegments ?? {}
   return {
-    collections: options.collections.map((collection) => resolveCollection(collection, config)),
+    collections: pathCollections.map((collection) => resolveCollection(collection, config)),
     onPathsChanged: options.onPathsChanged,
     reservedSegments: { anyDepth: resolveReserved(anyDepth), root: root && resolveReserved(root) },
     rootSlug: options.rootSlug ?? 'home',
@@ -174,17 +186,21 @@ export function resolvePathConfig(options: PathPluginOptions, config: Config): P
 export type FieldOptions = { parentField?: ParentFieldOptions; slugField?: SlugFieldOptions }
 
 // Only building the slug field and the parent field reads these, so the stored config doesn't hold them.
-export function getFieldOptions(collectionSlug: string, { collections }: PathPluginOptions): FieldOptions {
-  const given = collections.find((collection) => typeof collection !== 'string' && collection.slug === collectionSlug)
-  return typeof given === 'object' ? { parentField: given.parentField, slugField: given.slugField } : {}
+export function getFieldOptions(collectionSlug: string, pathCollections: PathCollection[]): FieldOptions {
+  const pathCollection = pathCollections.find(
+    (collection) => typeof collection !== 'string' && collection.slug === collectionSlug
+  )
+  return typeof pathCollection === 'object'
+    ? { parentField: pathCollection.parentField, slugField: pathCollection.slugField }
+    : {}
 }
 
 export function storePathConfig(custom: Record<string, unknown> | undefined, pathConfig: PathConfig) {
-  return { ...custom, [CUSTOM_KEY]: pathConfig }
+  return { ...custom, [PATH_PLUGIN_KEY]: pathConfig }
 }
 
 export function getPathConfig(payload: Payload): PathConfig {
-  const pathConfig = payload.config.custom?.[CUSTOM_KEY] as PathConfig | undefined
+  const pathConfig = payload.config.custom?.[PATH_PLUGIN_KEY] as PathConfig | undefined
   if (!pathConfig) throw new Error(PLUGIN_MISSING_ERROR)
   return pathConfig
 }
