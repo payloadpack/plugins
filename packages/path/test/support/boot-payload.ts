@@ -15,7 +15,7 @@ import { pathField } from '../../src/fields/path.js'
 import { slugField } from '../../src/fields/slug.js'
 import { pathPlugin, type ChangedPath, type PathCollection, type PathPluginOptions } from '../../src/index.js'
 import { defaultSlugify } from '../../src/plugin/slugify.js'
-import { ADAPTER_SQL, buildAdapter, recordQueries } from './adapters.js'
+import { buildAdapter, recordQueries } from './adapters.js'
 import { LOCALES, SETUPS, type Setup } from './setups.js'
 
 const RESERVED_SEGMENTS = {
@@ -110,7 +110,6 @@ export async function startPayload(
   const pluginOptions: PathPluginOptions = {
     onPathsChanged: ({ changedPaths }) => void changes.push(changedPaths),
     reservedSegments: RESERVED_SEGMENTS,
-    sql: ADAPTER_SQL[setup.database],
     ...options,
     collections: (options.collections ?? STANDARD_COLLECTIONS).map(withLocalized)
   }

@@ -23,18 +23,6 @@ export default buildConfig({
 
 Pages and posts now have a slug, a parent and their path in the sidebar. A page sits below a page and a post below a post. To start the posts at `/blog`, list them as `{ slug: 'posts', basePath: '/blog' }`, a [base path](/path/configuration/#collections). List `pathPlugin()` after any plugin that adds one of its collections.
 
-On Postgres and SQLite, also pass the `sql` your database adapter exports. The plugin moves the documents below a renamed or moved page with it, in a few statements however many there are. On MongoDB, leave it out.
-
-```ts title="payload.config.ts"
-import { postgresAdapter, sql } from '@payloadcms/db-postgres'
-import { pathPlugin } from '@payloadpack/path'
-
-export default buildConfig({
-  db: postgresAdapter({ pool: { connectionString: process.env.DATABASE_URL } }),
-  plugins: [pathPlugin({ collections: ['pages', 'posts'], sql })]
-})
-```
-
 A collection whose documents never sit below each other, as posts often don't, takes `parent: false`, and a collection with Payload's `hierarchy` keeps Payload's parent in place of the plugin's. See [Collections](/path/configuration/#collections).
 
 The slug field has an admin component, `@payloadpack/path/client#SlugField`, so the admin's import map must hold it. Payload's dev server regenerates the import map. Otherwise run:

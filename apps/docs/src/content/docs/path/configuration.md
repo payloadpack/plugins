@@ -26,7 +26,6 @@ pathPlugin({
 | `reservedSegments` | [Segments your site serves itself](#reserved-slugs), as a list or each with why                                                                                                   | Payload's admin and API routes                |
 | `slugify`          | What makes [a slug](/path/paths/#the-slug) from a title, from what an editor typed and for the slug field's button, as the `slugify` of Payload's own slug field. It may be async | Accents off Latin letters, other scripts kept |
 | `onPathsChanged`   | A function that [hears which paths changed](/path/api/on-paths-changed/)                                                                                                          | none                                          |
-| `sql`              | On Postgres and SQLite, the `sql` your database adapter exports, as in [Installation](/path/installation/#add-the-plugin)                                                         | none, which fits MongoDB                      |
 
 ## Collections
 
@@ -183,14 +182,13 @@ In a collection given with `localized: true`, `slug` and `path` are localized fi
 
 The plugin checks its options when Payload builds the config, and stops with one of these:
 
-| Message                                                                                                                                                    | What to change                                                                              |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| @payloadpack/path was given collections the config doesn't have: posts.                                                                                    | Fix the slug, or list the plugin after the plugin that adds the collection                  |
-| @payloadpack/path was given pages more than once, so list each collection once.                                                                            | Keep one entry for the collection, with its base path if it has one                         |
-| @payloadpack/path adds slug to pages, so remove its own.                                                                                                   | Remove or rename the collection's own field                                                 |
-| @payloadpack/path needs the sql your database adapter exports on Postgres and SQLite, so import it next to the adapter and pass it to pathPlugin() as sql. | Add `sql` to the plugin's options, as in [Installation](/path/installation/#add-the-plugin) |
-| @payloadpack/path adds no parent field to posts, so leave out its parentField.                                                                             | Remove `parentField`, which only the plugin's own parent field takes                        |
-| @payloadpack/path was given the base path blog for posts, which doesn't start with a slash, so start it with one.                                          | Write it as `/blog`                                                                         |
-| @payloadpack/path was given the base path /blog/ for posts, which ends with a slash, so remove that slash.                                                 | Write it as `/blog`                                                                         |
-| @payloadpack/path was given the base path /blog//news for posts, which has an empty segment, so remove the extra slash.                                    | Write it as `/blog/news`                                                                    |
-| @payloadpack/path was given the base path / for posts, which is the root already, so leave basePath out.                                                   | Remove `basePath`, or give it a segment such as `/blog`                                     |
+| Message                                                                                                                 | What to change                                                             |
+| ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| @payloadpack/path was given collections the config doesn't have: posts.                                                 | Fix the slug, or list the plugin after the plugin that adds the collection |
+| @payloadpack/path was given pages more than once, so list each collection once.                                         | Keep one entry for the collection, with its base path if it has one        |
+| @payloadpack/path adds slug to pages, so remove its own.                                                                | Remove or rename the collection's own field                                |
+| @payloadpack/path adds no parent field to posts, so leave out its parentField.                                          | Remove `parentField`, which only the plugin's own parent field takes       |
+| @payloadpack/path was given the base path blog for posts, which doesn't start with a slash, so start it with one.       | Write it as `/blog`                                                        |
+| @payloadpack/path was given the base path /blog/ for posts, which ends with a slash, so remove that slash.              | Write it as `/blog`                                                        |
+| @payloadpack/path was given the base path /blog//news for posts, which has an empty segment, so remove the extra slash. | Write it as `/blog/news`                                                   |
+| @payloadpack/path was given the base path / for posts, which is the root already, so leave basePath out.                | Remove `basePath`, or give it a segment such as `/blog`                    |

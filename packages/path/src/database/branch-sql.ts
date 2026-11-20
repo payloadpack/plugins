@@ -2,19 +2,23 @@ import type { Column, SQL } from '@payloadcms/db-postgres/drizzle'
 import type { PayloadRequest } from 'payload'
 
 import type { Id } from '../path/build-path-and-ancestors.js'
-import { getParentFieldName, getPathConfig, isLocalized } from '../plugin/options.js'
+import { getParentFieldName, isLocalized } from '../plugin/options.js'
 import { getLocales } from '../utils/locales.js'
 import type { RowFields, RowKind } from './branch.js'
 
-// The sql of drizzle, which each of Payload's Postgres and SQLite adapters exports and the site gives
-// the plugin, so the statements are built by the drizzle that runs them.
+// The sql of drizzle: the tag that builds a statement with the values it binds.
 type Sql = typeof import('@payloadcms/db-postgres/drizzle').sql
 
-// What the statements use of Payload's Postgres and SQLite adapters, which both have it: drizzle's
-// tables by their names, each with its columns, the table each relationship of a table points at, and
-// the session of each transaction.
+// What the statements use of Payload's Postgres and SQLite adapters, which both have it: drizzle with
+// a query per table, drizzle's tables by their names, each with its columns, the table each
+// relationship of a table points at, and the session of each transaction.
 type SqlAdapter = {
-  drizzle: unknown
+  drizzle: {
+    query: Record<
+      string,
+      { findFirst: (query: { where: (fields: unknown, operators: { sql: Sql }) => undefined }) => { toSQL: () => unknown } }
+    >
+  }
   execute: (args: { db: unknown; sql: SQL }) => Promise<unknown>
   localesSuffix: string
   rawRelations: Record<string, Record<string, { to: string } | undefined>>
@@ -25,15 +29,29 @@ type SqlAdapter = {
   versionsSuffix: string
 }
 
-// What the statements and the lock start from: the site's sql, the adapter, a statement run in the
+// The sql of the drizzle the adapter runs its statements with, so a site passes none and the package
+// has no drizzle of its own that could differ from Payload's. The adapter itself has it nowhere, and
+// drizzle hands it to the where of a query, so a query of a table is built for it, which asks the
+// database nothing.
+function getSql({ drizzle }: SqlAdapter, tableName: string) {
+  let sql: Sql | undefined
+  const where = (_fields: unknown, operators: { sql: Sql }) => {
+    sql = operators.sql
+    return undefined
+  }
+  drizzle.query[tableName]!.findFirst({ where }).toSQL()
+  return sql!
+}
+
+// What the statements and the lock start from: drizzle's sql, the adapter, a statement run in the
 // request's transaction, and the table of the collection's documents, which the adapter keeps with
 // every relationship to the collection. A collection with ancestors always has one, to itself.
 async function getStatementSetup(collection: string, req: PayloadRequest) {
-  const sql = getPathConfig(req.payload).sql as Sql
   const adapter = req.payload.db as unknown as SqlAdapter
   const db = adapter.sessions[String(await req.transactionID)]?.db ?? adapter.drizzle
   const toCollection = `${collection}ID`
   const documentsName = Object.values(adapter.rawRelations).find((relations) => relations[toCollection])![toCollection]!.to
+  const sql = getSql(adapter, documentsName)
   return { adapter, documentsName, execute: (statement: SQL) => adapter.execute({ db, sql: statement }), sql }
 }
 

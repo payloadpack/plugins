@@ -11,8 +11,8 @@ export type RowKind = 'documents' | 'versions'
 // A row by its id, with the fields it stores a path and ancestors in, each with the value it gets.
 export type RowFields = { fields: Record<string, unknown>; id: Id }
 
-// The databases whose statements are SQL, which the site's sql builds.
-export const usesSql = (database: string | undefined) => database === 'postgres' || database === 'sqlite'
+// The databases whose statements are SQL.
+const usesSql = (database: string) => database === 'postgres' || database === 'sqlite'
 
 // Holds the rows of a document's branch until the request ends, on Postgres only, where two saves in
 // one branch can otherwise each hold a row the other waits for. Without a transaction a lock would end

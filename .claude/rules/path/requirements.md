@@ -56,8 +56,8 @@ What the package does, as its owner confirmed it. Build to this list, and ask hi
 - `onPathsChanged` hears every published path that changed, and where each document moved from and to.
 - `backfillPaths` gives the documents a site already has their paths.
 - It reads and writes through Payload's own database API.
-  - The one exception is the documents below a moved or deleted document, which it writes with statements of its own: an update pipeline on MongoDB, SQL on Postgres and SQLite.
-  - On Postgres and SQLite a site passes the `sql` its database adapter exports, and the package depends on no drizzle of its own.
+  - The one exception is the documents below a moved or deleted document, which it writes with statements of its own: a bulk write on MongoDB, SQL on Postgres and SQLite.
+  - A site passes nothing for them, and the package depends on no drizzle of its own.
 - It runs on Payload 4.0.0-beta.10 or later, with MongoDB, Postgres or SQLite.
   - With drafts and without, with localization and without.
 - Not in it: a parent in another collection, a base path per locale, refusals in other languages than English, paths per tenant.

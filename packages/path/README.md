@@ -46,15 +46,7 @@ export default buildConfig({
 })
 ```
 
-Pages and posts now have a slug, a parent and their path in the sidebar. A page sits below a page and a post below a post.
-
-On Postgres or SQLite, also pass the `sql` your database adapter exports, and create a migration for the new fields:
-
-```ts
-import { postgresAdapter, sql } from '@payloadcms/db-postgres'
-
-pathPlugin({ collections: ['pages', 'posts'], sql })
-```
+Pages and posts now have a slug, a parent and their path in the sidebar. A page sits below a page and a post below a post. On Postgres or SQLite, create a migration for the new fields.
 
 Then your site's catch-all route asks for the document at a path:
 
@@ -80,7 +72,6 @@ With transactions, a save, move or delete that fails leaves everything as it was
 | `reservedSegments` | Segments your site serves itself, at the root or at any depth, as a list or each with why                  | Payload's admin and API routes                |
 | `slugify`          | What makes a slug from a title and from what an editor types, as in Payload's own slug field               | Accents off Latin letters, other scripts kept |
 | `onPathsChanged`   | A function that hears which paths changed, so you can purge your cache and keep your redirects             | none                                          |
-| `sql`              | On Postgres and SQLite, the `sql` your database adapter exports                                            | none, which fits MongoDB                      |
 
 A collection given as `{ slug: 'posts', basePath: '/blog' }` puts its top-level documents below `/blog`, as in `/blog/hello-world`. The base path is optional, and a path still belongs to one document across all your collections.
 
