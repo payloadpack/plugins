@@ -3,9 +3,13 @@ title: Configuration
 description: One key is required, the collections. A collection may have a base path or go without a parent, and the rest is optional.
 ---
 
+<!-- prettier-ignore -->
 ```ts title="payload.config.ts"
 pathPlugin({
-  collections: ['pages', { slug: 'posts', basePath: '/blog', parent: false }],
+  collections: [
+    'pages',
+    { slug: 'posts', basePath: '/blog', parent: false }
+  ],
   rootSlug: 'home',
   reservedSegments: {
     root: { admin: 'the CMS', api: "the CMS's API" },
