@@ -1,7 +1,7 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 // The demo's page of a site, which finds the document at the path a visitor asks for with findByPath.
-const heading = (page: import('@playwright/test').Page) => page.getByRole('heading', { level: 1 })
+const heading = (page: Page) => page.getByRole('heading', { level: 1 })
 
 test.describe('a visitor who is not logged in', () => {
   test.use({ storageState: { cookies: [], origins: [] } })
