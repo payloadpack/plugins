@@ -51,6 +51,13 @@ interface Topic {
   title: string
 }
 
+// A collection the plugin isn't given, though it has fields named path and slug of its own.
+interface Redirect {
+  id: string
+  path: string
+  slug: string
+}
+
 interface PagesSelect<T extends boolean = true> {
   _status?: T
   ancestors?: T
@@ -76,12 +83,18 @@ interface TopicsSelect<T extends boolean = true> {
   title?: T
 }
 
+interface RedirectsSelect<T extends boolean = true> {
+  path?: T
+  slug?: T
+}
+
 declare module 'payload' {
   export interface GeneratedTypes {
     collections: {
       pages: Page
       'payload-migrations': PayloadMigration
       posts: Post
+      redirects: Redirect
       topics: Topic
       users: User
     }
@@ -89,11 +102,14 @@ declare module 'payload' {
       pages: PagesSelect<false> | PagesSelect<true>
       'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>
       posts: PostsSelect<false> | PostsSelect<true>
+      redirects: RedirectsSelect<false> | RedirectsSelect<true>
       topics: TopicsSelect<false> | TopicsSelect<true>
       users: UsersSelect<false> | UsersSelect<true>
     }
     fallbackLocale: ('en' | 'sv') | false | null
     locale: 'en' | 'sv'
+    // What pathPlugin() adds to the types payload generate:types writes: the collections it is given.
+    pathCollectionSlug: 'pages' | 'posts' | 'topics'
   }
 }
 
@@ -101,7 +117,8 @@ declare const payload: Payload
 declare const localeFromRoute: string
 
 export async function verifyFindByPathTypes() {
-  // 1. Default (no collections) -> automatically narrows to ONLY collections with path & slug (no users or payload-migrations)
+  // 1. Without collections: one of the collections given to the plugin, and not redirects, users or
+  // payload-migrations.
   const all = await findByPath({ path: '/about', payload })
   expectTypeOf(all).toEqualTypeOf<
     | { collection: 'pages'; document: Page }
@@ -111,7 +128,7 @@ export async function verifyFindByPathTypes() {
   >()
   expectTypeOf(all).toEqualTypeOf<FoundByPath | null>()
 
-  // findPaths and backfillPaths also narrow to collections with paths
+  // findPaths and backfillPaths take the collections given to the plugin too.
   await findPaths({ collection: 'pages', id: '1', payload })
   await backfillPaths({ collections: ['pages', 'posts'], payload })
 
@@ -214,10 +231,14 @@ export async function verifyFindByPathTypes() {
     await findByPath({ path: '/about', payload, sort: 'title' })
     // @ts-expect-error trash is omitted
     await findByPath({ path: '/about', payload, trash: true })
-    // @ts-expect-error users has no path or slug field
+    // @ts-expect-error redirects isn't given to the plugin, though it has a path and a slug field
+    await findByPath({ collections: ['redirects'], path: '/about', payload })
+    // @ts-expect-error users isn't given to the plugin
     await findByPath({ collections: ['users'], path: '/about', payload })
-    // @ts-expect-error payload-migrations has no path or slug field
+    // @ts-expect-error payload-migrations isn't given to the plugin
     await findPaths({ collection: 'payload-migrations', id: '1', payload })
+    // @ts-expect-error redirects isn't given to the plugin
+    await backfillPaths({ collections: ['redirects'], payload })
     // @ts-expect-error invalid field in select for pages
     await findByPath({ collections: ['pages'], path: '/about', payload, select: { doesNotExist: true } })
   }

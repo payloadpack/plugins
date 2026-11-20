@@ -16,8 +16,8 @@ export default async function SitePage({ params, searchParams }: Props) {
   const payload = await getPayload({ config })
   const path = `/${segments.join('/')}`
 
-  // Without `collections`, TypeScript narrows `found` to the collections with paths (`pages` | `posts` | `topics`).
-  // Pass `collections: ['pages', 'posts']` to narrow further.
+  // Without `collections`, `found.collection` is one of the collections given to pathPlugin(): pages,
+  // posts or topics. Pass `collections: ['pages', 'posts']` to narrow it further.
   const found = await findByPath({
     depth: 1,
     draft: draft === 'true',

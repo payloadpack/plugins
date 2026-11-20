@@ -2,7 +2,7 @@ import type {
   CollectionConfig,
   CollectionSlug,
   Config,
-  DataFromCollectionSlug,
+  GeneratedTypes,
   Payload,
   SingleRelationshipField,
   TextField,
@@ -45,30 +45,26 @@ export type SlugFieldOptions = Pick<TextField, 'access' | 'admin' | 'hooks' | 'l
  */
 export type ParentFieldOptions = Pick<SingleRelationshipField, 'access' | 'admin' | 'filterOptions' | 'hooks' | 'label'>
 
-type HasPathFields<Doc> = 'path' extends keyof Doc
-  ? 'slug' extends keyof Doc
-    ? Doc['path'] extends null | string | undefined
-      ? Doc['slug'] extends null | string | undefined
-        ? true
-        : false
-      : false
-    : false
-  : false
-
-type DetectedPathCollectionSlug = {
-  [Slug in CollectionSlug]: HasPathFields<DataFromCollectionSlug<Slug>> extends true ? Slug : never
-}[CollectionSlug]
+// The property of the site's generated Config that holds the slugs of the plugin's collections.
+const GENERATED_TYPES_KEY = 'pathCollectionSlug'
 
 /**
- * The slugs of the collections whose generated types hold the plugin's path and slug fields, so
- * findByPath narrows its result without naming collections. Falls back to CollectionSlug when no
- * generated types are present.
+ * The slug of a collection given to the plugin, as the types `payload generate:types` writes name
+ * them once the plugin is in the config. Before that, the slug of any collection.
  */
-export type PathCollectionSlug = string extends CollectionSlug
-  ? CollectionSlug
-  : [DetectedPathCollectionSlug] extends [never]
-    ? CollectionSlug
-    : DetectedPathCollectionSlug
+export type PathCollectionSlug =
+  GeneratedTypes extends Record<typeof GENERATED_TYPES_KEY, infer Slug extends CollectionSlug> ? Slug : CollectionSlug
+
+type TypescriptSchema = NonNullable<NonNullable<Config['typescript']>['schema']>[number]
+
+/** Adds the slugs of the plugin's collections to the types `payload generate:types` writes, for PathCollectionSlug. */
+export const buildTypescriptSchema =
+  (slugs: CollectionSlug[]): TypescriptSchema =>
+  ({ jsonSchema }) => ({
+    ...jsonSchema,
+    properties: { ...jsonSchema.properties, [GENERATED_TYPES_KEY]: { enum: slugs, type: 'string' } },
+    required: [...(Array.isArray(jsonSchema.required) ? jsonSchema.required : []), GENERATED_TYPES_KEY]
+  })
 
 /** A collection whose documents get a path: its slug alone, or its slug with what sets the collection apart. */
 export type PathCollection =

@@ -107,6 +107,7 @@ export interface Config {
     tasks: unknown;
     workflows: unknown;
   };
+  pathCollectionSlug: 'pages' | 'posts' | 'topics';
 }
 export interface UserAuthOperations {
   forgotPassword: {

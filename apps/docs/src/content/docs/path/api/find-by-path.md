@@ -61,7 +61,7 @@ switch (found.collection) {
 ```
 
 - Returns `{ collection, document }`, or `null` when nothing is published at that path.
-- `found.collection` narrows `found.document`'s TypeScript type automatically — even without passing `collections`, it narrows to only the collections with paths in your generated Payload types (excluding `users` and internal collections). Passing `collections: ['pages']` narrows further to a page or `null`, and passing `select` narrows `found.document` just like `payload.find`.
+- `found.collection` narrows `found.document`'s TypeScript type. Without `collections`, it is one of the collections you gave `pathPlugin()`, once you have run `payload generate:types` with the plugin in your config. Before that, it can be any collection. Passing `collections: ['pages']` narrows it to a page or `null`, and `select` narrows `found.document` as in `payload.find`.
 - Reads as the server by default (`overrideAccess: true`). Pass `overrideAccess: false` with `user` or `req` to apply your access control, and a collection the reader may not read then has nothing at the path.
 
 ## The path you ask for
