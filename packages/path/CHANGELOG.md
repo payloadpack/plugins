@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/payloadpack/plugins/compare/path-v0.2.0...path-v0.3.0) (2026-11-20)
+
+
+### Features
+
+* **path:** add withPath beside collections ([#95](https://github.com/payloadpack/plugins/issues/95)) ([8feb553](https://github.com/payloadpack/plugins/commit/8feb5530a0f9d75b2321e9ab55fdb010087c1509))
+
 ## [0.2.0](https://github.com/payloadpack/plugins/compare/path-v0.1.2...path-v0.2.0) (2026-11-20)
 
 
