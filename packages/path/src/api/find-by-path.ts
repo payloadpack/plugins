@@ -39,6 +39,11 @@ type FindByPathArguments<
 > = ForwardedFindOptions<Slug> & {
   /** The collections to look in, among the plugin's. Without it, every one of them. */
   collections?: Slug[]
+  /**
+   * false throws Payload's Forbidden for a collection the reader may not read at all. Defaults to
+   * true, so such a collection has nothing at the path.
+   */
+  disableErrors?: boolean
   /** true finds the latest draft at the path, for a preview. Defaults to false. */
   draft?: boolean
   /** With localization, the locale whose path this is. The site keeps the locale out of the path. */
@@ -82,7 +87,7 @@ function buildWhere(path: string, published: boolean, where: Where | undefined):
 /**
  * The document at a path, across the collections the plugin is given, for a site's route: one
  * indexed query per collection, run at once, and none for a reserved path. It forwards Payload's
- * find options, defaulting depth to 0, draft to false and overrideAccess to true.
+ * find options, defaulting depth to 0, draft to false, overrideAccess to true and disableErrors to true.
  */
 export function findByPath<Slug extends PathCollectionSlug = PathCollectionSlug, TSelect extends SelectFor<Slug> = never>(
   args: FindByPathArguments<Slug, TSelect> & { paths: true }
@@ -93,6 +98,7 @@ export function findByPath<Slug extends PathCollectionSlug = PathCollectionSlug,
 export async function findByPath<Slug extends PathCollectionSlug = PathCollectionSlug, TSelect extends SelectFor<Slug> = never>({
   collections,
   depth = 0,
+  disableErrors = true,
   draft = false,
   locale,
   overrideAccess = true,
@@ -114,6 +120,7 @@ export async function findByPath<Slug extends PathCollectionSlug = PathCollectio
       ...findOptions,
       collection,
       depth,
+      disableErrors,
       draft,
       locale,
       overrideAccess,

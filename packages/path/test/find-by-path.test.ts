@@ -278,12 +278,27 @@ describeEachSetup(
           hooks: {
             afterRead: [({ context, doc }) => (typeof context.tag === 'string' ? { ...doc, note: context.tag } : doc)]
           }
-        }
+        },
+        // Payload's default access: only a logged-in user of the admin reads it.
+        titled('staff', setup.localized)
       ],
-      options: { collections: ['members'] }
+      options: { collections: ['members', 'staff'] }
     })
   },
   (test) => {
+    it('finds a document the reader may read when another collection lets the reader read nothing', async () => {
+      const { payload } = test
+      const lobby = await create(payload, 'members', { public: true, slug: 'lobby', title: 'Lobby' })
+
+      expect(await findByPath({ overrideAccess: false, path: '/lobby', payload })).toMatchObject({
+        collection: 'members',
+        document: { id: lobby.id }
+      })
+      await expect(findByPath({ disableErrors: false, overrideAccess: false, path: '/lobby', payload })).rejects.toThrow(
+        'You are not allowed to perform this action.'
+      )
+    })
+
     it('forwards overrideAccess, user, showHiddenFields and context', async () => {
       const { payload } = test
       const publicDoc = await create(payload, 'members', {

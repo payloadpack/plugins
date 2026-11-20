@@ -23,10 +23,11 @@ const found = await findByPath({ path: '/about/team', payload })
 | `draft`          | Match the latest draft instead of published docs ([previews](/path/drafts/#previews)) | `false`                    |
 | `depth`          | Relationship population depth, as in `payload.find`                                   | `0`                        |
 | `overrideAccess` | Bypass access control, as in `payload.find`                                           | `true`                     |
+| `disableErrors`  | Set `false` to throw Payload's `Forbidden` for a collection the reader may not read   | `true`                     |
 
 ## Payload find options
 
-`findByPath` forwards the rest of `payload.find`'s options — including `select`, `populate`, `where`, `user`, `req`, `context`, `fallbackLocale`, `joins`, `showHiddenFields`, `includeLockStatus`, and `disableErrors`.
+`findByPath` also takes the rest of `payload.find`'s options, such as `select`, `populate`, `where`, `user`, `req`, `context`, `fallbackLocale`, `joins`, `showHiddenFields` and `includeLockStatus`.
 
 ```ts
 const found = await findByPath({
@@ -61,7 +62,7 @@ switch (found.collection) {
 
 - Returns `{ collection, document }`, or `null` when nothing is published at that path.
 - `found.collection` narrows `found.document`'s TypeScript type automatically — even without passing `collections`, it narrows to only the collections with paths in your generated Payload types (excluding `users` and internal collections). Passing `collections: ['pages']` narrows further to a page or `null`, and passing `select` narrows `found.document` just like `payload.find`.
-- Defaults to `overrideAccess: true` (reads as the server). Pass `overrideAccess: false` and `user` (or `req`) to enforce access control.
+- Reads as the server by default (`overrideAccess: true`). Pass `overrideAccess: false` with `user` or `req` to apply your access control, and a collection the reader may not read then has nothing at the path.
 
 ## The path you ask for
 
