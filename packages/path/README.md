@@ -135,7 +135,7 @@ The [speed page](https://docs.payloadpack.com/path/speed/) has what was measured
 
 ## Requirements
 
-Payload 4.0.0-beta.10 or later, with MongoDB, Postgres or SQLite.
+Payload 4.0.0-beta.11 or later, with MongoDB, Postgres or SQLite.
 
 ## License
 

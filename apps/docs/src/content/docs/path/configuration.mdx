@@ -105,7 +105,7 @@ export default buildConfig({
 
 :::caution
 
-- Set `hierarchy` to `true` or to an object that includes `parentFieldName`. In Payload `4.0.0-beta.10`, an object without `parentFieldName` breaks every delete in that collection, with or without the plugin.
+- Set `hierarchy` to `true` or to an object that includes `parentFieldName`. In Payload `4.0.0-beta.11`, an object without `parentFieldName` breaks every delete in that collection, with or without the plugin.
 - If the collection already has documents with parents, run [`backfillPaths`](/path/api/backfill-paths/) once after adding the plugin and before deleting anything. Until then, deletes also delete the documents below, as Payload does without the plugin.
 
 :::
