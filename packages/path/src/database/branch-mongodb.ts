@@ -15,7 +15,7 @@ export async function setPathAndAncestorsFieldsInMongodb(
   req: PayloadRequest
 ) {
   const { collections, sessions, versions } = req.payload.db as unknown as MongooseAdapter
-  const [model, fieldPrefix] = kind === 'documents' ? [collections[collection]!, ''] : [versions[collection]!, 'version.']
+  const [model, fieldPrefix] = kind === 'documents' ? [collections[collection], ''] : [versions[collection], 'version.']
   const updates = rows.map(({ fields, id }) => ({
     updateOne: {
       filter: { _id: id },
