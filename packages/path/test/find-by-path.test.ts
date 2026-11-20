@@ -1,7 +1,8 @@
-import { expect, expectTypeOf, it } from 'vitest'
+import { createPayloadRequest, initTransaction, killTransaction, type User } from 'payload'
+import { expect, expectTypeOf, it, onTestFinished } from 'vitest'
 
 import { findByPath, findPaths, type FoundByPath, type FoundPath } from '../src/index.js'
-import { describeEachSetup } from './support/boot-payload.js'
+import { describeEachSetup, titled } from './support/boot-payload.js'
 import { create, update } from './support/documents.js'
 
 describeEachSetup('', {}, (test, setup) => {
@@ -62,7 +63,274 @@ describeEachSetup('', {}, (test, setup) => {
     expect(found?.paths).toEqual(await findPaths({ collection: 'pages', draft: true, id: plans.id, payload }))
     expect(await findByPath({ path: '/plans', paths: true, payload })).toMatchObject({ paths: [at('en', '/plans')] })
   })
+
+  it('forwards select in include and exclude modes without breaking published checks', async () => {
+    const { payload } = test
+    const live = await create(payload, 'pages', { slug: 'select-live', title: 'Select live' })
+    const unpublished = await create(payload, 'pages', { slug: 'select-draft', title: 'Select draft' }, { draft: true })
+    const notice = await create(payload, 'notices', { slug: 'select-notice', title: 'Select notice' })
+
+    // Include mode without _status still checks published status and strips _status from the result.
+    const included = await findByPath({
+      collections: ['pages'],
+      path: '/select-live',
+      paths: true,
+      payload,
+      select: { title: true }
+    })
+    expect(included).toEqual({
+      collection: 'pages',
+      document: { id: live.id, title: 'Select live' },
+      paths: [at('en', '/select-live')]
+    })
+    expect(await findByPath({ collections: ['pages'], path: '/select-draft', payload, select: { title: true } })).toBeNull()
+    expect(
+      await findByPath({ collections: ['pages'], draft: true, path: '/select-draft', payload, select: { title: true } })
+    ).toEqual({
+      collection: 'pages',
+      document: { id: unpublished.id, title: 'Select draft' }
+    })
+
+    // Include mode with _status keeps _status on the returned document.
+    const withStatus = await findByPath({
+      collections: ['pages'],
+      path: '/select-live',
+      payload,
+      select: { _status: true, title: true }
+    })
+    expect(withStatus).toEqual({
+      collection: 'pages',
+      document: { _status: 'published', id: live.id, title: 'Select live' }
+    })
+
+    // Empty select returns id only while still checking published status.
+    expect(await findByPath({ collections: ['pages'], path: '/select-live', payload, select: {} })).toEqual({
+      collection: 'pages',
+      document: { id: live.id }
+    })
+    expect(await findByPath({ collections: ['pages'], path: '/select-draft', payload, select: {} })).toBeNull()
+
+    // Exclude mode with _status: false alone returns every other field and omits _status.
+    const withoutStatusOnly = await findByPath({
+      collections: ['pages'],
+      path: '/select-live',
+      payload,
+      select: { _status: false }
+    })
+    expect(withoutStatusOnly?.document).toMatchObject({
+      id: live.id,
+      path: '/select-live',
+      slug: 'select-live',
+      title: 'Select live'
+    })
+    expect(withoutStatusOnly?.document).not.toHaveProperty('_status')
+
+    // Exclude mode with other fields and _status: false omits both.
+    const withoutTitleAndStatus = await findByPath({
+      collections: ['pages'],
+      path: '/select-live',
+      payload,
+      select: { _status: false, title: false }
+    })
+    expect(withoutTitleAndStatus?.document).toMatchObject({ id: live.id, path: '/select-live', slug: 'select-live' })
+    expect(withoutTitleAndStatus?.document).not.toHaveProperty('title')
+    expect(withoutTitleAndStatus?.document).not.toHaveProperty('_status')
+
+    // Exclude mode without _status keeps _status.
+    const withoutTitle = await findByPath({
+      collections: ['pages'],
+      path: '/select-live',
+      payload,
+      select: { title: false }
+    })
+    expect(withoutTitle?.document).toMatchObject({ _status: 'published', id: live.id, slug: 'select-live' })
+    expect(withoutTitle?.document).not.toHaveProperty('title')
+
+    // A collection without drafts passes select through as-is.
+    expect(await findByPath({ collections: ['notices'], path: '/select-notice', payload, select: { title: true } })).toEqual({
+      collection: 'notices',
+      document: { id: notice.id, title: 'Select notice' }
+    })
+  })
+
+  it('forwards populate to control fields on populated relationships', async () => {
+    const { payload } = test
+    const parent = await create(payload, 'pages', { slug: 'pop-parent', title: 'Pop parent' })
+    await create(payload, 'pages', { parent: parent.id, slug: 'pop-child', title: 'Pop child' })
+
+    const found = await findByPath({
+      collections: ['pages'],
+      depth: 1,
+      path: '/pop-parent/pop-child',
+      payload,
+      populate: { pages: { title: true } }
+    })
+    expect(found?.document.parent).toEqual({ id: parent.id, title: 'Pop parent' })
+  })
+
+  it('merges where with the path and published filters', async () => {
+    const { payload } = test
+    const page = await create(payload, 'pages', { slug: 'where-page', title: 'Where page' })
+    await create(payload, 'pages', { slug: 'where-draft', title: 'Where draft' }, { draft: true })
+
+    expect(
+      await findByPath({
+        collections: ['pages'],
+        path: '/where-page',
+        payload,
+        where: { title: { equals: 'Where page' } }
+      })
+    ).toMatchObject({ collection: 'pages', document: { id: page.id } })
+
+    expect(
+      await findByPath({
+        collections: ['pages'],
+        path: '/where-page',
+        payload,
+        where: { title: { equals: 'Something else' } }
+      })
+    ).toBeNull()
+
+    expect(
+      await findByPath({
+        collections: ['pages'],
+        path: '/where-draft',
+        payload,
+        where: { title: { equals: 'Where draft' } }
+      })
+    ).toBeNull()
+  })
+
+  it('forwards fallbackLocale independently of the path lookup', async () => {
+    if (!setup.localized) return
+    const { payload } = test
+    const page = await create(payload, 'pages', { slug: 'fb-page', title: 'English title' })
+    await update(payload, 'pages', page.id, { slug: 'fb-sv' }, { locale: 'sv' })
+
+    expect(await findByPath({ collections: ['pages'], locale: 'sv', path: '/fb-sv', payload })).toMatchObject({
+      document: { id: page.id, title: 'English title' }
+    })
+    const withoutFallback = await findByPath({
+      collections: ['pages'],
+      fallbackLocale: false,
+      locale: 'sv',
+      path: '/fb-sv',
+      payload
+    })
+    expect(withoutFallback?.document.id).toBe(page.id)
+    expect(withoutFallback?.document.title ?? null).toBeNull()
+  })
+
+  it('reads uncommitted writes inside req transaction across multiple collections and with paths', async () => {
+    const { payload } = test
+    const req = await createPayloadRequest({ payload })
+    await initTransaction(req)
+    onTestFinished(() => killTransaction(req))
+
+    const created = await payload.create({
+      collection: 'pages',
+      data: { _status: 'published', slug: 'tx-page', title: 'Tx page' },
+      overrideAccess: true,
+      req
+    })
+
+    const found = await findByPath({ path: '/tx-page', paths: true, payload, req })
+    expect(found).toMatchObject({
+      collection: 'pages',
+      document: { id: created.id, title: 'Tx page' },
+      paths: [at('en', '/tx-page')]
+    })
+
+    await killTransaction(req)
+    expect(await findByPath({ path: '/tx-page', payload })).toBeNull()
+  })
 })
+
+describeEachSetup(
+  'forwarding access, context and hidden field options',
+  {
+    boot: (setup) => ({
+      collections: [
+        {
+          ...titled('members', setup.localized, [
+            { name: 'public', type: 'checkbox' },
+            { hidden: true, name: 'secret', type: 'text' },
+            { name: 'note', type: 'text' }
+          ]),
+          access: {
+            read: ({ req }) => (req.user ? true : { public: { equals: true } })
+          },
+          hooks: {
+            afterRead: [({ context, doc }) => (typeof context.tag === 'string' ? { ...doc, note: context.tag } : doc)]
+          }
+        },
+        // Payload's default access: only a logged-in user of the admin reads it.
+        titled('staff', setup.localized)
+      ],
+      options: { collections: ['members', 'staff'] }
+    })
+  },
+  (test) => {
+    it('finds a document the reader may read when another collection lets the reader read nothing', async () => {
+      const { payload } = test
+      const lobby = await create(payload, 'members', { public: true, slug: 'lobby', title: 'Lobby' })
+
+      expect(await findByPath({ overrideAccess: false, path: '/lobby', payload })).toMatchObject({
+        collection: 'members',
+        document: { id: lobby.id }
+      })
+      await expect(findByPath({ disableErrors: false, overrideAccess: false, path: '/lobby', payload })).rejects.toThrow(
+        'You are not allowed to perform this action.'
+      )
+    })
+
+    it('forwards overrideAccess, user, showHiddenFields and context', async () => {
+      const { payload } = test
+      const publicDoc = await create(payload, 'members', {
+        public: true,
+        secret: 'hidden-public',
+        slug: 'welcome',
+        title: 'Welcome'
+      })
+      const privateDoc = await create(payload, 'members', {
+        public: false,
+        secret: 'hidden-private',
+        slug: 'vault',
+        title: 'Vault'
+      })
+
+      // Defaults to overrideAccess: true (server read) and hides hidden fields.
+      const defaultFound = await findByPath({ collections: ['members'], path: '/vault', payload })
+      expect(defaultFound).toMatchObject({ collection: 'members', document: { id: privateDoc.id } })
+      expect(defaultFound?.document).not.toHaveProperty('secret')
+
+      // overrideAccess: false respects access control with and without user.
+      expect(await findByPath({ collections: ['members'], overrideAccess: false, path: '/vault', payload })).toBeNull()
+      expect(await findByPath({ collections: ['members'], overrideAccess: false, path: '/welcome', payload })).toMatchObject({
+        document: { id: publicDoc.id }
+      })
+      expect(
+        await findByPath({
+          collections: ['members'],
+          overrideAccess: false,
+          path: '/vault',
+          payload,
+          user: { id: 'member-1' } as unknown as User
+        })
+      ).toMatchObject({ document: { id: privateDoc.id } })
+
+      // showHiddenFields: true includes hidden fields.
+      expect(await findByPath({ collections: ['members'], path: '/vault', payload, showHiddenFields: true })).toMatchObject({
+        document: { id: privateDoc.id, secret: 'hidden-private' }
+      })
+
+      // context is forwarded to hooks.
+      expect(
+        await findByPath({ collections: ['members'], context: { tag: 'from-hook' }, path: '/welcome', payload })
+      ).toMatchObject({ document: { id: publicDoc.id, note: 'from-hook' } })
+    })
+  }
+)
 
 describeEachSetup('given pages and posts', { boot: { options: { collections: ['pages', 'posts'] } } }, (test) => {
   it('populates the relationships of the document to the depth asked for, and none without one', async () => {

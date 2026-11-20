@@ -18,6 +18,7 @@ import {
   takenFieldNamesError
 } from './messages.js'
 import {
+  buildTypescriptSchema,
   getCollection,
   getFieldOptions,
   hasPayloadHierarchy,
@@ -89,7 +90,8 @@ export function pathPlugin(options: PathPluginOptions): Plugin {
         const fieldOptions = getFieldOptions(collection.slug, options)
         return withPath(collection, { ...pathCollection, fieldOptions, slugify: pathConfig.slugify })
       }),
-      custom: storePathConfig(config.custom, pathConfig)
+      custom: storePathConfig(config.custom, pathConfig),
+      typescript: { ...config.typescript, schema: [...(config.typescript?.schema ?? []), buildTypescriptSchema(slugs)] }
     }
   }
 }

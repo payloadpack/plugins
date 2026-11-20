@@ -1,3 +1,4 @@
+import { sqliteAdapter } from '@payloadcms/db-sqlite'
 import {
   buildConfig,
   type CollectionConfig,
@@ -8,6 +9,7 @@ import {
   type TextField,
   type Where
 } from 'payload'
+import { generateTypes } from 'payload/node'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { pathPlugin, type PathCollection } from '../src/index.js'
@@ -248,6 +250,19 @@ describe('pathPlugin', () => {
   it('takes parentField only for a collection with a parent', () => {
     expectTypeOf<{ parentField: { label: string }; slug: 'pages' }>().toExtend<PathCollection>()
     expectTypeOf<{ parent: false; parentField: { label: string }; slug: 'pages' }>().not.toExtend<PathCollection>()
+  })
+
+  // PathCollectionSlug reads them there, so findByPath without collections is typed to these ones.
+  it('names its collections in the types payload generate:types writes', async () => {
+    const config = await buildConfig({
+      collections: [collection('pages'), collection('posts'), collection('media')],
+      // An adapter only for the id type the types use: nothing connects to it.
+      db: sqliteAdapter({ client: { url: 'file::memory:' } }),
+      plugins: [pathPlugin({ collections: ['pages', 'posts'] })],
+      secret: 'path-tests'
+    })
+    const { types } = await generateTypes(config, { log: false, returnString: true })
+    expect(types).toMatch(/pathCollectionSlug: 'pages' \| 'posts';/)
   })
 
   it.each([

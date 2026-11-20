@@ -52,7 +52,7 @@ import SidebarPreview from '../../../components/path/SidebarPreview.astro'
 
    If a collection with [Payload's hierarchy](/path/configuration/#payloads-hierarchy) already has documents with parents, run this before deleting anything in it.
 
-6. **Generate types** so your documents include `slug` and `path` (plus `parent` and `ancestors` on collections that [have them](/path/configuration/#the-fields-it-adds)).
+6. **Generate types** so your documents include `slug` and `path` (plus `parent` and `ancestors` on collections that [have them](/path/configuration/#the-fields-it-adds)), and so [`findByPath`](/path/api/find-by-path/#what-it-returns) is typed to the collections you gave the plugin.
 
    ```sh
    bunx payload generate:types

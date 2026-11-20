@@ -1,4 +1,5 @@
-import { expect, it } from 'vitest'
+import { createPayloadRequest, initTransaction, killTransaction } from 'payload'
+import { expect, it, onTestFinished } from 'vitest'
 
 import { findByPath, findPaths, type FoundPath } from '../src/index.js'
 import type { Id } from '../src/path/build-path-and-ancestors.js'
@@ -121,6 +122,25 @@ describeEachSetup(
       expect(found).toEqual(setup.localized ? [at('en', '/closures'), at('sv', '/closures')] : [at('en', '/closures')])
       expect(await findPaths({ collection: 'notices', draft: true, id: closures.id, payload })).toEqual(found)
       await expectFoundAt(found, closures.id)
+    })
+
+    it('reads uncommitted writes inside a transaction when given req', async () => {
+      const { payload } = test
+      const req = await createPayloadRequest({ payload })
+      await initTransaction(req)
+      onTestFinished(() => killTransaction(req))
+
+      const created = await payload.create({
+        collection: 'pages',
+        data: { _status: 'published', slug: 'tx-paths', title: 'Tx paths' },
+        overrideAccess: true,
+        req
+      })
+
+      expect(await findPaths({ collection: 'pages', id: created.id, payload, req })).toEqual([at('en', '/tx-paths')])
+
+      await killTransaction(req)
+      expect(await findPaths({ collection: 'pages', id: created.id, payload })).toEqual([])
     })
   }
 )

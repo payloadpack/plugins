@@ -2,6 +2,7 @@ import type {
   CollectionConfig,
   CollectionSlug,
   Config,
+  GeneratedTypes,
   Payload,
   SingleRelationshipField,
   TextField,
@@ -43,6 +44,27 @@ export type SlugFieldOptions = Pick<TextField, 'access' | 'admin' | 'hooks' | 'l
  * holds together with the plugin's own.
  */
 export type ParentFieldOptions = Pick<SingleRelationshipField, 'access' | 'admin' | 'filterOptions' | 'hooks' | 'label'>
+
+// The property of the site's generated Config that holds the slugs of the plugin's collections.
+const GENERATED_TYPES_KEY = 'pathCollectionSlug'
+
+/**
+ * The slug of a collection given to the plugin, as the types `payload generate:types` writes name
+ * them once the plugin is in the config. Before that, the slug of any collection.
+ */
+export type PathCollectionSlug =
+  GeneratedTypes extends Record<typeof GENERATED_TYPES_KEY, infer Slug extends CollectionSlug> ? Slug : CollectionSlug
+
+type TypescriptSchema = NonNullable<NonNullable<Config['typescript']>['schema']>[number]
+
+/** Adds the slugs of the plugin's collections to the types `payload generate:types` writes, for PathCollectionSlug. */
+export const buildTypescriptSchema =
+  (slugs: CollectionSlug[]): TypescriptSchema =>
+  ({ jsonSchema }) => ({
+    ...jsonSchema,
+    properties: { ...jsonSchema.properties, [GENERATED_TYPES_KEY]: { enum: slugs, type: 'string' } },
+    required: [...(Array.isArray(jsonSchema.required) ? jsonSchema.required : []), GENERATED_TYPES_KEY]
+  })
 
 /** A collection whose documents get a path: its slug alone, or its slug with what sets the collection apart. */
 export type PathCollection =

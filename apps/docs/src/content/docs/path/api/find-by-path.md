@@ -13,15 +13,39 @@ const found = await findByPath({ path: '/about/team', payload })
 // }
 ```
 
-| Argument      | Purpose                                                                               | Default                    |
-| ------------- | ------------------------------------------------------------------------------------- | -------------------------- |
-| `payload`     | Your Payload instance                                                                 | Required                   |
-| `path`        | Stored path starting with `/`, without a locale                                       | Required                   |
-| `locale`      | Locale to look up (when localization is enabled)                                      | Payload's default locale   |
-| `draft`       | Match the latest draft instead of published docs ([previews](/path/drafts/#previews)) | `false`                    |
-| `collections` | Subset of configured collections to search                                            | All configured collections |
-| `depth`       | Relationship population depth, as in `payload.find`                                   | `0`                        |
-| `paths`       | Set `true` to also return [paths in each locale](#paths-in-each-locale)               | Omitted                    |
+| Argument         | Purpose                                                                               | Default                    |
+| ---------------- | ------------------------------------------------------------------------------------- | -------------------------- |
+| `payload`        | Your Payload instance                                                                 | Required                   |
+| `path`           | Stored path starting with `/`, without a locale                                       | Required                   |
+| `collections`    | Subset of configured collections to search                                            | All configured collections |
+| `paths`          | Set `true` to also return [paths in each locale](#paths-in-each-locale)               | Omitted                    |
+| `locale`         | Locale to look up (when localization is enabled)                                      | Payload's default locale   |
+| `draft`          | Match the latest draft instead of published docs ([previews](/path/drafts/#previews)) | `false`                    |
+| `depth`          | Relationship population depth, as in `payload.find`                                   | `0`                        |
+| `overrideAccess` | Bypass access control, as in `payload.find`                                           | `true`                     |
+| `disableErrors`  | Set `false` to throw Payload's `Forbidden` for a collection the reader may not read   | `true`                     |
+
+## Payload find options
+
+`findByPath` also takes these options of `payload.find`, as Payload types them: `select`, `populate`, `where`, `user`, `req`, `context`, `fallbackLocale`, `joins`, `showHiddenFields` and `includeLockStatus`.
+
+```ts
+const found = await findByPath({
+  collections: ['pages'],
+  path: '/members/dashboard',
+  overrideAccess: false,
+  user,
+  select: { title: true, layout: true },
+  populate: { media: { url: true, alt: true } },
+  depth: 1,
+  payload
+})
+```
+
+- **`select`:** Include or exclude fields as in `payload.find`. You still only get published documents, whatever your `select` leaves out.
+- **`where`:** Added to the path and published checks, never in their place. Every collection you search needs the fields your `where` names.
+- **`req`:** The lookup, and `paths: true`, read inside your request's transaction.
+- **Left out:** `collection` (use `collections`), `limit`, `page`, `pagination`, `sort` and `trash`, since a document in the trash has no path. An option Payload adds later reaches `findByPath` once a release of this package takes it.
 
 ## What it returns
 
@@ -37,8 +61,8 @@ switch (found.collection) {
 ```
 
 - Returns `{ collection, document }`, or `null` when nothing is published at that path.
-- `found.collection` narrows `found.document`'s TypeScript type automatically. Passing `collections: ['pages']` narrows the return type to a page or `null`.
-- Reads as the server and ignores access control — use it for content your site displays publicly.
+- `found.collection` narrows `found.document`'s TypeScript type. Without `collections`, it is one of the collections you gave `pathPlugin()`, once you have run `payload generate:types` with the plugin in your config. Before that, it can be any collection. Passing `collections: ['pages']` narrows it to a page or `null`, and `select` narrows `found.document` as in `payload.find`.
+- Reads as the server by default (`overrideAccess: true`). Pass `overrideAccess: false` with `user` or `req` to apply your access control, and a collection the reader may not read then has nothing at the path.
 
 ## The path you ask for
 
@@ -53,7 +77,7 @@ Matches the stored path verbatim. Strip trailing slashes before calling, except 
 <details>
 <summary>More details</summary>
 
-- Runs 1 indexed query per searched collection in parallel, and 0 queries for a path with a [reserved slug](/path/configuration/#reserved-slugs).
+- Runs 1 indexed query per searched collection in parallel (or sequentially inside a transaction), and 0 queries for a path with a [reserved slug](/path/configuration/#reserved-slugs).
 - Never returns a document in the trash.
 - In a collection with [one path in every locale](/path/languages/#one-path-in-every-locale), a document is found at its path in each locale it is published in.
 - Passing a collection not given to `pathPlugin()` throws:

@@ -1,5 +1,5 @@
 export type { ChangedPath, PathsChangedArgs } from './hooks/paths-change.js'
-export type { PathCollection, PathPluginOptions, ReservedSegments } from './plugin/options.js'
+export type { PathCollection, PathCollectionSlug, PathPluginOptions, ReservedSegments } from './plugin/options.js'
 export { pathPlugin } from './plugin/plugin.js'
 export { defaultSlugify } from './plugin/slugify.js'
 export { backfillPaths, type BackfillReport } from './api/backfill-paths.js'
