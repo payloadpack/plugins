@@ -1,11 +1,4 @@
-import {
-  createPayloadRequest,
-  ValidationError,
-  type CollectionConfig,
-  type CollectionSlug,
-  type Payload,
-  type PayloadRequest
-} from 'payload'
+import { createPayloadRequest, ValidationError, type CollectionConfig, type Payload, type PayloadRequest } from 'payload'
 import { hasDraftsEnabled } from 'payload/shared'
 
 import { findDocuments, findParentPathAndAncestors } from '../database/documents.js'
@@ -16,7 +9,7 @@ import {
   type DocumentAndLatestVersion
 } from '../database/versions.js'
 import { buildPathAndAncestors, getSlugsAndParent, getStoredPathAndAncestors, type Id } from '../path/build-path-and-ancestors.js'
-import { getPathConfig, pickCollections } from '../plugin/options.js'
+import { getPathConfig, pickCollections, type PathCollectionSlug } from '../plugin/options.js'
 import { isInTrash } from '../utils/published-locales.js'
 import { checkNewPaths, getNewPaths } from '../validation/check-new-paths.js'
 import { checkParent } from '../validation/check-parent.js'
@@ -124,7 +117,7 @@ export async function backfillPaths({
   req: given
 }: {
   /** The collections to go through, among the plugin's. Without it, every one of them. */
-  collections?: CollectionSlug[]
+  collections?: PathCollectionSlug[]
   payload: Payload
   /**
    * The request whose transaction the run reads and writes in, such as a migration's. Without it,

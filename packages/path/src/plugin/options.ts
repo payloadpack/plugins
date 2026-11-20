@@ -2,6 +2,7 @@ import type {
   CollectionConfig,
   CollectionSlug,
   Config,
+  DataFromCollectionSlug,
   Payload,
   SingleRelationshipField,
   TextField,
@@ -43,6 +44,31 @@ export type SlugFieldOptions = Pick<TextField, 'access' | 'admin' | 'hooks' | 'l
  * holds together with the plugin's own.
  */
 export type ParentFieldOptions = Pick<SingleRelationshipField, 'access' | 'admin' | 'filterOptions' | 'hooks' | 'label'>
+
+type HasPathFields<Doc> = 'path' extends keyof Doc
+  ? 'slug' extends keyof Doc
+    ? Doc['path'] extends null | string | undefined
+      ? Doc['slug'] extends null | string | undefined
+        ? true
+        : false
+      : false
+    : false
+  : false
+
+type DetectedPathCollectionSlug = {
+  [Slug in CollectionSlug]: HasPathFields<DataFromCollectionSlug<Slug>> extends true ? Slug : never
+}[CollectionSlug]
+
+/**
+ * The slugs of the collections whose generated types hold the plugin's path and slug fields, so
+ * findByPath narrows its result without naming collections. Falls back to CollectionSlug when no
+ * generated types are present.
+ */
+export type PathCollectionSlug = string extends CollectionSlug
+  ? CollectionSlug
+  : [DetectedPathCollectionSlug] extends [never]
+    ? CollectionSlug
+    : DetectedPathCollectionSlug
 
 /** A collection whose documents get a path: its slug alone, or its slug with what sets the collection apart. */
 export type PathCollection =

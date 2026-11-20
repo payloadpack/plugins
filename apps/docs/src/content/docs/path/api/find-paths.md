@@ -16,6 +16,7 @@ const paths = await findPaths({ collection: 'pages', id: page.id, payload })
 | `collection` | Collection slug (must be configured in `pathPlugin`)                   | Required |
 | `id`         | Document ID                                                            | Required |
 | `draft`      | Return the latest draft's paths for [previews](/path/drafts/#previews) | `false`  |
+| `req`        | Request whose transaction the read should join                         | Omitted  |
 
 ## What it returns
 
