@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/payloadpack/plugins/compare/path-v0.3.0...path-v0.3.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **path:** add getPathCollectionSlugs ([94bd5a7](https://github.com/payloadpack/plugins/commit/94bd5a7512d49d895d8db381a83e6bfcfd72273d))
+
 ## [0.3.0](https://github.com/payloadpack/plugins/compare/path-v0.2.0...path-v0.3.0) (2026-11-20)
 
 

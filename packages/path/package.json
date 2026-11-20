@@ -1,6 +1,6 @@
 {
   "name": "@payloadpack/path",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Stored URL paths for Payload 4 pages and posts. Editors pick a parent and a slug, and a site finds the document at a path in one indexed query, in any language.",
   "keywords": [
     "payload",
