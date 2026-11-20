@@ -6,15 +6,6 @@ import { getPathConfig, isLocalized } from '../plugin/options.js'
 import { getFallbackLocales, getSaved, NO_LOCALE, valueInLocale } from '../utils/locales.js'
 import { isSlug, type Id } from './build-path-and-ancestors.js'
 
-/**
- * The slug of each locale the save holds one of, and the stored slugs the saved locales fall back to.
- * A document without a slug in any locale takes one from its title. A locale without a slug of its
- * own, on a document with one in another locale, falls back to that one, so a translated title never
- * moves a path. In a collection with drafts the rule of a path does that, so the stored slugs it
- * falls back to tell only that the document has one to make a path from. In one without, a locale
- * has a path only with a slug of its own, so the save keeps the slug it falls back to as the
- * locale's own.
- */
 export async function findSlugs({
   collection,
   data,
@@ -31,8 +22,10 @@ export async function findSlugs({
   const { inLocales, savedLocales } = getSaved(req, localized)
   const slugs = inLocales(data.slug)
   if (savedLocales.some((savedLocale) => slugs[savedLocale])) return { fallbackSlugs: [], slugs }
-  // Only of a localized slug can a stored document have one in a locale the save holds no value of:
-  // in its latest version, or in the document itself in a collection without drafts.
+  // A locale without a slug of its own falls back to the stored one of another locale before the title,
+  // so a translated title never moves a path. Only of a localized slug can a stored document have one
+  // in a locale the save holds no value of: in its latest version, or in the document itself in a
+  // collection without drafts.
   if (id !== undefined && localized) {
     const stored = await findDocumentAndLatestVersion(collection, id, req)
     const latest = stored?.version?.version ?? stored?.document
@@ -44,6 +37,9 @@ export async function findSlugs({
     ])
     if (fallbacks.some(([, slug]) => slug)) {
       const fallbackSlugs = fallbacks.map(([, slug]) => slug)
+      // With drafts the rule of a path falls back by itself, so these only tell that the document has a
+      // slug to make a path from. Without, a locale has a path only with a slug of its own, so the save
+      // keeps the one it falls back to.
       return { fallbackSlugs, slugs: hasDraftsEnabled(collection) ? slugs : Object.fromEntries(fallbacks) }
     }
   }

@@ -18,13 +18,8 @@ export type SetupResults = {
 
 export type Run = { compared: boolean; documents: number; lookupRuns: number }
 
-// The documents of the full run, the only run that writes its numbers.
 export const FULL_RUN_DOCUMENTS = 100_000
 
-/**
- * Where the full run writes its numbers: the JSON the docs' speed page renders its tables and charts
- * from, and the README, whose table sits between the two markers and is written whole each time.
- */
 const REPORT_FILES = {
   json: fileURLToPath(new URL('../../../apps/docs/src/data/path-speed.json', import.meta.url)),
   readme: fileURLToPath(new URL('../README.md', import.meta.url))
@@ -32,7 +27,7 @@ const REPORT_FILES = {
 const TABLE_START = '<!-- speed-table:start -->'
 const TABLE_END = '<!-- speed-table:end -->'
 
-// Every database the full run times, by the name the tables give it.
+// Every database the full run times.
 const DATABASE_LABELS: Record<DatabaseName, string> = { mongodb: 'MongoDB', postgres: 'Postgres', sqlite: 'SQLite' }
 
 const megabytes = (bytes: number) => `${Math.round(bytes / 1024 / 1024).toLocaleString('en')} MB`
@@ -50,7 +45,7 @@ const rounded = <Row extends Timing>(row: Row): Row => ({
   p95: Math.round(row.p95 * 100) / 100
 })
 
-// A time as the speed page shows it: a decimal below 10, none from there, and seconds from 1,000 ms.
+// As the speed page shows a time.
 function formatTime(milliseconds: number) {
   const [amount, unit] = milliseconds >= 1_000 ? [milliseconds / 1_000, 's'] : [milliseconds, 'ms']
   return `${amount.toLocaleString('en', { maximumFractionDigits: amount < 10 ? 1 : 0 })} ${unit}`
@@ -122,8 +117,6 @@ export function printSetup(results: SetupResults) {
   printComparison(results)
 }
 
-// The benchmark's own tables, which the README shows too: each operation by database, without and
-// with localization.
 function summaryTables(allResults: SetupResults[]) {
   return [false, true].flatMap((localized) => {
     const setups = allResults.filter((results) => results.localized === localized)
@@ -144,11 +137,7 @@ export function printAll(allResults: SetupResults[]) {
   for (const results of allResults) printComparison(results)
 }
 
-/**
- * What keeps a run from being the full run, which has FULL_RUN_DOCUMENTS documents, the comparison,
- * and every database timed without and with localization. A setup that PATH_TEST_DATABASES leaves
- * out and one that failed both show as not timed.
- */
+// A setup that PATH_TEST_DATABASES leaves out and one that failed both show as not timed.
 function findShortfalls(run: Run, timed: number) {
   const setups = Object.keys(DATABASE_LABELS).length * 2
   return [
@@ -160,7 +149,6 @@ function findShortfalls(run: Run, timed: number) {
   ].flat()
 }
 
-// The README around its table: up to the start marker, and from the end marker on.
 async function readAroundTable(file: string) {
   const readme = await readFile(file, 'utf8')
   const [start, end] = [readme.indexOf(TABLE_START), readme.indexOf(TABLE_END)]
@@ -170,22 +158,15 @@ async function readAroundTable(file: string) {
   return { after: readme.slice(end), before: readme.slice(0, start) }
 }
 
-/**
- * Before a run seeds anything: a run that writes once each of its setups is timed finds out here
- * that the README has no place for its table, not an hour later.
- */
+// Called before a run seeds anything, so a run that writes finds out here that the README has no
+// place for its table, not an hour later.
 export async function checkReadme(run: Run, setups: number) {
   if (findShortfalls(run, setups).length === 0) await readAroundTable(REPORT_FILES.readme)
 }
 
-// Joins what a run fell short in, as in "a, b and c".
 const SHORTFALL_LIST = new Intl.ListFormat('en', { type: 'conjunction' })
 
-/**
- * Writes the full run's numbers, with what they ran on, to the JSON and to the README's table. Any
- * other run writes nothing and says why, so neither file ever holds a small run's numbers or mixes
- * two runs.
- */
+// Only the full run writes, so neither file ever holds a small run's numbers or mixes two runs.
 export async function writeReport(allResults: SetupResults[], run: Run) {
   const shortfalls = findShortfalls(run, allResults.length)
   if (shortfalls.length > 0) {

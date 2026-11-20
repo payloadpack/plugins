@@ -130,7 +130,6 @@ describeEachSetup('', {}, (test) => {
     })
 
     const lifted = await readDocument(payload, 'pages', crane.id)
-    // Each path the site was told the document went to, in the order it was told.
     const reportedTo = changes
       .flat()
       .filter(({ id }) => String(id) === String(crane.id))
@@ -161,7 +160,6 @@ describeEachSetup('', {}, (test) => {
     const dock = await create(payload, 'pages', { slug: 'dock', title: 'Dock' })
     const slip = await create(payload, 'pages', { parent: dock.id, slug: 'slip', title: 'Slip' })
 
-    // One data object for both: the dock moves below the yard, and so does the slip, which leaves the dock.
     const { errors } = await payload.update({
       collection: 'pages',
       data: { _status: 'published', parent: yard.id },
@@ -182,11 +180,9 @@ describeEachSetup('', {}, (test) => {
   })
 })
 
-// The notes a site's own validation refuses, and the notes whose save waits until a refused note has
-// taken its paths. A note's title is validated after the plugin's hook before the write, where a
-// document of a bulk update takes its paths, so the validation of a refused note says when it has
-// taken them. A save waits for at most a few seconds, so it never hangs where the refused note takes
-// nothing or is never saved.
+// A note's title is validated after the plugin's hook before the write, where a document of a bulk
+// update takes its paths, so the validation of a refused note says when it has taken them. A save
+// waits for at most a few seconds, so it never hangs where the refused note takes nothing.
 const refusedNotes = new Set<string>()
 const waitingNotes = new Set<string>()
 let markTaken = () => {}
@@ -242,8 +238,7 @@ describeEachSetup(
   (test) => {
     beforeEach(resetNotes)
 
-    // A stated limit: the document that takes the path first and is then refused for its own reason
-    // keeps it taken for the rest of the bulk update.
+    // A stated limit: the first keeps the path taken for the rest of the bulk update.
     it('refuses the second of two documents that a bulk update would put at the same path, also when the first is refused for its own reason', async () => {
       const { payload } = test
       const east = await create(payload, 'notes', { slug: 'east', title: 'East' })
@@ -261,8 +256,7 @@ describeEachSetup(
         where: { id: { in: [first.id, second.id] } }
       })
 
-      // The first is refused for its title, and the second for the path the first took. A bulk update
-      // lists each refusal by its ValidationError's message only.
+      // A bulk update lists each refusal by its ValidationError's message only.
       expect(errors.map(({ id, message }) => ({ id, message }))).toEqual(
         expect.arrayContaining([
           { id: first.id, message: 'The following field is invalid: Title' },
@@ -353,17 +347,15 @@ describeEachSetup(
   }
 )
 
-// Payload runs the documents of a bulk update at once, so in a bulk publish of a page and the
-// documents below it, each document below writes its own row while the page's move reads the branch
-// and writes it too. The page's pending rename and each new title below are all published, and no
-// document of the branch is taken for one in the way of its own branch. Many documents below make it
-// likely that a write lands between the move's read and its check.
+// Payload runs the documents of a bulk update at once, so each document below writes its own row
+// while the page's move reads the branch and writes it too. Many documents below make it likely that
+// a write lands between the move's read and its check, which must not take a document of the branch
+// for one in the way of its own branch.
 const DOCUMENTS_BELOW = 10
 
 type Document = { [key: string]: unknown; id: Id }
 
 describeEachSetup('a bulk publish of a page and the documents below it', {}, (test) => {
-  // A published page with documents below it, each with a draft that holds a new title.
   async function createBranchWithDrafts(slug: string) {
     const { payload } = test
     const page = await create(payload, 'pages', { slug, title: slug })
@@ -377,9 +369,7 @@ describeEachSetup('a bulk publish of a page and the documents below it', {}, (te
     return { below, page }
   }
 
-  // As the admin publishes the documents it lists: their latest drafts, in one bulk update. Returns
-  // what the bulk update refused, by the page's slug or the title of a document below, the page's
-  // path, and each document below as it is published, with how many latest versions it has.
+  // As the admin publishes the documents it lists: their latest drafts, in one bulk update.
   async function publish(page: Document, below: Document[]) {
     const { payload } = test
     const { errors } = await payload.update({
@@ -419,7 +409,6 @@ describeEachSetup('a bulk publish of a page and the documents below it', {}, (te
     expect(await publish(page, below)).toEqual(expected('hotel', '/inn'))
   })
 
-  // The same bulk publish without a rename moves nothing, and every new title is published.
   it('publishes the new title of each document below a page that the same bulk publish publishes without a rename', async () => {
     const { below, page } = await createBranchWithDrafts('hostel')
 

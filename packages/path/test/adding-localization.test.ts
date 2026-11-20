@@ -7,8 +7,6 @@ import { LOCALES, SETUPS } from './support/setups.js'
 
 const LOCALIZATION = { defaultLocale: 'en', locales: LOCALES }
 
-// A site that has documents with paths, and then gets localization in its Payload config, with
-// nothing localized yet. Ledgers are given to the plugin by their slug alone, before and after.
 const LEDGERS = { collections: [titled('ledgers', false)], options: { collections: ['ledgers'] } }
 
 describe.each(SETUPS.filter(({ localized }) => !localized))('$name, then with localization', (setup) => {

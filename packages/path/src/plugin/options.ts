@@ -100,13 +100,10 @@ export type PathPluginOptions = {
   onPathsChanged?: (args: PathsChangedArgs) => Promise<void> | void
 }
 
-// The options with every default filled in, as the plugin stores them on the Payload config.
 type PathConfig = {
-  // Each collection with its base path, which is empty without one, whether its documents have a
-  // parent, and whether they have a slug and a path per locale.
   collections: { basePath: string; hasParent: boolean; localized: boolean; slug: CollectionSlug }[]
   onPathsChanged?: PathPluginOptions['onPathsChanged']
-  // Each reserved segment with its reason, if it has one. Without root, Payload's own routes count.
+  // Without root, Payload's own routes count.
   reservedSegments: { anyDepth: ReasonBySegment; root?: ReasonBySegment }
   rootSlug: string
   slugify: Slugify
@@ -116,7 +113,6 @@ export type ReasonBySegment = Record<string, string | undefined>
 
 const CUSTOM_KEY = 'payloadpackPath'
 
-// Without a base path, a top-level document's path starts with nothing, so it sits at the root.
 export const NO_BASE_PATH = ''
 
 // A base path stands where a parent's path would, so it takes the same shape: a slash before each
@@ -128,11 +124,10 @@ function getBasePathFault(basePath: string) {
   if (basePath.split('/').slice(1).includes('')) return BASE_PATH_WITH_EMPTY_SEGMENT
 }
 
-// A collection's documents have one slug and one path, the same in every locale, unless the site
-// has localization and the collection is given with localized: true. So a site that gets
-// localization later keeps the slugs and paths it stores.
 function resolveCollection(collection: PathCollection, { localization }: Config): PathConfig['collections'][number] {
   const { basePath, localized, parent, slug } = typeof collection === 'string' ? { slug: collection } : collection
+  // Localized only when given with localized: true, so a site that gets localization later keeps the
+  // slugs and paths it stores.
   const resolved = { hasParent: parent !== false, localized: Boolean(localization) && localized === true, slug }
   if (basePath === undefined) return { ...resolved, basePath: NO_BASE_PATH }
   const fault = getBasePathFault(basePath)
@@ -156,8 +151,7 @@ export function resolvePathConfig(options: PathPluginOptions, config: Config): P
 
 export type FieldOptions = { parentField?: ParentFieldOptions; slugField?: SlugFieldOptions }
 
-// What a site sets on a collection's slug field and parent field, which only building those fields
-// reads, so the stored config doesn't hold it.
+// Only building the slug field and the parent field reads these, so the stored config doesn't hold them.
 export function getFieldOptions(collectionSlug: string, { collections }: PathPluginOptions): FieldOptions {
   const given = collections.find((collection) => typeof collection !== 'string' && collection.slug === collectionSlug)
   return typeof given === 'object' ? { parentField: given.parentField, slugField: given.slugField } : {}
@@ -173,7 +167,6 @@ export function getPathConfig(payload: Payload): PathConfig {
   return pathConfig
 }
 
-// The collections a call narrows the plugin's to, or every one of them.
 export function pickCollections(collections: CollectionSlug[] | undefined, pathConfig: PathConfig) {
   const given = pathConfig.collections.map(({ slug }) => slug)
   const givenSlugs = new Set<string>(given)
@@ -182,44 +175,32 @@ export function pickCollections(collections: CollectionSlug[] | undefined, pathC
   return collections ?? given
 }
 
-// A collection as the plugin was given it, with every default filled in, or nothing for a
-// collection it wasn't given.
 export const getCollection = (collectionSlug: string, { collections }: PathConfig) =>
   collections.find(({ slug }) => slug === collectionSlug)
 
-// What the paths of a collection's top-level documents start with: its base path, or nothing.
 export const getBasePath = (collectionSlug: string, payload: Payload) =>
   getCollection(collectionSlug, getPathConfig(payload))?.basePath ?? NO_BASE_PATH
 
-// The name of the plugin's own parent field.
 export const PARENT_FIELD_NAME = 'parent'
 
-// Payload's own hierarchy gives a collection a parent field of its own, and so do its folders and
-// tags presets, which Payload turns into a hierarchy when it builds the config, after the plugin ran.
+// Payload turns the folders and tags presets into a hierarchy when it builds the config, after the
+// plugin ran.
 export const hasPayloadHierarchy = (collection: CollectionConfig) =>
   Boolean(collection.hierarchy || collection.folders || collection.tags)
 
-/**
- * The field a collection's documents hold their parent in: the plugin's own, or Payload's own in a
- * collection with Payload's hierarchy, by the name the running config gives it. A collection given
- * with parent: false has none: every document of it is top-level, and it stores no ancestors.
- */
 export function getParentFieldName(collectionSlug: string, payload: Payload) {
   if (!getCollection(collectionSlug, getPathConfig(payload))?.hasParent) return undefined
+  // The running config, which names the parent field of Payload's hierarchy.
   const { hierarchy } = payload.collections[collectionSlug as CollectionSlug].config
   return hierarchy ? hierarchy.parentFieldName : PARENT_FIELD_NAME
 }
 
-/**
- * Whether a collection's documents have a slug and a path per locale, which resolveCollection alone
- * decides. Where they don't, a row holds one slug and one path, and the document is at that path in
- * every locale of the site. What reads a slug or a path off a row, writes one to a row or names one
- * in a query asks here, and nothing else knows the difference.
- */
+// What reads a slug or a path off a row, writes one to a row or names one in a query asks here, and
+// nothing else knows the difference.
 export const isLocalized = (collectionSlug: string, payload: Payload) =>
   Boolean(getCollection(collectionSlug, getPathConfig(payload))?.localized)
 
-// The field a refused parent is shown on: the plugin's own parent field. Payload's hierarchy moves a
-// document with a button and has no field for the parent in the form, so there the slug shows it.
+// Payload's hierarchy moves a document with a button and has no field for the parent in the form, so
+// there the slug shows a refused parent.
 export const getParentRefusalField = (collectionSlug: string, payload: Payload) =>
   payload.collections[collectionSlug as CollectionSlug].config.hierarchy ? REFUSAL_FIELD : PARENT_FIELD_NAME

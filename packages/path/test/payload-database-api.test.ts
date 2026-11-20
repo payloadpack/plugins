@@ -102,7 +102,6 @@ const richText = (text: string) => ({
 const plain = (payload: Payload, title: string) =>
   payload.create({ collection: 'rich', data: { _status: 'published', title }, overrideAccess: true }) as Promise<Row>
 
-// A published document with a value in every field, in each locale, and a newer draft on top.
 async function createRichDocument(payload: Payload, { localized }: Setup) {
   const [first, second] = [await plain(payload, 'First'), await plain(payload, 'Second')]
   const document = (await payload.create({
@@ -163,7 +162,7 @@ async function createRichDocument(payload: Payload, { localized }: Setup) {
 const readRow = (payload: Payload, id: Row['id']) =>
   payload.db.findOne<Row>({ collection: 'rich', joins: false, where: { id: { equals: id } } })
 
-// A document's latest version, found as Payload itself finds it.
+// Found as Payload itself finds a latest version.
 async function readLatestVersionRow(payload: Payload, id: Row['id']) {
   const { docs } = await payload.db.findVersions<Row>({
     collection: 'rich',

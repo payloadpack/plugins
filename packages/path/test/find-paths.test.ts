@@ -5,8 +5,7 @@ import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
 import { create, remove, update } from './support/documents.js'
 
-// Pages and articles are localized in a localized setup, and topics have one path in every locale.
-// Notices have no drafts, and articles have a trash. Posts are not given to the plugin.
+// Pages and articles are localized in a localized setup, and notices have no drafts.
 describeEachSetup(
   'finding the paths of one document',
   {
@@ -22,7 +21,6 @@ describeEachSetup(
     // A save in Swedish, which without localization is a save of the one slug.
     const inSwedish = setup.localized ? { locale: 'sv' } : {}
 
-    // Each path found finds the document again, in its locale.
     async function expectFoundAt(found: FoundPath[], id: Id, { draft = false } = {}) {
       for (const { locale, path } of found) {
         expect(await findByPath({ draft, locale, path, payload: test.payload })).toMatchObject({ document: { id } })

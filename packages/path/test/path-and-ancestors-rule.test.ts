@@ -7,14 +7,8 @@ import { getStoredPathAndAncestors, type Id } from '../src/path/build-path-and-a
 import { describeEachSetup } from './support/boot-payload.js'
 import { catchFieldErrors, changed, create, readDocument, restoreVersion, update } from './support/documents.js'
 
-// Where a document is published, it is where it was published, and a draft's new slug or parent there
-// is a pending move. Where it isn't published, it is where its latest draft says, at once.
-
-/**
- * A document's path and ancestors, and the ones its latest draft would give it, as the one rule
- * builds them from what the database holds, which is also what the document itself and its latest
- * version must store.
- */
+// Built by the one rule from what the database holds, which the document and its latest version must
+// store too.
 async function readPathAndAncestors(payload: Payload, collection: CollectionSlug, id: Id) {
   const req = await createPayloadRequest({ payload })
   const { config } = payload.collections[collection]
@@ -31,7 +25,7 @@ describeEachSetup('', {}, (test, setup) => {
     test.changes.length = 0
   })
 
-  // The paths of every locale: without localization there is one, under no locale.
+  // Without localization there is one path, under no locale.
   const paths = (english: string, swedish = english) => (setup.localized ? { en: english, sv: swedish } : { '': english })
   const takenBy = (document: string) => [
     { message: `${document} is already at this path, so change the slug or the parent.`, path: 'slug' }
@@ -55,7 +49,6 @@ describeEachSetup('', {}, (test, setup) => {
     })
     // Nothing published changed, so the site hears nothing.
     expect(changes).toEqual([])
-    // The old path is free for another document, and the new one is taken.
     expect((await create(payload, 'pages', { slug: 'loft', title: 'New loft' })).path).toBe('/loft')
     expect(await catchFieldErrors(create(payload, 'pages', { slug: 'attic', title: 'New attic' }))).toMatchObject(
       takenBy('Page "Loft"')
@@ -75,7 +68,8 @@ describeEachSetup('', {}, (test, setup) => {
       document: { ancestors: [roof.id], paths: paths('/roof/tiles') },
       draft: { ancestors: [roof.id], paths: paths('/roof/tiles') }
     })
-    // Payload wrote the draft to the latest version only, and the page itself stores the parent its path hangs from.
+    // Payload wrote the draft to the latest version only, and the page itself stores the parent its
+    // path hangs from.
     expect(String((await readDocument(payload, 'pages', tiles.id)).parent)).toBe(String(roof.id))
     expect(await readPathAndAncestors(payload, 'pages', moss.id)).toEqual({
       document: { ancestors: [roof.id, tiles.id], paths: paths('/roof/tiles/moss') },
@@ -93,7 +87,6 @@ describeEachSetup('', {}, (test, setup) => {
 
     await update(payload, 'pages', menu.id, { slug: 'food' }, { draft: true })
 
-    // The latest version shows the draft's path, and the page and the page below it keep theirs.
     expect(await readPathAndAncestors(payload, 'pages', menu.id)).toEqual({
       document: { ancestors: [], paths: paths('/menu') },
       draft: { ancestors: [], paths: paths('/food') }
@@ -103,7 +96,6 @@ describeEachSetup('', {}, (test, setup) => {
       draft: { ancestors: [menu.id], paths: paths('/menu/lunch') }
     })
     expect(changes).toEqual([])
-    // A pending move takes nothing, and the page still takes the path it is at.
     expect(await catchFieldErrors(create(payload, 'pages', { slug: 'menu', title: 'New menu' }))).toMatchObject(
       takenBy('Page "Menu"')
     )
@@ -282,7 +274,6 @@ describeEachSetup('', {}, (test, setup) => {
       collection: 'notices',
       document: { id: hours.id }
     })
-    // A translated title still never moves a path.
     expect((await update(payload, 'notices', hours.id, { title: 'Våra öppettider' }, inSwedish)).path).toBe('/besok/hours')
   })
 

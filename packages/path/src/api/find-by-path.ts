@@ -51,12 +51,10 @@ export async function findByPath<Slug extends CollectionSlug>({
   const foundInCollections = await Promise.all(
     slugs.map(async (collection) => {
       const published = !draft && hasDraftsEnabled(payload.collections[collection].config)
-      // The query names the path, so a database reads the path index for it. A published lookup also
-      // asks that the locale holds a status of its own, because Payload's read fills a missing one
-      // from the fallback locale, where the document was never published. It asks that the status
-      // exists and not which one it is: with a second equality SQLite, which keeps no statistics, may
-      // read the status index instead. The status is read off what comes back, which is the one
-      // document a path belongs to.
+      // A published lookup asks that the locale holds a status of its own, because Payload's read fills
+      // a missing one from the fallback locale, where the document was never published. It asks that the
+      // status exists and not which one it is: with a second equality SQLite, which keeps no statistics,
+      // may read the status index instead of the path index.
       const atPath: Where = { path: { equals: path } }
       const { docs } = await payload.find({
         collection,

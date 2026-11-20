@@ -3,10 +3,6 @@ export type DatabaseName = (typeof DATABASES)[number]
 
 export type Setup = { database: DatabaseName; localized: boolean; name: string }
 
-/**
- * The databases the tests run on: all three, or those PATH_TEST_DATABASES names, such as sqlite or
- * mongodb,postgres. The global setup starts the servers of these only.
- */
 function readTestedDatabases(): DatabaseName[] {
   const names = (process.env.PATH_TEST_DATABASES ?? '')
     .split(',')
@@ -22,7 +18,6 @@ function readTestedDatabases(): DatabaseName[] {
 
 export const TESTED_DATABASES = readTestedDatabases()
 
-// Every test runs on each database, without and with localization (two locales).
 export const SETUPS: Setup[] = TESTED_DATABASES.flatMap((database) =>
   [false, true].map((localized) => ({ database, localized, name: `${database}${localized ? ', localized' : ''}` }))
 )

@@ -10,10 +10,6 @@ import {
 } from '../plugin/messages.js'
 import { getParentRefusalField } from '../plugin/options.js'
 
-/**
- * Refuses a parent a document can't sit below: one that doesn't exist, the document itself or one
- * below it, one without a path, and the home page.
- */
 export function checkParent(
   collection: string,
   { id, parent, parentId }: { id: Id | undefined; parent: ParentPathAndAncestors | null; parentId: Id | null },

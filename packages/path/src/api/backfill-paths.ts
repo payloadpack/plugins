@@ -42,9 +42,6 @@ export type BackfillReport = {
   unchanged: number
 }
 
-// A stored document's path and ancestors, or the ones its latest draft would give it, below a parent
-// it can sit below, as that parent is stored. A document without a slug in any locale has none to
-// make a path from.
 async function findParentAndBuildCheckedPathAndAncestors(
   stored: DocumentAndLatestVersion,
   kind: 'document' | 'draft',
@@ -58,10 +55,6 @@ async function findParentAndBuildCheckedPathAndAncestors(
   return buildPathAndAncestors(slugsAndParent.slugs, parent, collection, req.payload)
 }
 
-// Stores a document's path and ancestors, and the ones its latest draft would give it, where its rows
-// store other ones, as a move stores them, and says whether it stored any, or nothing for a document
-// that is gone. Refused as a save is, and where another document is at a path it stores, before
-// either write. Written with ifUnchanged: after a save in between, it is read and taken again.
 async function backfillDocument(collection: CollectionConfig, id: Id, req: PayloadRequest): Promise<boolean | undefined> {
   const stored = await findDocumentAndLatestVersion(collection, id, req)
   if (!stored) return
@@ -79,11 +72,10 @@ async function backfillDocument(collection: CollectionConfig, id: Id, req: Paylo
   const wrote = await setDocumentAndDraftPathAndAncestors(collection.slug, stored, { document: built, draft: builtDraft }, req, {
     ifUnchanged: true
   })
+  // Nothing is written after a save in between, so the document is read and taken again.
   return wrote ? wrote.document || wrote.draft : backfillDocument(collection, id, req)
 }
 
-// The ids of a collection's documents, parents before the documents below them, by their rows as the
-// database holds them when the run begins.
 async function findIdsTopDown(collection: CollectionConfig, req: PayloadRequest) {
   const documents = await findDocuments(collection.slug, {}, req)
   const versions = hasDraftsEnabled(collection) ? await findLatestVersionByDocument(collection.slug, req) : undefined
@@ -94,7 +86,7 @@ async function findIdsTopDown(collection: CollectionConfig, req: PayloadRequest)
   const parents = new Map(
     stored.map((each) => [String(each.document.id), getSlugsAndParent(each, 'document', collection, req.payload).parentId])
   )
-  // How many documents sit above a document. Stored parents that form a ring end at the count of all.
+  // Stored parents that form a ring end at the count of all.
   const depths = new Map(
     stored.map(({ document }) => {
       let depth = 0
@@ -142,7 +134,7 @@ export async function backfillPaths({
 }): Promise<BackfillReport> {
   const slugs = pickCollections(collections, getPathConfig(payload))
   // In every locale at once, so a refusal names the locale of the path it is about, whatever locale a
-  // given request is in. Of that request it takes the transaction.
+  // given request is in.
   const req = await createPayloadRequest({ locale: 'all', payload })
   if (given) req.transactionID = given.transactionID
   const report: BackfillReport = { left: [], updated: 0, unchanged: 0 }

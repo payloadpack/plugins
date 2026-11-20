@@ -161,7 +161,6 @@ describeEachSetup('', {}, (test, setup) => {
   })
 })
 
-// A collection whose own hook saves another document of it on the same request, as a site's hook may.
 const events = (localized: boolean): CollectionConfig => ({
   ...titled('events', localized),
   hooks: {
@@ -181,8 +180,6 @@ const events = (localized: boolean): CollectionConfig => ({
   }
 })
 
-// A collection whose own hook returns an object of its own, as a site's hook may: a copy of the data
-// made with a spread, or one rebuilt from its entries, whichever the save's context asks for.
 const stalls = (localized: boolean): CollectionConfig => ({
   ...titled('stalls', localized),
   hooks: {

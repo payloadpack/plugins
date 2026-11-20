@@ -6,12 +6,10 @@ import type { PathAndAncestors } from '../path/build-path-and-ancestors.js'
 import { buildFieldError, MISSING_SLUG_REFUSAL, REFUSAL_FIELD } from '../plugin/messages.js'
 import { getPublishedLocales } from '../utils/published-locales.js'
 
-/**
- * Refuses a document that is published in a locale it has no path in. In a collection with drafts
- * every locale falls back to a slug, so such a document has no slug in any locale. The hook before
- * the write refuses a publish without one from the save and the stored slugs, and this checks what
- * only Payload's write decides: which locales the save published, and the slugs it holds there.
- */
+// With drafts every locale falls back to a slug, so a published locale without a path means no slug in
+// any locale. The hook before the write refuses that from the save and the stored slugs, and this
+// checks what only Payload's write decides: which locales the save published, and the slugs it holds
+// there.
 export function checkPublishedPaths(
   collection: CollectionConfig,
   document: StoredDocument,

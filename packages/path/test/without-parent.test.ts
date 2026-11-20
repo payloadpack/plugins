@@ -8,8 +8,6 @@ describeEachSetup(
   '',
   {
     boot: (setup) => ({
-      // Articles have no parent below a base path, and landings none at the root. Topics have none
-      // in their paths, while Payload's own hierarchy still gives each one a parent in its tree.
       collections: [
         titled('articles', setup.localized),
         titled('landings', setup.localized),

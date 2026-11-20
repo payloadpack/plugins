@@ -145,7 +145,6 @@ describeEachSetup('', {}, (test, setup) => {
     expect(await readPath(payload, 'pages', crates.id)).toBe('/depot/crates')
     expect(changes).toEqual([])
 
-    // The publish that carries the move out leaves the status out as well.
     await payload.update({
       collection: 'pages',
       data: { _status: 'published' },

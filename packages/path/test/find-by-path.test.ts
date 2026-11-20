@@ -60,7 +60,6 @@ describeEachSetup('', {}, (test, setup) => {
     // The Swedish path takes the English slug it falls back to.
     expect(found?.paths).toEqual(setup.localized ? [at('en', '/pricing'), at('sv', '/pricing')] : [at('en', '/pricing')])
     expect(found?.paths).toEqual(await findPaths({ collection: 'pages', draft: true, id: plans.id, payload }))
-    // The published document keeps its own path until the draft is published.
     expect(await findByPath({ path: '/plans', paths: true, payload })).toMatchObject({ paths: [at('en', '/plans')] })
   })
 })
@@ -86,7 +85,6 @@ describeEachSetup('given pages and posts', { boot: { options: { collections: ['p
     expectTypeOf(found).toEqualTypeOf<FoundByPath<'posts'> | null>()
     expectTypeOf<FoundByPath<'posts'>['collection']>().toEqualTypeOf<'posts'>()
     expect(found).toMatchObject({ collection: 'posts', document: { id: press.id } })
-    // A page's path finds nothing among the posts, with the one query.
     const queries = await test.countQueries(async () => {
       expect(await findByPath({ collections: ['posts'], path: '/tours', payload })).toBeNull()
     })

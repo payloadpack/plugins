@@ -48,9 +48,6 @@ export const changedPath = (collection: string, id: Id, locale: string, from: nu
   to
 })
 
-// Where each document below a moved or deleted document went, top-down, from the rows the move held
-// before it wrote them. Only the locales a site finds a document in count, by the rule a save's own
-// paths follow, and of those the ones with a path before and another one now.
 export function getChangedPathsBelow({ collection, documents }: BranchMove, payload: Payload): ChangedPath[] {
   const { config } = payload.collections[collection as CollectionSlug]
   return documents.flatMap(({ document, pathAndAncestors, storedPaths }) =>
@@ -63,24 +60,19 @@ export function getChangedPathsBelow({ collection, documents }: BranchMove, payl
   )
 }
 
-/**
- * A delete's changed paths with where the last lift of the same bulk delete put each lifted document.
- * A lift of a document further up can move a document again after another lift moved it, and Payload
- * starts the hooks after the deletes all at once, so the site may hear the lifts in any order. A
- * document that is back where it was is left out. The deleted document's own paths have no to, and
- * stay as they are: an earlier lift may have moved that document too.
- */
+// A lift of a document further up can move a document again after another lift moved it, and Payload
+// starts the hooks after the deletes all at once, so the site may hear the lifts in any order. So each
+// lifted document is named where the last lift of the same bulk delete put it.
 export function withLastLandings(changedPaths: ChangedPath[], landings: Map<string, Paths>): ChangedPath[] {
   return changedPaths.flatMap((changed) => {
+    // The deleted document's own paths have no to, and stay as they are: an earlier lift may have moved
+    // that document too.
     if (changed.to === null) return [changed]
     const to = landings.get(String(changed.id))?.[changed.locale ?? NO_LOCALE] ?? changed.to
     return to === changed.from ? [] : [{ ...changed, to }]
   })
 }
 
-// Where a site found a saved document before the write and where it finds it after, per locale it
-// found it in before or finds it in now: each locale with another path now, and each the save
-// published the document in.
 export function getChangedPaths(
   {
     collection,
@@ -113,7 +105,6 @@ export function getChangedPaths(
   })
 }
 
-// Tells the site which paths changed, when any did.
 export async function reportChangedPaths(changedPaths: ChangedPath[], req: PayloadRequest) {
   if (changedPaths.length === 0) return
   await getPathConfig(req.payload).onPathsChanged?.({ changedPaths, payload: req.payload, req })
