@@ -1,106 +1,93 @@
 ---
 title: Speed
-description: What a lookup, a save and a move cost, in queries and in milliseconds on a database with 100,000 documents.
+description: What finding a page, showing links and moving a branch cost on a MongoDB server on another machine, and why the path is stored.
 ---
 
 import SpeedChart from '../../../components/path/SpeedChart.astro'
-import SpeedRoundTrip from '../../../components/path/SpeedRoundTrip.astro'
+import SpeedServer from '../../../components/path/SpeedServer.astro'
 import SpeedTable from '../../../components/path/SpeedTable.astro'
 
-## In queries
+The numbers at the top of this page come from a MongoDB server on another machine, reached over the internet: 6.4 ms per query, with 10,000 pages per collection. That is how most sites reach their database, so it is where the differences show.
 
-The package tests count the queries a lookup runs, on MongoDB, Postgres and SQLite, so a change that adds one fails a test.
+## Four ways to give a page its path
 
-| Operation    | What the plugin adds                                                                            |
-| ------------ | ----------------------------------------------------------------------------------------------- |
-| `findByPath` | One indexed query per collection, run at the same time. None for a path with a reserved segment |
+|               | Stores                        | Finds a page                          | A link's path                        |
+| ------------- | ----------------------------- | ------------------------------------- | ------------------------------------ |
+| path          | Slug, parent, ancestors, path | 1 query                               | On the document                      |
+| slug by slug  | Slug, parent                  | 1 query per segment                   | Read from the pages above, per link  |
+| built on read | Slug, parent                  | All slugs in 1 query, matched in code | Read from the pages above, per level |
+| ancestors     | Slug, parent, ancestors       | 2 queries                             | 1 more query for every link at once  |
 
-On Postgres and SQLite with localization, Payload reads the document `findByPath` found in a second statement.
+Slug by slug is what a site writes without a plugin. Built on read and ancestors are prototypes we built to test the idea, without the rules this package keeps.
 
-A save reads the document before and after its write. A move reads the documents below it 1,000 at a time and writes them with a few statements per 1,000. A test holds that a rename, a move and a delete run the same statements with 30 documents below as with 3. No test counts the queries of a save.
+## Finding a page
 
-A save runs its queries one at a time, as MongoDB requires inside a transaction.
+<SpeedServer kind="lookups" />
 
-## In milliseconds
+Path asks one query at any depth. Slug by slug asks one per segment, one after the other.
+
+## Showing links
+
+A menu, a list or a sitemap needs the path of every page it links to.
+
+<SpeedServer kind="links" />
+
+## Moving a branch
+
+<SpeedServer kind="moves" />
+
+Path 0.1.1 saved each page below through Payload, 5 queries a page: 5,026 queries and 41 s for a rename. Built on read and ancestors store no path, so a rename writes nothing below, and every read above pays for it instead.
+
+We kept the stored path and changed the write. A save already checks every path the branch lands on, so a move builds those paths from the slugs and ancestors and writes 1,000 pages with a few statements: 28 queries and 443 ms.
+
+Path's own move ran on 20 November, when a query to the same server took 4.9 ms. The rest ran on 19 November.
+
+## Where the others win
+
+- **A top-level page** is one query either way.
+- **A rename** writes nothing below in built on read and ancestors.
+- **A sitemap** can read every page once and build the paths in code: 86 ms against 68 ms.
+- **A database on the same machine**, SQLite included, makes a query cost a fraction of a millisecond, so slug by slug takes 1 to 3 ms at ten segments.
+
+## On the same machine
+
+`bun run bench` runs each database on the same machine as the site, with 100,000 documents, and compares path with Payload's nested docs plugin.
+
+### Per operation
 
 <SpeedTable />
 
-## Compared with
-
-This compares path with two other ways a site finds a page by its URL and moves a branch:
-
-- **Nested docs**: Payload's `@payloadcms/plugin-nested-docs`, which stores each page's `breadcrumbs`, the URL and title of every page above it and its own.
-- **Slug by slug**: pages with only a slug and a parent, and no plugin. A lookup asks for each segment in turn.
-
-Nested docs and slug by slug each get a copy of the benchmark's pages, the same tree with the same versions and drafts, on the same machine and databases. The comparison runs without localization.
+`findByPath` asks one indexed query per collection, at the same time, and none for a path with a reserved segment. A move reads the documents below 1,000 at a time and writes them with a few statements per 1,000. Tests hold both.
 
 ### Finding a page
 
 <SpeedChart kind="lookups" />
 
-The pages are a top-level page with 100 pages below it, a page three levels down and the last of a line of ten.
-
-Slug by slug runs one query per segment, each on its index on slug and parent, so it takes longer the deeper a page sits.
-
-The databases of this benchmark run on the same machine as the site, where a query takes a fraction of a millisecond. That is why ten queries cost about as little as one here.
-
-### With the database on another machine
-
-Every query waits for the round trip to the database. `findByPath` asks one query per collection, at the same time, at any depth. Slug by slug asks one per segment, and each needs the page the one before found, so they can't run at the same time.
-
-<SpeedRoundTrip kind="lookups" />
-
-Both look in one collection here. Path costs one round trip wherever the page sits, and slug by slug costs one per segment.
-
-To place your own site, time one query from where it runs to its database.
-
-### Showing a page's path
-
-A lookup goes from a path to a page. A menu, a list of posts and a sitemap go the other way: each link needs the path of its page. With path it is on the document. With a slug and a parent it is built from the pages above, for every link.
-
-A site reads the pages above in one of two ways:
-
-- **Link by link**: each link asks for its parent, then for that page's parent, up to the top.
-- **A level at a time**: all the links ask for their parents in one query, then for those pages' parents in the next.
-
-<SpeedRoundTrip kind="link-queries" />
-
-<SpeedRoundTrip kind="menu" />
-
-Link by link runs its walks at the same time, so its time grows less than its queries do.
-
-### When a slug and a parent do as well
-
-- A top-level page is one query either way.
-- With the database on the same machine, SQLite included, the walk takes 1 to 3 ms at ten segments.
-- A sitemap can read every page once and build the paths in memory: 49 ms against 36 ms for 10,000 pages on MongoDB, on the same machine.
-- A rename or a move writes one page. Path also writes every page below it, as [Moving a branch](#moving-a-branch) shows.
-- Asking for all of a path's slugs in one query takes the depth out of the lookup. It reads every page that has one of those slugs, in any branch, so with 1,000 pages ending in the same slug it took 13 ms on MongoDB and 22 ms on Postgres, on the same machine, against 0.2 ms and 0.3 ms. A link still has no path to show.
-
 ### Moving a branch
 
 <SpeedChart kind="moves" />
 
-Both take longer the more pages a branch holds. Path writes the pages below and their latest versions with a few statements per 1,000. Nested docs saves each page below in full, with its hooks, validation and a new version. A slug-by-slug site has nothing to move, since the pages below keep their parent.
+Nested docs saves each page below in full, with its hooks, validation and a new version. A slug-by-slug site has nothing to move.
 
 ### What each does
 
-|                       | path                                                                           | nested docs                                                                                                                                   | slug by slug                                               |
-| --------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Find a page by URL    | `findByPath`, one query on `path` per collection, run at once                  | No lookup of its own. A query on `breadcrumbs.url` also matches every page below, so the site picks the page whose last breadcrumb is the URL | One query per segment, by slug and the parent found before |
-| Index the lookup uses | `path`, which the plugin indexes                                               | None. `breadcrumbs.url` has no index                                                                                                          | One on slug and parent, which the site adds                |
-| A move                | A few statements per 1,000 pages below, and the same for their latest versions | A full save of each page below, with hooks, validation and a new version, which reads every page above it once more                           | One save of the page                                       |
-| A new page            | One save                                                                       | Two saves: the plugin saves the page again to name it in its own `breadcrumbs`                                                                | One save                                                   |
-| Refuses a taken path  | Yes, and names the document that is there                                      | No                                                                                                                                            | No                                                         |
+|                      | path                                      | nested docs                                                          | slug by slug         |
+| -------------------- | ----------------------------------------- | -------------------------------------------------------------------- | -------------------- |
+| Find a page by URL   | `findByPath`, 1 query per collection      | A query on `breadcrumbs.url`, which has no index, then pick the page | 1 query per segment  |
+| A move               | A few statements per 1,000 pages below    | A full save of each page below                                       | One save of the page |
+| A new page           | One save                                  | Two saves                                                            | One save             |
+| Refuses a taken path | Yes, and names the document that is there | No                                                                   | No                   |
 
-### What favours which
+<details>
+<summary>How the comparison is set up</summary>
 
-- Nested docs runs as its docs set it up, with `generateURL` joining the slugs into each URL. Without it, `breadcrumbs.url` stays empty. It adds no index.
-- Its lookup also matches the slug. Without it, a top-level page's query returns its whole branch.
-- On MongoDB nothing indexes nested docs' `parent`, which each save of a page below queries twice. Postgres and SQLite index it, as Payload indexes a relationship column there.
-- `findByPath` looks in posts too, at the same time. The other two look in pages only.
+- Nested docs and slug by slug each get a copy of the pages, about 2,000, with the same versions and drafts, without localization.
+- Nested docs runs as its docs set it up, with `generateURL` joining the slugs. Its lookup also matches the slug, or a top-level page's query returns its whole branch.
+- On MongoDB nothing indexes nested docs' `parent`, which each save below queries twice.
 - Slug by slug uses an index on slug and parent that the site adds itself.
-- The copies hold the pages only, about 2,000 each. A collection with more pages makes nested docs' unindexed lookup slower.
+- `findByPath` looks in posts too, at the same time. The other two look in pages only.
+
+</details>
 
 ## Run it yourself
 
@@ -108,6 +95,6 @@ Both take longer the more pages a branch holds. Path writes the pages below and 
 cd packages/path && bun run bench
 ```
 
-It starts its own databases, seeds them and prints these tables, which takes about an hour, mostly seeding. That full run then writes its numbers to `apps/docs/src/data/path-speed.json`, which the tables and charts on this page read, and to the table in the package's README. A smaller run, such as `BENCH_DOCUMENTS=4000 bun run bench`, only prints them.
+It starts its own databases, seeds them and prints the numbers under [On the same machine](#on-the-same-machine), in about an hour. That full run writes them to this page and to the package's README.
 
-The benchmark doesn't add a round trip yet. The numbers under [With the database on another machine](#with-the-database-on-another-machine) and [Showing a page's path](#showing-a-pages-path) are from a run of their own.
+The numbers from the server on another machine come from runs of their own, not from `bun run bench`.
