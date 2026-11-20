@@ -4,7 +4,16 @@ import { expect, it } from 'vitest'
 import { findByPath } from '../src/index.js'
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
-import { catchFieldErrors, create, readDocument, readLatestVersion, readRows, update } from './support/documents.js'
+import {
+  catchFieldErrors,
+  create,
+  readDocument,
+  readLatestVersion,
+  readPath,
+  readRows,
+  store,
+  update
+} from './support/documents.js'
 import { SETUPS } from './support/setups.js'
 
 const MISSING_SLUG = [{ message: 'Give this document a slug, or a title to make one from.', path: 'slug' }]
@@ -151,6 +160,28 @@ describeEachSetup('', { boot: GUIDES }, (test, setup) => {
       expect(created).toMatchObject({ path: inBoth('/getting-started'), slug: inBoth('getting-started') })
     })
   }
+
+  it('leaves the documents below a renamed page that have no path as they were, while a page beside them moves', async () => {
+    const { payload } = test
+    const reception = await create(payload, 'pages', { slug: 'reception', title: 'Reception' })
+    const desk = await create(payload, 'pages', { parent: reception.id, slug: 'desk', title: 'Desk' })
+    const { id: draft } = await payload.create({
+      collection: 'pages',
+      data: { parent: reception.id },
+      draft: true,
+      overrideAccess: true
+    })
+    // Stored through the database adapter without a slug and without a path field at all, which an
+    // update pipeline on MongoDB would give an empty object of locales.
+    const stored = await store(test, setup, 'pages', { ancestors: [reception.id], parent: reception.id, title: 'Untitled' })
+    const before = await readRows(payload, 'pages', [draft, stored])
+    expect(before.documents).toMatchObject([{ ancestors: [reception.id] }, { ancestors: [reception.id] }])
+
+    await update(payload, 'pages', reception.id, { slug: 'front-desk' })
+
+    expect(await readPath(payload, 'pages', desk.id)).toBe('/front-desk/desk')
+    expect(await readRows(payload, 'pages', [draft, stored])).toEqual(before)
+  })
 
   it('refuses a document without a path as a parent, until it has one', async () => {
     const { payload } = test

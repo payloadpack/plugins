@@ -130,5 +130,8 @@ export const parentFieldWithoutParentError = (collectionSlug: string) =>
 export const notGivenCollectionsError = (collectionSlugs: string[]) =>
   `@payloadpack/path was asked for collections that pathPlugin() wasn't given: ${collectionSlugs.join(', ')}.`
 
+export const SQL_MISSING_ERROR =
+  '@payloadpack/path needs the sql your database adapter exports on Postgres and SQLite, so import it next to the adapter and pass it to pathPlugin() as sql.'
+
 export const PLUGIN_MISSING_ERROR =
   '@payloadpack/path: add pathPlugin() to the Payload config before calling findByPath, findPaths or backfillPaths'

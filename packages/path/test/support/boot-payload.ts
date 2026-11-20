@@ -15,7 +15,7 @@ import { pathField } from '../../src/fields/path.js'
 import { slugField } from '../../src/fields/slug.js'
 import { pathPlugin, type ChangedPath, type PathCollection, type PathPluginOptions } from '../../src/index.js'
 import { defaultSlugify } from '../../src/plugin/slugify.js'
-import { buildAdapter, recordQueries } from './adapters.js'
+import { ADAPTER_SQL, buildAdapter, recordQueries } from './adapters.js'
 import { LOCALES, SETUPS, type Setup } from './setups.js'
 
 const RESERVED_SEGMENTS = {
@@ -66,6 +66,8 @@ type StartOptions = {
   // MongoDB only: each document of a bulk operation gets a transaction of its own.
   bulkOperationsSingleTransaction?: boolean
   collections?: CollectionConfig[]
+  // Postgres and SQLite only: a uuid for the id of every collection without an id field of its own.
+  idType?: 'uuid'
   // The site's localization: in a localized setup in place of the two locales falling back to
   // English, and in a setup without, a site that has locales and localizes nothing of its own.
   localization?: Exclude<Config['localization'], false | undefined>
@@ -89,6 +91,7 @@ export async function startPayload(
     bulkOperationsSingleTransaction = false,
     collections = [],
     database,
+    idType,
     localization,
     notLocalized = [],
     options = {},
@@ -107,6 +110,7 @@ export async function startPayload(
   const pluginOptions: PathPluginOptions = {
     onPathsChanged: ({ changedPaths }) => void changes.push(changedPaths),
     reservedSegments: RESERVED_SEGMENTS,
+    sql: ADAPTER_SQL[setup.database],
     ...options,
     collections: (options.collections ?? STANDARD_COLLECTIONS).map(withLocalized)
   }
@@ -121,7 +125,7 @@ export async function startPayload(
       notices(setup.localized, ownFields('notices')),
       ...collections
     ],
-    db: buildAdapter(setup.database, name, record, { bulkOperationsSingleTransaction, transactions }) as Config['db'],
+    db: buildAdapter(setup.database, name, record, { bulkOperationsSingleTransaction, idType, transactions }) as Config['db'],
     localization: localization ?? (setup.localized ? LOCALIZATION : undefined),
     // A test sees each refusal as the error it throws, so Payload's own logging of it is noise.
     logger: { options: { level: 'fatal' } },

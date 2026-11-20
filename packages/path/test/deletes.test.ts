@@ -2,7 +2,16 @@ import type { CollectionConfig } from 'payload'
 import { beforeEach, expect, it } from 'vitest'
 
 import { describeEachSetup, titled } from './support/boot-payload.js'
-import { catchFieldErrors, create, readDocument, readPath, readRows, remove, update } from './support/documents.js'
+import {
+  catchFieldErrors,
+  create,
+  readDocument,
+  readPath,
+  readRows,
+  remove,
+  storeStrayPath,
+  update
+} from './support/documents.js'
 
 describeEachSetup('', {}, (test, setup) => {
   it('gives a lifted document the path its own slug makes, whatever path it stored', async () => {
@@ -10,15 +19,9 @@ describeEachSetup('', {}, (test, setup) => {
     const arcade = await create(payload, 'pages', { slug: 'arcade', title: 'Arcade' })
     const kiosk = await create(payload, 'pages', { parent: arcade.id, slug: 'kiosk', title: 'Kiosk' })
     const stall = await create(payload, 'pages', { parent: arcade.id, slug: 'stall', title: 'Stall' })
-    // Stored at a path that nothing the plugin writes leaves behind. A lift makes each path again from
-    // the slug and the parent, so it never rewrites what a path starts with.
-    const strayPath = '/arcade-annex/stall'
-    const stored = await payload.db.findOne({ collection: 'pages', where: { id: { equals: stall.id } } })
-    await payload.db.updateOne({
-      collection: 'pages',
-      data: { ...stored, path: setup.localized ? { en: strayPath, sv: strayPath } : strayPath },
-      id: stall.id
-    })
+    // Stored at a path that nothing the plugin writes leaves behind, and that doesn't start with the
+    // deleted page's path, so a lift writes it by itself, from the slug and the parent.
+    await storeStrayPath(payload, setup, 'pages', stall.id, '/arcade-annex/stall')
 
     await remove(payload, 'pages', arcade.id)
 

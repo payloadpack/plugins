@@ -1,8 +1,9 @@
+import type { Slugify } from 'payload/shared'
 import { expect, it } from 'vitest'
 
 import { findByPath } from '../src/index.js'
 import { describeEachSetup, titled } from './support/boot-payload.js'
-import { catchFieldErrors, create, readDocument, readPath, remove, update } from './support/documents.js'
+import { catchFieldErrors, create, readDocument, readPath, remove, store, update } from './support/documents.js'
 
 // What a statement could take for its own: both quotes, the end of a statement, a comment, a
 // parameter and an escape. A database must store each as the text it is.
@@ -121,6 +122,43 @@ describeEachSetup(
       )
       expect(await readPath(payload, 'labels', hook.id)).toBe(`${BASE_PATH}/stand/hook`)
       expect((await readDocument(payload, 'labels', hook.id)).ancestors).toEqual([idOf('stand')])
+    })
+  }
+)
+
+// A site's own slugify that keeps a slug as it is typed, so a slug can hold the two characters a
+// pattern of SQL matches other text with, and a letter outside the basic plane, which JavaScript
+// counts as two characters and each database as one.
+const asTyped: Slugify = ({ valueToSlugify }) => (typeof valueToSlugify === 'string' ? valueToSlugify : undefined)
+
+describeEachSetup(
+  'with slugs that a pattern or a count of characters could take for others',
+  { boot: { options: { slugify: asTyped } } },
+  (test, setup) => {
+    it('gives the documents below a renamed document their new paths', async () => {
+      const { payload } = test
+      const sale = await create(payload, 'pages', { slug: '50%_off', title: 'Sale' })
+      const deal = await create(payload, 'pages', { parent: sale.id, slug: 'deal_𐐷', title: 'Deal' })
+      const coupon = await create(payload, 'pages', { parent: deal.id, slug: '100%', title: 'Coupon' })
+      // Stored at the path the second rename gives it, which /50%_off/ as a pattern matches and as text
+      // doesn't, so the rename leaves it as it is.
+      const path = '/50_off/ticket'
+      const ticket = await store(test, setup, 'pages', {
+        ancestors: [sale.id],
+        parent: sale.id,
+        path: setup.localized ? { en: path, sv: path } : path,
+        slug: 'ticket',
+        title: 'Ticket'
+      })
+
+      await update(payload, 'pages', deal.id, { slug: 'deal_𐐷𐐷' })
+      await update(payload, 'pages', sale.id, { slug: '50_off' })
+
+      for (const draft of [false, true]) {
+        expect(await readPath(payload, 'pages', deal.id, { draft })).toBe('/50_off/deal_𐐷𐐷')
+        expect(await readPath(payload, 'pages', coupon.id, { draft })).toBe('/50_off/deal_𐐷𐐷/100%')
+        expect(await readPath(payload, 'pages', ticket, { draft })).toBe(path)
+      }
     })
   }
 )

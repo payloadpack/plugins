@@ -162,6 +162,17 @@ describeEachSetup(
       expect(await findByPath({ draft: true, path: '/almanac', payload })).toMatchObject({ document: { id: restored.id } })
     })
 
+    it('moves a document in the trash along when a document above it is renamed', async () => {
+      const { payload } = test
+      const manual = await create(payload, 'articles', { slug: 'manual', title: 'Manual' })
+      const appendix = await create(payload, 'articles', { parent: manual.id, slug: 'appendix', title: 'Appendix' })
+      await trash(appendix.id)
+
+      await update(payload, 'articles', manual.id, { slug: 'handbook' })
+
+      expect(await readTrashed(appendix.id)).toMatchObject({ ancestors: [manual.id], path: '/handbook/appendix' })
+    })
+
     it('lifts the documents below a document in the trash when it is deleted for good', async () => {
       const { changes, payload } = test
       const series = await create(payload, 'articles', { slug: 'series', title: 'Series' })

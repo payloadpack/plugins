@@ -4,7 +4,7 @@ import { beforeAll, expect, it } from 'vitest'
 import type { Id } from '../src/path/build-path-and-ancestors.js'
 import { CHUNK_SIZE } from '../src/utils/in-chunks.js'
 import { describeEachSetup } from './support/boot-payload.js'
-import { catchFieldErrors, create, readPath, remove, store, update } from './support/documents.js'
+import { catchFieldErrors, create, readDocument, readPath, remove, store, update } from './support/documents.js'
 
 // A move reads its branch, asks for the latest versions and checks the paths a chunk at a time. This
 // branch takes more than one chunk of each: a depot with an inner depot and a chunk of crates right
@@ -93,6 +93,20 @@ describeEachSetup(
       if (setup.localized) expect(await readPath(payload, 'pages', branch.lastCrate, { locale: 'sv' })).toBe('/yard/reserv')
       const topOfBranch = { ancestors: { equals: branch.innerDepot } }
       expect(await payload.count({ collection: 'pages', overrideAccess: true, where: topOfBranch })).toEqual({ totalDocs: 1 })
+    })
+
+    it('gives every document of the branch its new path when the page it is lifted below is renamed, in its latest version too', async () => {
+      const { payload } = test
+      const { parent: yard } = await readDocument(payload, 'pages', branch.innerDepot)
+
+      await update(payload, 'pages', yard as Id, { slug: 'court' })
+
+      expect(await readPath(payload, 'pages', branch.innerDepot)).toBe('/court/depot')
+      expect(await readPath(payload, 'pages', branch.spareCrate)).toBe('/court/depot/crate-0')
+      expect(await readPath(payload, 'pages', branch.spareCrate, { draft: true })).toBe('/court/depot/spare')
+      expect(await readPath(payload, 'pages', branch.firstCrate)).toBe('/court/crate-0')
+      expect(await readPath(payload, 'pages', branch.lastCrate)).toBe(`/court/${LAST_CRATE}`)
+      if (setup.localized) expect(await readPath(payload, 'pages', branch.lastCrate, { locale: 'sv' })).toBe('/court/reserv')
     })
   }
 )

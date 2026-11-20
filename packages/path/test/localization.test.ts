@@ -606,6 +606,52 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
       document: { id: hours.id }
     })
   })
+
+  it('gives the documents below a document of a collection without drafts their path in a locale once that document gets its first slug there', async () => {
+    const { payload } = test
+    const lounge = await create(payload, 'notices', { slug: 'lounge', title: 'Lounge' })
+    const menu = await create(payload, 'notices', { parent: lounge.id, slug: 'menu', title: 'Menu' })
+    await update(payload, 'notices', menu.id, { slug: 'meny', title: 'Meny' }, inSwedish)
+    const readMenuPaths = async () =>
+      (await payload.db.findOne<{ id: Id; path: unknown }>({ collection: 'notices', where: { id: { equals: menu.id } } }))?.path
+    expect(await readMenuPaths()).toEqual({ en: '/lounge/menu', sv: null })
+
+    await update(payload, 'notices', lounge.id, { slug: 'salong', title: 'Salong' }, inSwedish)
+
+    expect(await readMenuPaths()).toEqual({ en: '/lounge/menu', sv: '/salong/meny' })
+  })
+
+  it('gives the documents below a deleted document of a collection without drafts their path in a locale the deleted document had none in', async () => {
+    const { payload } = test
+    const lobby = await create(payload, 'notices', { slug: 'lobby', title: 'Lobby' })
+    const map = await create(payload, 'notices', { parent: lobby.id, slug: 'map', title: 'Map' })
+    await update(payload, 'notices', map.id, { slug: 'karta', title: 'Karta' }, inSwedish)
+    // Beside it, a document whose paths the lift's statements give it, so they run.
+    const desk = await create(payload, 'notices', { parent: lobby.id, slug: 'desk', title: 'Desk' })
+    const readMapPaths = async () =>
+      (await payload.db.findOne<{ id: Id; path: unknown }>({ collection: 'notices', where: { id: { equals: map.id } } }))?.path
+    expect(await readMapPaths()).toEqual({ en: '/lobby/map', sv: null })
+
+    await remove(payload, 'notices', lobby.id)
+
+    expect(await readMapPaths()).toEqual({ en: '/map', sv: '/karta' })
+    expect(await readDocument(payload, 'notices', map.id)).toMatchObject({ ancestors: [], parent: null })
+    expect(await readPath(payload, 'notices', desk.id)).toBe('/desk')
+  })
+
+  it('gives a document below with a path in one locale only its new path there when a save renames the document above in every locale at once', async () => {
+    const { payload } = test
+    const foyer = await create(payload, 'notices', { slug: 'foyer', title: 'Foyer' })
+    await update(payload, 'notices', foyer.id, { slug: 'entre', title: 'Entré' }, inSwedish)
+    const coats = await create(payload, 'notices', { parent: foyer.id, slug: 'coats', title: 'Coats' })
+    const readCoatsPaths = async () =>
+      (await payload.db.findOne<{ id: Id; path: unknown }>({ collection: 'notices', where: { id: { equals: coats.id } } }))?.path
+    expect(await readCoatsPaths()).toEqual({ en: '/foyer/coats' })
+
+    await update(payload, 'notices', foyer.id, { slug: { en: 'lobby', sv: 'lobbyn' } }, { locale: 'all' })
+
+    expect(await readCoatsPaths()).toEqual({ en: '/lobby/coats' })
+  })
 })
 
 // Norwegian falls back to English. Swedish has no fallbackLocale and fallback is off, so it skips the

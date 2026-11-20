@@ -1,3 +1,5 @@
+import { postgresAdapter, sql as postgresSql } from '@payloadcms/db-postgres'
+import { sqliteAdapter, sql as sqliteSql } from '@payloadcms/db-sqlite'
 import {
   buildConfig,
   type CollectionConfig,
@@ -43,6 +45,19 @@ describe('pathPlugin', () => {
         collections: ['pages', 'posts', { basePath: '/pages', slug: 'pages' }]
       })
     ).rejects.toThrow('@payloadpack/path was given pages more than once, so list each collection once.')
+  })
+
+  it.each([
+    { database: 'Postgres', db: postgresAdapter({ pool: { connectionString: 'postgres://never-opened' } }), sql: postgresSql },
+    { database: 'SQLite', db: sqliteAdapter({ client: { url: 'file:never-opened.db' } }), sql: sqliteSql }
+  ])('refuses a site on $database that gives it no sql, and takes one that does', async ({ db, sql }) => {
+    const configOn = (options: Parameters<typeof pathPlugin>[0]) =>
+      buildConfig({ collections: [collection('pages')], db, plugins: [pathPlugin(options)], secret: 'path-tests' } as Config)
+
+    await expect(configOn({ collections: ['pages'] })).rejects.toThrow(
+      '@payloadpack/path needs the sql your database adapter exports on Postgres and SQLite, so import it next to the adapter and pass it to pathPlugin() as sql.'
+    )
+    await expect(configOn({ collections: ['pages'], sql })).resolves.toBeDefined()
   })
 
   it('refuses a collection with a field of its own named like one it adds', async () => {

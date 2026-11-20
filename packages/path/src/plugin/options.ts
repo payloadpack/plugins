@@ -98,6 +98,12 @@ export type PathPluginOptions = {
    * purges its own cache and keeps its redirects.
    */
   onPathsChanged?: (args: PathsChangedArgs) => Promise<void> | void
+  /**
+   * On Postgres and SQLite, the sql the site's database adapter exports, such as the one of
+   * @payloadcms/db-postgres. The plugin writes the documents below a moved document with it. A site
+   * on MongoDB leaves it out.
+   */
+  sql?: (strings: TemplateStringsArray, ...values: unknown[]) => unknown
 }
 
 // The options with every default filled in, as the plugin stores them on the Payload config.
@@ -110,6 +116,7 @@ type PathConfig = {
   reservedSegments: { anyDepth: ReasonBySegment; root?: ReasonBySegment }
   rootSlug: string
   slugify: Slugify
+  sql?: PathPluginOptions['sql']
 }
 
 export type ReasonBySegment = Record<string, string | undefined>
@@ -150,7 +157,8 @@ export function resolvePathConfig(options: PathPluginOptions, config: Config): P
     onPathsChanged: options.onPathsChanged,
     reservedSegments: { anyDepth: resolveReserved(anyDepth), root: root && resolveReserved(root) },
     rootSlug: options.rootSlug ?? 'home',
-    slugify: options.slugify ?? defaultSlugify
+    slugify: options.slugify ?? defaultSlugify,
+    sql: options.sql
   }
 }
 

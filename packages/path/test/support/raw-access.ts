@@ -61,14 +61,20 @@ export async function readSqlitePlan({ payload }: TestPayload, { sql }: Query) {
   return rows.map(({ detail }) => String(detail))
 }
 
-// A write the database refuses: of one path, in a collection or its versions, or of one document.
-type RefusedWrite = { collection: string; path: string; versions: boolean } | { collection: string; id: number | string }
+// A write the database refuses: of one path, in a collection or its versions, of other ancestors than
+// a document stores, or of one document's row.
+type RefusedWrite =
+  | { collection: string; path: string; versions: boolean }
+  | { ancestorsOf: number | string; collection: string }
+  | { collection: string; id: number | string }
 
 /**
  * Makes the database itself refuse a write while the work runs, so an operation fails at that write
- * the way it would on a real database error. A refused document fails at the first statement of its
- * write, so without a transaction it keeps every value it had. A statement that changes a table
- * takes no bound value, so the value is written into it, escaped by drizzle.
+ * the way it would on a real database error. A write of a refused document's row fails at its first
+ * statement, so without a transaction it keeps every value it had, where a refused path on Postgres
+ * and SQLite in a localized setup fails after the write took away the row's values of each locale. A
+ * statement that changes a table takes no bound value, so the value is written into it, escaped by
+ * drizzle.
  */
 export async function refuseWritesOf(
   { payload }: TestPayload,
@@ -81,10 +87,18 @@ export async function refuseWritesOf(
   if (setup.database === 'mongodb') {
     const db = mongodbOf(payload)
     const name = versions ? `_${collection}_versions` : collection
+    // Every other document, and this one while it keeps the ancestors it stores now.
+    const keepsAncestors = async (id: number | string) => {
+      const isDocument = { $eq: [{ $toString: '$_id' }, String(id)] }
+      const { ancestors } = (await db.collection(name).findOne({ $expr: isDocument }))!
+      return { $or: [{ $expr: { $not: [isDocument] } }, { ancestors: { $eq: ancestors } }] }
+    }
     const validator =
       'path' in refused
         ? { [`${versions ? 'version.' : ''}path${setup.localized ? '.en' : ''}`]: { $ne: refused.path } }
-        : { $expr: { $ne: [{ $toString: '$_id' }, String(refused.id)] } }
+        : 'ancestorsOf' in refused
+          ? await keepsAncestors(refused.ancestorsOf)
+          : { $expr: { $ne: [{ $toString: '$_id' }, String(refused.id)] } }
     await db.command({ collMod: name, validator })
     try {
       return await work()
@@ -92,6 +106,8 @@ export async function refuseWritesOf(
       await db.command({ collMod: name, validator: {} })
     }
   }
+  // A document's ancestors are rows of the collection's table of relationships that name it as their
+  // parent, so a write of any of them is refused.
   const [tableName, columnName, value] =
     'path' in refused
       ? [
@@ -99,7 +115,9 @@ export async function refuseWritesOf(
           versions ? 'version_path' : 'path',
           refused.path
         ]
-      : [collection, 'id', refused.id]
+      : 'ancestorsOf' in refused
+        ? [`${collection}_rels`, 'parent_id', refused.ancestorsOf]
+        : [collection, 'id', refused.id]
   if (setup.database === 'postgres') {
     const { drizzle, tables } = postgresOf(payload)
     const table = tables[tableName]!
@@ -129,6 +147,62 @@ export async function refuseWritesOf(
     return await work()
   } finally {
     for (const { name } of triggers) await drizzle.run(sqliteSql`DROP TRIGGER ${name}`)
+  }
+}
+
+/**
+ * The parent and the ancestors of a document and of its latest version, as the database stores them,
+ * in a collection with the plugin's own parent field: on MongoDB the ObjectIds, numbers or text of the
+ * row, and on Postgres and SQLite the parent's column and the rows of the relationships table,
+ * top-down, in the type of their columns.
+ */
+export async function readStoredParentAndAncestors(
+  { payload }: TestPayload,
+  setup: Setup,
+  collection: string,
+  id: number | string
+) {
+  if (setup.database === 'mongodb') {
+    const db = mongodbOf(payload)
+    const isOf = (field: string) => ({ $expr: { $eq: [{ $toString: `$${field}` }, String(id)] } })
+    const document = await db.collection(collection).findOne(isOf('_id'))
+    const version = await db.collection(`_${collection}_versions`).findOne({ latest: true, ...isOf('parent') })
+    return {
+      document: { ancestors: document?.ancestors, parent: document?.parent },
+      version: { ancestors: version?.version.ancestors, parent: version?.version.parent }
+    }
+  }
+  const { tables } = postgresOf(payload)
+  const [rows, rels, versions, versionRels] = [collection, `${collection}_rels`, `_${collection}_v`, `_${collection}_v_rels`].map(
+    (name) => tables[name]!
+  )
+  const idKey = `${collection}ID`
+  // The same statements on both, each in the drizzle its adapter brings.
+  const sql = setup.database === 'postgres' ? postgresSql : (sqliteSql as unknown as typeof postgresSql)
+  const latest = sql`SELECT ${versions.id} FROM ${versions} WHERE ${versions.parent} = ${id} AND ${versions.latest} = ${true}`
+  const readIds = async (statement: ReturnType<typeof postgresSql>) =>
+    setup.database === 'postgres'
+      ? (await postgresOf(payload).drizzle.execute<{ id: unknown }>(statement)).rows.map((row) => row.id)
+      : (await sqliteOf(payload).drizzle.all<{ id: unknown }>(statement as unknown as ReturnType<typeof sqliteSql>)).map(
+          (row) => row.id
+        )
+  return {
+    document: {
+      ancestors: await readIds(
+        sql`SELECT ${rels[idKey]} AS id FROM ${rels} WHERE ${rels.parent} = ${id} AND ${rels.path} = ${'ancestors'} ORDER BY ${rels.order}`
+      ),
+      parent: (await readIds(sql`SELECT ${rows.parent} AS id FROM ${rows} WHERE ${rows.id} = ${id}`))[0]
+    },
+    version: {
+      ancestors: await readIds(
+        sql`SELECT ${versionRels[idKey]} AS id FROM ${versionRels}
+          WHERE ${versionRels.path} = ${'version.ancestors'} AND ${versionRels.parent} IN (${latest})
+          ORDER BY ${versionRels.order}`
+      ),
+      parent: (
+        await readIds(sql`SELECT ${versions.version_parent} AS id FROM ${versions} WHERE ${versions.id} IN (${latest})`)
+      )[0]
+    }
   }
 }
 
@@ -176,36 +250,42 @@ export async function holdTable(payload: Payload, collection: string, req: Paylo
 }
 
 /**
- * Holds a row of a collection on Postgres in a transaction of its own, so a write of it waits, until
- * the returned function lets it go. A write of a row that names it as its parent doesn't wait.
+ * Holds a document's row of a collection on Postgres in a transaction of its own, so a write of it
+ * waits, until the returned function lets it go. In a localized setup it holds the document's row of
+ * English in the collection's table of locales too, which is where a move's statement writes the path
+ * of a localized collection. A write of a row that names it as its parent doesn't wait.
  *
- * Given a title, it stands for a save in a transaction of its own that holds the row while a move or
- * a backfill reads it: as it lets go it gives the row that title, in English in a localized
- * collection, and a new updatedAt, and commits. The clock's time, not the transaction's start, so the
- * new updatedAt is later than any the row was read with.
+ * Given a saved title, it stands for a save in a transaction of its own that holds the row while a
+ * move or a backfill reads it: as it lets go it gives the row that title, in English in a localized
+ * setup, and a new updatedAt, and commits. The clock's time, not the transaction's start, so the new
+ * updatedAt is later than any the row was read with.
  */
 export async function holdRow(
   payload: Payload,
+  { localized }: Setup,
   collection: string,
   id: number | string,
-  saved?: { localized: boolean; title: string }
+  { savedTitle }: { savedTitle?: string } = {}
 ) {
   const { drizzle, tables } = postgresOf(payload)
+  const [row, locales] = [tables[collection], tables[`${collection}_locales`]]
   let letGo = () => {}
   const lettingGo = new Promise<void>((resolve) => (letGo = resolve))
   let held = () => {}
   const holding = new Promise<void>((resolve) => (held = resolve))
   const transaction = drizzle.transaction(async (tx) => {
-    await tx.execute(postgresSql`SELECT id FROM ${tables[collection]} WHERE id = ${id} FOR NO KEY UPDATE`)
+    await tx.execute(postgresSql`SELECT id FROM ${row} WHERE id = ${id} FOR NO KEY UPDATE`)
+    if (localized) {
+      await tx.execute(postgresSql`SELECT id FROM ${locales} WHERE _parent_id = ${id} AND _locale = 'en' FOR NO KEY UPDATE`)
+    }
     held()
     await lettingGo
-    if (!saved) return
-    const { localized, title } = saved
-    await tx.execute(postgresSql`UPDATE ${tables[collection]} SET updated_at = clock_timestamp() WHERE id = ${id}`)
+    if (savedTitle === undefined) return
+    await tx.execute(postgresSql`UPDATE ${row} SET updated_at = clock_timestamp() WHERE id = ${id}`)
     await tx.execute(
       localized
-        ? postgresSql`UPDATE ${tables[`${collection}_locales`]} SET title = ${title} WHERE _parent_id = ${id} AND _locale = 'en'`
-        : postgresSql`UPDATE ${tables[collection]} SET title = ${title} WHERE id = ${id}`
+        ? postgresSql`UPDATE ${locales} SET title = ${savedTitle} WHERE _parent_id = ${id} AND _locale = 'en'`
+        : postgresSql`UPDATE ${row} SET title = ${savedTitle} WHERE id = ${id}`
     )
   })
   await holding
@@ -215,15 +295,45 @@ export async function holdRow(
   }
 }
 
-// Waits until a statement of this Postgres database waits for a row another transaction holds, or
-// gives up after a while, so work that doesn't wait doesn't hang the test.
+/**
+ * Whether another connection can lock a document's row of a collection on Postgres at once, in the
+ * given mode, and in a localized setup its row of English in the table of locales too, as holdRow
+ * holds them. It lets the locks go before it returns.
+ */
+export async function isRowFree(
+  payload: Payload,
+  { localized }: Setup,
+  collection: string,
+  id: number | string,
+  mode: 'KEY SHARE' | 'NO KEY UPDATE'
+) {
+  const { drizzle, tables } = postgresOf(payload)
+  const [row, locales] = [tables[collection], tables[`${collection}_locales`]]
+  const lock = postgresSql.raw(`FOR ${mode} NOWAIT`)
+  try {
+    await drizzle.transaction(async (tx) => {
+      await tx.execute(postgresSql`SELECT id FROM ${row} WHERE id = ${id} ${lock}`)
+      if (localized) await tx.execute(postgresSql`SELECT id FROM ${locales} WHERE _parent_id = ${id} AND _locale = 'en' ${lock}`)
+    })
+    return true
+  } catch (error) {
+    // Postgres refuses a lock NOWAIT can't take at once with lock_not_available.
+    if ((error as { cause?: { code?: string } }).cause?.code === '55P03') return false
+    throw error
+  }
+}
+
+// Whether a statement of this Postgres database waits for a row another transaction holds within 10
+// seconds, so work that doesn't wait doesn't hang the test. A test asserts it only after it let the
+// row go, so a failed assertion never leaves the row held.
 export async function waitForRowWait(payload: Payload) {
   const { drizzle, schemaName } = postgresOf(payload)
   for (const started = Date.now(); Date.now() - started < 10_000;) {
     const { rows } = await drizzle.execute<{ waiting: number }>(
       postgresSql`SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE ${`%${schemaName}%`}`
     )
-    if (rows[0]!.waiting > 0) return
+    if (rows[0]!.waiting > 0) return true
     await new Promise((resolve) => setTimeout(resolve, 20))
   }
+  return false
 }

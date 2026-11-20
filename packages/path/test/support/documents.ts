@@ -1,7 +1,7 @@
 import type { CollectionSlug, Payload, PayloadRequest, Where } from 'payload'
 
 import type { Id } from '../../src/path/build-path-and-ancestors.js'
-import type { Setup } from './setups.js'
+import { LOCALES, type Setup } from './setups.js'
 
 type Document = { [key: string]: unknown; id: Id }
 
@@ -26,13 +26,19 @@ export function create(
   }) as Promise<Document>
 }
 
-// Saves a document as the server, published unless draft is set.
+// Saves a document as the server, published unless draft is set, and in the transaction of a request
+// that has one, which stays open.
 export function update(
   payload: Payload,
   collection: CollectionSlug,
   id: Id,
   data: Record<string, unknown>,
-  { autosave = false, draft = false, locale }: { autosave?: boolean; draft?: boolean; locale?: string } = {}
+  {
+    autosave = false,
+    draft = false,
+    locale,
+    req
+  }: { autosave?: boolean; draft?: boolean; locale?: string; req?: PayloadRequest } = {}
 ) {
   return payload.update({
     autosave,
@@ -41,7 +47,8 @@ export function update(
     draft,
     id,
     locale,
-    overrideAccess: true
+    overrideAccess: true,
+    req
   }) as Promise<Document>
 }
 
@@ -85,6 +92,40 @@ export async function store(
     })
   }
   return id as Id
+}
+
+/**
+ * Stores a path that nothing the plugin writes leaves behind in a document's row, in every locale,
+ * through the database adapter, so no hook runs and the row keeps every other value. A move gives
+ * such a row its path with a write of its own, where its statements can't.
+ */
+export async function storeStrayPath(payload: Payload, { localized }: Setup, collection: CollectionSlug, id: Id, path: string) {
+  const stored = await payload.db.findOne({ collection, where: { id: { equals: id } } })
+  const paths = localized ? Object.fromEntries(LOCALES.map((locale) => [locale, path])) : path
+  await payload.db.updateOne({ collection, data: { ...stored, path: paths }, id })
+}
+
+// Stores a parent that disagrees with a document's ancestors in its row, as storeStrayPath stores a path.
+export async function storeStrayParent(payload: Payload, collection: CollectionSlug, id: Id, parent: Id) {
+  const stored = await payload.db.findOne({ collection, where: { id: { equals: id } } })
+  await payload.db.updateOne({ collection, data: { ...stored, parent }, id })
+}
+
+// Stores ancestors that nothing the plugin writes leaves behind in a document's latest version,
+// through the database adapter, so no hook runs and the version keeps every other value.
+export async function storeStrayDraftAncestors(payload: Payload, collection: CollectionSlug, id: Id, ancestors: Id[]) {
+  const { docs } = await payload.db.findVersions<Document>({
+    collection,
+    limit: 1,
+    pagination: false,
+    where: { and: [{ parent: { equals: id } }, { latest: { equals: true } }] }
+  })
+  const latest = docs[0]!
+  await payload.db.updateVersion({
+    collection,
+    id: latest.id,
+    versionData: { ...latest, version: { ...latest.version, ancestors } }
+  })
 }
 
 /**

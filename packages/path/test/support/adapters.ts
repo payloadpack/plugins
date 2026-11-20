@@ -1,6 +1,6 @@
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
-import { postgresAdapter } from '@payloadcms/db-postgres'
-import { sqliteAdapter } from '@payloadcms/db-sqlite'
+import { postgresAdapter, sql as postgresSql } from '@payloadcms/db-postgres'
+import { sqliteAdapter, sql as sqliteSql } from '@payloadcms/db-sqlite'
 import path from 'node:path'
 import { inject } from 'vitest'
 
@@ -10,6 +10,9 @@ import type { DatabaseName } from './setups.js'
 // while another was running; the SQL adapters run one statement at a time on a connection. A SQL
 // statement keeps its text and the values bound to it.
 export type Query = { collection: string; operation: string; parallel: boolean; sql?: { params: unknown[]; text: string } }
+
+// The sql a site on each database gives the plugin: its adapter's own, and none on MongoDB.
+export const ADAPTER_SQL = { mongodb: undefined, postgres: postgresSql, sqlite: sqliteSql }
 
 const MONGODB_DATA_COMMANDS = ['aggregate', 'count', 'delete', 'find', 'findAndModify', 'getMore', 'insert', 'update']
 
@@ -47,6 +50,9 @@ export function recordQueries() {
 type AdapterOptions = {
   // MongoDB only: each document of a bulk operation gets a transaction of its own.
   bulkOperationsSingleTransaction: boolean
+  // Postgres and SQLite only: uuid gives every collection without an id field of its own a uuid for
+  // an id, instead of the number the database counts up.
+  idType?: 'uuid'
   transactions: boolean
 }
 
@@ -64,7 +70,7 @@ export function buildAdapter(
   database: DatabaseName,
   name: string,
   record: (query: Query) => void,
-  { bulkOperationsSingleTransaction, transactions }: AdapterOptions
+  { bulkOperationsSingleTransaction, idType, transactions }: AdapterOptions
 ) {
   if (database === 'mongodb') {
     const [base, query] = findServer(database).split('/?')
@@ -103,6 +109,7 @@ export function buildAdapter(
   }
   if (database === 'postgres') {
     return postgresAdapter({
+      idType,
       logger,
       pool: { connectionString: findServer(database) },
       push: true,
@@ -112,6 +119,7 @@ export function buildAdapter(
   }
   return sqliteAdapter({
     client: { url: `file:${path.join(findServer(database), `${name}.db`)}` },
+    idType,
     logger,
     push: true,
     ...(transactions ? { transactionOptions: {} } : {})

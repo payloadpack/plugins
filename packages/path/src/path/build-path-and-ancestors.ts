@@ -103,11 +103,14 @@ export function getSlugsAndParent(
 
 // What the paths of the documents right below a parent start with, in each locale: the parent's
 // path, or at the top level the collection's base path.
-function getParentPaths(parent: PathAndAncestors | null, collectionSlug: string, payload: Payload): Paths {
+export function getParentPaths(parent: PathAndAncestors | null, collectionSlug: string, payload: Payload): Paths {
   if (parent) return parent.paths
   const basePath = getBasePath(collectionSlug, payload)
   return Object.fromEntries(getLocales(payload).map((locale) => [locale, basePath]))
 }
+
+// The ancestors of the documents right below a parent: the parent's own and the parent, or none at the top level.
+export const getAncestorsBelow = (parent: ParentPathAndAncestors | null): Id[] => (parent ? [...parent.ancestors, parent.id] : [])
 
 /**
  * The one rule of a path and its ancestors: the parent's path, a slash and the slug, below the
@@ -133,5 +136,5 @@ export function buildPathAndAncestors(
     const isHomePage = !parent && parentPath === NO_BASE_PATH && slug === rootSlug
     return [locale, isHomePage ? HOME_PAGE_PATH : `${parentPath}/${slug}`]
   })
-  return { ancestors: parent ? [...parent.ancestors, parent.id] : [], paths: Object.fromEntries(paths) as Paths }
+  return { ancestors: getAncestorsBelow(parent), paths: Object.fromEntries(paths) as Paths }
 }

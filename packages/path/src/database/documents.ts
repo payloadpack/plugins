@@ -10,9 +10,6 @@ import {
 import { getParentFieldName, isLocalized } from '../plugin/options.js'
 import { CHUNK_SIZE } from '../utils/in-chunks.js'
 
-// Every read and write of the plugin goes through Payload's own database API, on the request, so it
-// runs in the request's transaction where the database has one.
-
 // A document as the database adapter returns it: localized values hold every locale, and the slug
 // and the path are localized where isLocalized says so. Its parent is in the field
 // getParentFieldName names.
@@ -105,10 +102,14 @@ export function buildRowWithPathAndAncestors<Row extends Record<string, unknown>
   const path = isLocalized(collection, req.payload) ? localePaths : (Object.values(paths)[0] ?? null)
   const parentField = getParentFieldName(collection, req.payload)
   if (parentField === undefined) return { ...row, path }
-  const parentId = ancestors.at(-1) ?? null
-  const agrees = String(idOf(row[parentField])) === String(parentId)
-  return { ...row, ancestors, path, ...(agrees ? {} : { [parentField]: parentId }) }
+  const agrees = hasParentOfAncestors(row, ancestors, parentField)
+  return { ...row, ancestors, path, ...(agrees ? {} : { [parentField]: ancestors.at(-1) ?? null }) }
 }
+
+// Whether a row holds in its parent field the parent its ancestors hang from: the last of them, or
+// none at the top level.
+export const hasParentOfAncestors = (row: Record<string, unknown>, ancestors: Id[], parentField: string) =>
+  String(idOf(row[parentField])) === String(ancestors.at(-1) ?? null)
 
 // Whether a row holds a timestamp that is no date, as Payload read it: a string, or a Date.
 const isNoDate = (timestamp: unknown) => timestamp != null && Number.isNaN(new Date(timestamp as Date | string).getTime())

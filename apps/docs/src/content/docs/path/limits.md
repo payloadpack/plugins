@@ -57,7 +57,7 @@ With transactions, a save, move or delete that fails leaves everything as it was
 
 ## Why they are here
 
-The plugin reads and writes through Payload's own database API, so it runs on MongoDB, Postgres and SQLite with nothing to set up. Each limit comes from something that API or the databases don't offer today.
+The plugin reads and writes through Payload's own database API, so it runs on MongoDB, Postgres and SQLite. Each limit comes from something that API or the databases don't offer today.
 
 | Limit                                           | What would close it                                                                                                           |
 | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |

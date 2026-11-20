@@ -48,6 +48,20 @@ for (const { hierarchy, label, parentField } of HIERARCHIES) {
         })
       })
 
+      it('gives every topic below a renamed topic its new path, latest versions too', async () => {
+        const { payload } = test
+        const history = await create(payload, 'topics', { slug: 'history', title: 'History' })
+        const ancient = await create(payload, 'topics', { ...below(history), slug: 'ancient', title: 'Ancient' })
+        const rome = await create(payload, 'topics', { ...below(ancient), slug: 'rome', title: 'Rome' })
+
+        await update(payload, 'topics', history.id, { slug: 'past' })
+
+        for (const draft of [false, true]) {
+          expect(await readPath(payload, 'topics', ancient.id, { draft })).toBe('/past/ancient')
+          expect(await readPath(payload, 'topics', rome.id, { draft })).toBe('/past/ancient/rome')
+        }
+      })
+
       it('moves a topic and everything below it to a new parent, latest versions too, and reports the move', async () => {
         const { changes, payload } = test
         const arts = await create(payload, 'topics', { slug: 'arts', title: 'Arts' })

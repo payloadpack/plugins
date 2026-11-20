@@ -1,6 +1,7 @@
 import type { CollectionConfig, Plugin } from 'payload'
 import type { Slugify } from 'payload/shared'
 
+import { usesSql } from '../database/branch.js'
 import { ancestorsField } from '../fields/ancestors.js'
 import { parentField } from '../fields/parent.js'
 import { pathField } from '../fields/path.js'
@@ -15,6 +16,7 @@ import {
   missingCollectionsError,
   parentFieldWithoutParentError,
   repeatedCollectionsError,
+  SQL_MISSING_ERROR,
   takenFieldNamesError
 } from './messages.js'
 import {
@@ -84,13 +86,14 @@ export function pathPlugin(options: PathPluginOptions): Plugin {
     if (repeatedSlugs.length > 0) throw new Error(repeatedCollectionsError(repeatedSlugs))
     const missingSlugs = slugs.filter((slug) => !config.collections?.some((collection) => collection.slug === slug))
     if (missingSlugs.length > 0) throw new Error(missingCollectionsError(missingSlugs))
+    if (usesSql(config.db?.name) && !options.sql) throw new Error(SQL_MISSING_ERROR)
     return {
       ...config,
       collections: config.collections?.map((collection) => {
-        const given = getCollection(collection.slug, pathConfig)
-        if (!given) return collection
+        const pathCollection = getCollection(collection.slug, pathConfig)
+        if (!pathCollection) return collection
         const fieldOptions = getFieldOptions(collection.slug, options)
-        return withPath(collection, { ...given, fieldOptions, slugify: pathConfig.slugify })
+        return withPath(collection, { ...pathCollection, fieldOptions, slugify: pathConfig.slugify })
       }),
       custom: storePathConfig(config.custom, pathConfig)
     }
