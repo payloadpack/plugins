@@ -1,6 +1,6 @@
 ---
 title: Configuration
-description: Only the collections are required, and each may have a base path, a path per locale or no parent.
+description: Only the collections are required. Each one can have a base path, a path per locale or no parent.
 ---
 
 import { TabItem, Tabs } from '@astrojs/starlight/components'
@@ -27,13 +27,13 @@ pathPlugin({
 })
 ```
 
-| Key                | What it sets                                                                                                                                                                      | Default                                       |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `collections`      | The [collections](#collections) whose documents get a path, each by its slug or as `{ slug, basePath, parent, localized, slugField, parentField }`                                |                                               |
-| `rootSlug`         | The slug that makes a top-level document the [home page](#home-page)                                                                                                              | `home`                                        |
-| `reservedSegments` | [Segments your site serves itself](#reserved-slugs), as a list or each with why                                                                                                   | Payload's admin and API routes                |
-| `slugify`          | What makes [a slug](/path/paths/#the-slug) from a title, from what an editor typed and for the slug field's button, as the `slugify` of Payload's own slug field. It may be async | Accents off Latin letters, other scripts kept |
-| `onPathsChanged`   | A function that [hears which paths changed](/path/api/on-paths-changed/)                                                                                                          | none                                          |
+| Key                | What it sets                                                                                                                                              | Default                                                 |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `collections`      | The [collections](#collections) whose documents get a path. Give each by its slug or as `{ slug, basePath, parent, localized, slugField, parentField }`   |                                                         |
+| `rootSlug`         | The slug that makes a top-level document the [home page](#home-page)                                                                                      | `home`                                                  |
+| `reservedSegments` | [Segments your site serves itself](#reserved-slugs), as a list or each with a reason                                                                      | Payload's admin and API routes                          |
+| `slugify`          | Makes [a slug](/path/paths/#the-slug) from a title or a typed slug, also for the slug field's button. Same shape as Payload's own `slugify`, may be async | Removes accents from Latin letters, keeps other scripts |
+| `onPathsChanged`   | A function that gets [the paths that changed](/path/api/on-paths-changed/)                                                                                | none                                                    |
 
 ## Collections
 
@@ -56,8 +56,8 @@ pathPlugin({
 | `slugField`   | [Field options](#field-options) for the slug field: `access`, `admin`, `hooks`, `label` and `validate`                     | The plugin's own                                |
 | `parentField` | [Field options](#field-options) for the plugin's own parent field: `access`, `admin`, `filterOptions`, `hooks` and `label` | The plugin's own                                |
 
-- With `basePath: '/blog'` a top-level post is at `/blog/my-post`. A base path is no document of its own, so a page may sit at `/blog` beside the posts.
-- A parent is always a document of the same collection, so a post below a page isn't supported. A path still belongs to one document across all your collections.
+- With `basePath: '/blog'`, a top-level post is at `/blog/my-post`. A base path is not a document, so a page can be at `/blog` next to the posts.
+- A parent is always a document of the same collection, so a post can't sit below a page. Each path still belongs to one document across all your collections.
 
 ### The parent
 
@@ -68,7 +68,7 @@ pathPlugin({
 pathPlugin({ collections: ['pages'] })
 ```
 
-- The default, for a collection listed by its slug or as an object without `parent`.
+- The default, for a collection given by its slug or as an object without `parent`.
 - The collection gets a `parent` field in the sidebar, where an editor picks a document of the same collection.
 
 </TabItem>
@@ -78,9 +78,9 @@ pathPlugin({ collections: ['pages'] })
 pathPlugin({ collections: [{ slug: 'posts', basePath: '/blog', parent: false }] })
 ```
 
-- For a collection whose documents never sit below each other. Each one's path is the base path, a slash and its slug, such as `/blog/hello-world`.
-- The collection gets no `parent` field, so a rename moves that one document and a delete lifts nothing.
-- `false` is the only value `parent` takes.
+- For a collection whose documents never sit below each other. Each document's path is the base path, a slash and its slug, such as `/blog/hello-world`.
+- The collection gets no `parent` field. A rename moves only that one document, and a delete lifts nothing.
+- `parent` accepts only `false`.
 
 </TabItem>
 <TabItem label="Payload's hierarchy">
@@ -92,9 +92,9 @@ export default buildConfig({
 })
 ```
 
-- For a collection whose own config has Payload's `hierarchy`, or its `folders` or `tags` preset. The plugin adds no `parent` field and reads the one `hierarchy.parentFieldName` names, `_h_topics` here by default.
-- Editors get Payload's tree in the admin, and move a document with the button in the document's header.
-- The rest works as with the plugin's own parent, and a [delete](/path/moves-and-deletes/#deletes) lifts the documents right below one level, where Payload on its own deletes them. See [Payload's hierarchy](#payloads-hierarchy) before you start.
+- For a collection whose own config has Payload's `hierarchy`, or its `folders` or `tags` preset. The plugin adds no `parent` field. It reads the field that `hierarchy.parentFieldName` names, by default `_h_topics` here.
+- Editors get Payload's tree in the admin. They move a document with the button in its header.
+- Everything else works as with the plugin's own parent. A [delete](/path/moves-and-deletes/#deletes) lifts the documents right below one level. Payload alone would delete them. Read [Payload's hierarchy](#payloads-hierarchy) before you start.
 
 </TabItem>
 </Tabs>
@@ -103,16 +103,16 @@ export default buildConfig({
 
 :::caution
 
-- Give `hierarchy` as `true`, or as an object with `parentFieldName`. In Payload 4.0.0-beta.10 an object without it breaks every delete in the collection, with or without the plugin.
-- Where the collection already has documents with parents, run [`backfillPaths`](/path/api/backfill-paths/) once after you add the plugin, before anything in the collection is deleted. Until then a delete also deletes the documents right below, as Payload does on its own.
+- Set `hierarchy` to `true`, or to an object with `parentFieldName`. In Payload 4.0.0-beta.10, an object without `parentFieldName` breaks every delete in the collection, with or without the plugin.
+- If the collection already has documents with parents, run [`backfillPaths`](/path/api/backfill-paths/) once after you add the plugin, before you delete anything in it. Until then, a delete also deletes the documents right below, as Payload does without the plugin.
 
 :::
 
 <details>
 <summary>Good to know</summary>
 
-- Payload's hierarchy has no parent field in the form, so a refused parent, such as a document below itself, shows on the slug field.
-- With `parent: false` as well, the collection keeps Payload's tree in the admin and gets paths without a parent in them. The plugin lifts nothing there, so a delete deletes the documents right below, as Payload does.
+- Payload's hierarchy has no parent field in the form. So a refused parent, such as a document below itself, shows on the slug field.
+- With `parent: false` as well, the collection keeps Payload's tree in the admin, but its paths have no parent in them. The plugin lifts nothing there, so a delete deletes the documents right below, as Payload does.
 
 </details>
 
@@ -123,9 +123,9 @@ export default buildConfig({
   <PathTree label="pages in sv" documents={[{ title: 'About', path: '/om-oss', mark: '/om-oss' }]} />
 </PathDiagram>
 
-- With `localized: true`, a collection's documents have a slug and a path per locale. Without it they have one of each, the same in every locale, also when your Payload config has localization.
-- `true` is the only value `localized` takes. It goes together with `basePath`, `parent: false` and Payload's hierarchy, and changes nothing in a site without localization.
-- [Languages](/path/languages/) has how each locale gets its path, and what to do in a collection that already has documents.
+- With `localized: true`, a collection's documents have a slug and a path per locale. Without it, they have one slug and one path for all locales, even when your Payload config has localization.
+- `localized` accepts only `true`. It works with `basePath`, `parent: false` and Payload's hierarchy. In a site without localization it changes nothing.
+- [Languages](/path/languages/) explains how each locale gets its path, and what to do in a collection that already has documents.
 
 ### Field options
 
@@ -140,16 +140,16 @@ pathPlugin({
 })
 ```
 
-Here only the default locale may change a slug. In another locale the admin shows the slug read-only, without its lock and refresh buttons, and a save that sends another slug keeps the slug and the path and saves the rest of the page.
+Here only the default locale can change a slug. In other locales the admin shows the slug as read-only, without its lock and refresh buttons. If a save sends a different slug, the slug and the path stay the same, and the rest of the page is saved.
 
-| Option                        | How the plugin uses it                                                                                                                                         |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `access`, `label`, `validate` | As you give them                                                                                                                                               |
-| `admin`                       | Over the plugin's own, `components` too, so the slug field keeps its lock and its place in the sidebar unless you set your own                                 |
-| `hooks`                       | After the plugin's own, so a `beforeValidate` hook on the slug gets it cleaned                                                                                 |
-| `filterOptions`               | Together with the plugin's own, so the parent picker still leaves out the document itself and the home page. It takes what Payload's own `filterOptions` takes |
+| Option                        | How the plugin uses it                                                                                                                                                |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `access`, `label`, `validate` | As you set them                                                                                                                                                       |
+| `admin`                       | Merged over the plugin's own, `components` too, so the slug field keeps its lock and sidebar place unless you change them                                             |
+| `hooks`                       | Run after the plugin's own, so a `beforeValidate` hook gets the slug already cleaned                                                                                  |
+| `filterOptions`               | Combined with the plugin's own, so the parent picker still leaves out the document itself and the home page. Accepts the same values as Payload's own `filterOptions` |
 
-`parentField` is only for a collection with the plugin's own parent, so not for one with `parent: false` or Payload's hierarchy.
+`parentField` is only for a collection with the plugin's own parent, not for one with `parent: false` or Payload's hierarchy.
 
 ## Home page
 
@@ -158,13 +158,13 @@ pathPlugin({ collections: ['pages', 'posts'], rootSlug: 'start' })
 ```
 
 - The top-level document with this slug is the home page, and its path is `/`. Without `rootSlug`, the slug is `home`.
-- Only a top-level document in a collection without a base path can be it. A page below another page with the slug `start` sits at `/about/start`, and with posts at `/blog`, a post with it sits at `/blog/start`.
-- The home page holds no documents, since their paths would start with `/start/`, which the home page doesn't answer.
+- Only a top-level document in a collection without a base path can be the home page. A page with the slug `start` below another page is at `/about/start`. With posts at `/blog`, a post with the slug `start` is at `/blog/start`.
+- No document can sit below the home page. A document below it would get a path starting with `/start/`, but the home page is at `/`, not `/start`.
 
 <details>
 <summary>Good to know</summary>
 
-In a collection with a path per locale it is checked per locale, so a page is the home page in the locales where its slug is the root slug.
+In a collection with a path per locale, this is checked per locale. A page is the home page in each locale where its slug is the root slug.
 
 </details>
 
@@ -180,16 +180,16 @@ pathPlugin({
 })
 ```
 
-- A segment in `root` is refused as a path's first segment, base path included. Below a parent it is free, so `/docs/api` is fine.
+- A segment in `root` is refused as the first segment of a path, base paths included. Below a parent it is allowed, so `/docs/api` is fine.
 - A segment in `anyDepth` is refused anywhere in a path, such as the `-` in `/journal/-/page/2`.
-- Without `root`, the plugin reserves the first segment of Payload's `routes.admin` and `routes.api`. A `root` you give is the whole list, so name those two in it, as above.
+- Without `root`, the plugin reserves the first segment of Payload's `routes.admin` and `routes.api`. If you set `root`, your list replaces those, so include them, as above.
 
 <details>
 <summary>Good to know</summary>
 
-- Each also takes a list, such as `root: ['admin', 'api', 'shop']`, and the [refusal](/path/refusals/#reserved-slugs) then gives no reason.
-- A move or a delete that would put a document on a reserved slug is refused too.
-- `findByPath` answers a path with a reserved slug with `null`, without asking the database.
+- Each also accepts a list, such as `root: ['admin', 'api', 'shop']`. The [refusal](/path/refusals/#reserved-slugs) then gives no reason.
+- A move or a delete that would put a document at a reserved slug is refused too.
+- `findByPath` returns `null` for a path with a reserved slug, without querying the database.
 
 </details>
 
@@ -205,31 +205,31 @@ pathPlugin({
 })
 ```
 
-`defaultSlugify` is what the plugin uses without a `slugify` of your own, so a rule of yours can run before or after it.
+The plugin uses `defaultSlugify` when you don't set your own `slugify`. Your own rule can run before or after it.
 
 ## The fields it adds
 
-| Field       | What it holds                                                                                                                                                         | Which collections get it                                         |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `parent`    | The parent, a relationship to the document's own collection. Its picker leaves out the document itself and the home page                                              | One with the plugin's own parent                                 |
-| `slug`      | The document's own segment of the path, shown as Payload's own slug field, with its lock                                                                              | Every one                                                        |
-| `path`      | The stored path, read-only and indexed                                                                                                                                | Every one                                                        |
-| `ancestors` | The ids of the documents above, top-down, an indexed relationship to the document's own collection. The API returns it and filters by it, and the admin leaves it out | One whose documents have a parent, the plugin's own or Payload's |
+| Field       | What it stores                                                                                                                                               | Which collections get it                                           |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `parent`    | The parent, a relationship to the document's own collection. Its picker leaves out the document itself and the home page                                     | Those with the plugin's own parent                                 |
+| `slug`      | The document's own segment of the path, shown as Payload's own slug field, with its lock                                                                     | All                                                                |
+| `path`      | The stored path, read-only and indexed                                                                                                                       | All                                                                |
+| `ancestors` | The ids of the documents above, top-down, as an indexed relationship to the document's own collection. The API returns and filters by it, the admin hides it | Those whose documents have a parent, the plugin's own or Payload's |
 
-- Each collection in `collections` gets these after its own fields.
-- In a collection given with `localized: true`, `slug` and `path` are localized fields.
+- The plugin adds these after each collection's own fields.
+- In a collection with `localized: true`, `slug` and `path` are localized fields.
 
 ## When the config is wrong
 
-The plugin checks its options when Payload builds the config, and stops with one of these:
+The plugin checks its options when Payload builds the config, and stops with one of these messages:
 
-| Message                                                                                                                 | What to change                                                             |
-| ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| @payloadpack/path was given collections the config doesn't have: posts.                                                 | Fix the slug, or list the plugin after the plugin that adds the collection |
-| @payloadpack/path was given pages more than once, so list each collection once.                                         | Keep one entry for the collection, with its base path if it has one        |
-| @payloadpack/path adds slug to pages, so remove its own.                                                                | Remove or rename the collection's own field                                |
-| @payloadpack/path adds no parent field to posts, so leave out its parentField.                                          | Remove `parentField`, which only the plugin's own parent field takes       |
-| @payloadpack/path was given the base path blog for posts, which doesn't start with a slash, so start it with one.       | Write it as `/blog`                                                        |
-| @payloadpack/path was given the base path /blog/ for posts, which ends with a slash, so remove that slash.              | Write it as `/blog`                                                        |
-| @payloadpack/path was given the base path /blog//news for posts, which has an empty segment, so remove the extra slash. | Write it as `/blog/news`                                                   |
-| @payloadpack/path was given the base path / for posts, which is the root already, so leave basePath out.                | Remove `basePath`, or give it a segment such as `/blog`                    |
+| Message                                                                                                                 | What to change                                                            |
+| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| @payloadpack/path was given collections the config doesn't have: posts.                                                 | Fix the slug, or put the plugin after the plugin that adds the collection |
+| @payloadpack/path was given pages more than once, so list each collection once.                                         | Keep one entry for the collection, with its base path if it has one       |
+| @payloadpack/path adds slug to pages, so remove its own.                                                                | Remove or rename the collection's own field                               |
+| @payloadpack/path adds no parent field to posts, so leave out its parentField.                                          | Remove `parentField`. Only the plugin's own parent field uses it          |
+| @payloadpack/path was given the base path blog for posts, which doesn't start with a slash, so start it with one.       | Write it as `/blog`                                                       |
+| @payloadpack/path was given the base path /blog/ for posts, which ends with a slash, so remove that slash.              | Write it as `/blog`                                                       |
+| @payloadpack/path was given the base path /blog//news for posts, which has an empty segment, so remove the extra slash. | Write it as `/blog/news`                                                  |
+| @payloadpack/path was given the base path / for posts, which is the root already, so leave basePath out.                | Remove `basePath`, or give it a segment such as `/blog`                   |

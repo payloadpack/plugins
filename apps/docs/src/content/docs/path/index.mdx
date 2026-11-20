@@ -1,6 +1,6 @@
 ---
 title: Introduction
-description: Stored URL paths for Payload 4 pages and posts, made from the parent and slug an editor picks, so your site finds the document at a path in one indexed query.
+description: Stored URL paths for Payload 4 pages and posts, built from the parent and slug an editor picks. Your site finds a document by its path in one indexed query.
 ---
 
 import { Card, CardGrid } from '@astrojs/starlight/components'
@@ -20,37 +20,37 @@ const found = await findByPath({ path: '/about/team', payload })
 // { collection: 'pages', document: { id: '…', title: 'Team', path: '/about/team', … } }
 ```
 
-- `@payloadpack/path` gives the documents of the collections you name a slug and a stored path, and keeps every path right while editors rename, move, publish and delete.
-- A document sits below a parent of its own collection, held in the plugin's own parent field or in Payload's hierarchy, and a collection such as posts can go without parents. You pick [per collection](/path/configuration/#collections).
+- `@payloadpack/path` adds a slug and a stored path to the documents of the collections you name. It keeps every path correct when editors rename, move, publish and delete.
+- A document sits below a parent from its own collection. The plugin's own parent field or Payload's hierarchy stores the parent. A collection such as posts can also have no parents. You choose [per collection](/path/configuration/#collections).
 
 ## What you get
 
 <CardGrid>
   <Card title="A stored path">
-    The parent's path, a slash and the slug, below an optional base path such as `/blog`, saved on the document and indexed.
+    The parent's path, a slash and the slug, after an optional base path such as `/blog`. Saved on the document and indexed.
   </Card>
   <Card title="One document per path">
-    Across all your collections, drafts too. An editor who picks a path in use is told which document is at it.
+    Across all your collections, drafts included. If an editor picks a taken path, the plugin names the document at it.
   </Card>
   <Card title="Branches that move along">
-    Rename or move a page or a post, and every document below it follows, drafts included.
+    Rename or move a page or a post, and every document below it moves too, drafts included.
   </Card>
   <Card title="A home page and reserved slugs">
-    The top-level page with the slug `home` answers `/`, and your site keeps `/admin` and `/api` for itself.
+    The top-level page with the slug `home` is at `/`. `/admin` and `/api` stay free for your site.
   </Card>
   <Card title="A path per language">
-    A collection keeps one path for every locale, or has one per locale when you ask for it, and the locale stays out of it.
+    A collection has one path for all locales, or one path per locale if you choose. The path never contains the locale.
   </Card>
   <Card title="One query per lookup">
-    `findByPath` asks each collection once, on its index, and asks nothing for a reserved path.
+    `findByPath` queries each collection once, on its index. For a reserved path it doesn't query at all.
   </Card>
 </CardGrid>
 
 ## Why the path is stored
 
-A slug and a parent are enough to find a page, one query per segment, and every link your site shows then needs the same walk the other way. With the path stored, a lookup is one query at any depth, and a link's path is on the document it points at.
+You can find a page from slugs and parents, with one query per segment. Every link your site shows then needs the same steps in reverse. With a stored path, a lookup is one query at any depth, and a link's path is on the document it points to.
 
-[Speed](/path/speed/) has both measured on a MongoDB server on another machine, against the other ways we built and tried, and says [where the others win](/path/speed/#where-the-others-win).
+[Speed](/path/speed/) measures both on a MongoDB server on another machine, against the other ways we built and tried, and shows [where the others win](/path/speed/#where-the-others-win).
 
 ## Requirements
 

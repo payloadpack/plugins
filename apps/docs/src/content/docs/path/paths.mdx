@@ -1,12 +1,12 @@
 ---
 title: Paths
-description: A path is the parent's path, a slash and the slug, stored on the document, and one document is at each path.
+description: A path is the parent's path, a slash and the slug. It is stored on the document, and each path belongs to one document.
 ---
 
 import PathDiagram from '../../../components/path/PathDiagram.astro'
 import PathTree from '../../../components/path/PathTree.astro'
 
-<PathDiagram caption="Each document's own slug is marked, and the posts' base path has a dashed line." layout="columns">
+<PathDiagram caption="Each document's own slug is marked. The posts' base path has a dashed line." layout="columns">
   <PathTree
     label="pages"
     documents={[
@@ -28,22 +28,22 @@ import PathTree from '../../../components/path/PathTree.astro'
   />
 </PathDiagram>
 
-- A parent is a document of the same collection. Whether it comes from the plugin's own field, Payload's hierarchy or nowhere is set [per collection](/path/configuration/#collections). A top-level document starts at its collection's [base path](/path/configuration/#collections), or at the root.
-- The path is stored on the document and indexed. Only the plugin writes it, so a value a save sends for it is ignored.
-- The top-level page with the slug `home` is the [home page](/path/configuration/#home-page), at `/`.
+- A parent is a document of the same collection. You set [per collection](/path/configuration/#collections) where the parent comes from: the plugin's own field, Payload's hierarchy, or nowhere. A top-level document's path starts at its collection's [base path](/path/configuration/#collections), or at the root.
+- The path is stored on the document and indexed. Only the plugin writes it, and it ignores any value a save sends for it.
+- The top-level page with the slug `home` is the [home page](/path/configuration/#home-page). Its path is `/`.
 
 ## One document per path
 
 > Page "Plan A" is already at this path, so change the slug or the parent.
 
-- A path belongs to one document, in any collection and of any status, drafts too. Only a document in the trash takes no path.
-- A taken path is [refused](/path/refusals/#taken-paths) with the message above. Two documents may still share a slug below different parents, such as `/north/contact` and `/south/contact`.
-- A duplicate gets its original's slug with `-copy`, such as `/about-copy`, or `-copy-2` and up when that is taken below the same parent.
+- Each path belongs to one document, across all collections and statuses, drafts included. Only a document in the trash takes no path.
+- The plugin [refuses](/path/refusals/#taken-paths) a taken path with the message above. Two documents can still have the same slug below different parents, such as `/north/contact` and `/south/contact`.
+- A duplicate gets the original's slug plus `-copy`, such as `/about-copy`. If that is taken below the same parent, it gets `-copy-2` and up.
 
 <details>
 <summary>Good to know</summary>
 
-Each save checks the path before it writes, so two saves of the same path in the same instant can both pass. [Limits](/path/limits/) has what you see then and what to do.
+Each save checks the path before it writes. So two saves of the same path at the same moment can both pass. [Limits](/path/limits/) shows what you see then and what to do.
 
 </details>
 
@@ -56,14 +56,14 @@ Each save checks the path before it writes, so two saves of the same path in the
 | `Vår historia`                     | `var-historia`  |
 | `Новости`                          | `новости`       |
 
-- A slug is cleaned on every save, by your own [`slugify`](/path/configuration/#slugify) when you give one.
-- A save that clears the slug keeps the one it had, and a new title never changes it, so a published URL never moves on its own.
+- Every save cleans the slug, with your own [`slugify`](/path/configuration/#slugify) if you set one.
+- A save that clears the slug keeps the old one. A new title never changes it. So a published URL never changes by itself.
 - The field is Payload's own slug field: locked until the editor unlocks it, with a button that makes the slug from the title.
 
 <details>
 <summary>Good to know</summary>
 
-- A typed slug with nothing left after cleaning, such as `!!!`, counts as no slug.
+- A typed slug that cleaning leaves empty, such as `!!!`, counts as no slug.
 - A collection without `admin.useAsTitle` has nothing to make a slug from.
 
 </details>

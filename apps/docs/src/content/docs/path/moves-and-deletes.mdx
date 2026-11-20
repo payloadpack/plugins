@@ -1,6 +1,6 @@
 ---
 title: Moves and deletes
-description: A renamed or moved document takes its branch along, and the documents below a deleted one move up a level.
+description: A renamed or moved document brings its branch along. The documents below a deleted one move up a level.
 ---
 
 import PathChange from '../../../components/path/PathChange.astro'
@@ -47,8 +47,8 @@ import PathTree from '../../../components/path/PathTree.astro'
 
 ## Moves
 
-- A new slug or parent moves the whole branch, latest versions too. A branch stays in its own collection, so a move rewrites only that collection.
-- Before anything is written, every new path in the branch is checked, and the move is [refused](/path/refusals/#taken-paths) when one of them is taken or reserved, never for its size. [Speed](/path/speed/) has what a branch of 1,000 pages takes.
+- A new slug or parent moves the whole branch, latest versions too. A branch stays in one collection, so a move only writes to that collection.
+- Before it writes anything, the plugin checks every new path in the branch. It [refuses](/path/refusals/#taken-paths) the move if one is taken or reserved, but never for its size. [Speed](/path/speed/) shows how long a branch of 1,000 pages takes.
 - A draft of a published document moves nothing until it is published. See [Drafts](/path/drafts/).
 
 ## Deletes
@@ -83,21 +83,21 @@ import PathTree from '../../../components/path/PathTree.astro'
   />
 </PathDiagram>
 
-- A delete lifts the documents right below it one level, to its parent or to the top level of its collection.
-- The delete is [refused](/path/refusals/), and nothing moves, when a lifted document would land on a taken path, a reserved slug or `/`.
-- With Payload's `trash`, nothing is lifted until the document is deleted for good. In the trash it takes no path, so another document may take it, and then taking it out of the trash is refused.
+- A delete lifts the documents right below it one level, to its parent or to the top level of the collection.
+- The plugin [refuses](/path/refusals/) the delete, and nothing moves, if a lifted document would land on a taken path, a reserved slug or `/`.
+- With Payload's `trash`, nothing is lifted until the document is deleted for good. A document in the trash takes no path, so another document can take its path. Then taking the first one out of the trash is refused.
 
 :::caution[With Payload's hierarchy]
-If the collection had documents with parents before you added the plugin, run [`backfillPaths`](/path/api/backfill-paths/) once before anything in it is deleted. Until then a delete also deletes the documents right below, as Payload does on its own. With `parent: false` as well, it always does.
+If the collection had documents with parents before you added the plugin, run [`backfillPaths`](/path/api/backfill-paths/) once before you delete anything in it. Until then, a delete also deletes the documents right below, as Payload does without the plugin. With `parent: false` as well, it always does.
 :::
 
 <details>
 <summary>Good to know</summary>
 
-In a collection given with `parent: false` nothing sits below a document, so a delete lifts nothing.
+In a collection with `parent: false`, no document sits below another, so a delete lifts nothing.
 
 </details>
 
 ## A move that stops halfway
 
-With transactions, a failed move or delete leaves everything as it was. Without them, which is SQLite's default, some documents keep their old paths until you run [`backfillPaths`](/path/api/backfill-paths/). [Limits](/path/limits/) has what else a save during a move, or a database without transactions, can leave.
+With transactions, a failed move or delete leaves everything as it was. Without them, which is SQLite's default, some documents keep their old paths until you run [`backfillPaths`](/path/api/backfill-paths/). [Limits](/path/limits/) lists what else a save during a move, or a database without transactions, can leave.

@@ -1,6 +1,6 @@
 ---
 title: Languages
-description: A collection keeps one path for every locale, or has a path per locale when you ask for it, and the locale is never part of it.
+description: A collection has one path for all locales, or one path per locale if you choose. The locale is never part of the path.
 ---
 
 import { Steps } from '@astrojs/starlight/components'
@@ -13,7 +13,7 @@ pathPlugin({ collections: [{ slug: 'pages', localized: true }] })
 ```
 
 <PathDiagram
-  caption="Team has no Swedish slug, so in Swedish it takes the English one, below its parent's Swedish path."
+  caption="Team has no Swedish slug, so in Swedish it uses the English one, below its parent's Swedish path."
   layout="columns">
   <PathTree
     label="en"
@@ -34,7 +34,7 @@ pathPlugin({ collections: [{ slug: 'pages', localized: true }] })
   />
 </PathDiagram>
 
-With localization in your Payload config and `localized: true`, each locale has a slug and a path of its own. Without it, a collection has [one path in every locale](#one-path-in-every-locale).
+With localization in your Payload config and `localized: true`, each locale has its own slug and path. Without `localized: true`, a collection has [one path in every locale](#one-path-in-every-locale).
 
 ## A slug per locale
 
@@ -45,22 +45,22 @@ With localization in your Payload config and `localized: true`, each locale has 
 | `people`          | `laget`           | `/about/people` | `/om-oss/laget`  |
 
 - Each locale's path is made from its own slug and its parent's path in that locale. A base path is the same in every locale.
-- A locale without a slug takes the one it falls back to: its `fallbackLocale`, else the default locale when fallback is on, else any locale that has one.
-- A path is taken per locale, so `/contact` may be one page in English and another in Swedish.
+- A locale without a slug uses the one it falls back to: its `fallbackLocale`, else the default locale when fallback is on, else any locale with a slug.
+- A path is taken per locale, so `/contact` can be one page in English and another page in Swedish.
 
 <details>
 <summary>Good to know</summary>
 
 - Reserved slugs and the root slug are checked per locale.
-- In a collection without drafts, a locale gets its path once the document is saved in it, and keeps the slug it fell back to as its own. A locale it was never saved in has no path.
+- In a collection without drafts, a locale gets its path when the document is saved in that locale. The slug it fell back to then becomes its own. A locale the document was never saved in has no path.
 
 </details>
 
 ## Publishing per locale
 
-- Each locale is published on its own. Where the document is published, a draft's new slug waits for that locale's publish. Where it isn't, the document follows that locale's draft at once.
-- Publishing one locale never moves another that has a slug of its own.
-- The parent is the same in every locale, so a draft's new parent stays pending while the document is published in any locale.
+- Each locale is published on its own. Where the document is published, a draft's new slug waits until that locale is published. Where it isn't, the document follows that locale's draft at once.
+- Publishing one locale never moves another locale that has its own slug.
+- The parent is the same in every locale. So a draft's new parent stays pending while the document is published in any locale.
 
 ## Routing
 
@@ -80,13 +80,13 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
 }
 ```
 
-- The locale is never part of the path, so your site decides where it goes, in a prefix, a domain or a cookie. The route above strips a prefix and passes it on.
+- The locale is never part of the path, so your site decides where it goes: a prefix, a domain or a cookie. The route above takes the locale from a prefix and passes it to `findByPath`.
 - Without localization, leave `locale` out.
-- For links to the same document in your other locales, such as alternate links, [`findPaths`](/path/api/find-paths/) gives its path in each locale it is published in. The route above gets them with the document when it passes [`paths: true`](/path/api/find-by-path/#paths-in-each-locale) to `findByPath`.
+- For links to the same document in your other locales, such as alternate links, [`findPaths`](/path/api/find-paths/) returns its path in each locale where it is published. The route above can get them with the document by passing [`paths: true`](/path/api/find-by-path/#paths-in-each-locale) to `findByPath`.
 
 ## One path in every locale
 
-This is what a collection has without `localized: true`, as topics do here:
+A collection without `localized: true` has one path in every locale, like topics here:
 
 ```ts title="payload.config.ts"
 pathPlugin({
@@ -97,27 +97,27 @@ pathPlugin({
 })
 ```
 
-- A topic has one slug and one path, the same in every locale, and a new slug saved in any locale renames it in all of them.
-- Its path is taken in every locale, so a page at `/topics/crops` in any one locale is in the way of a topic there, and the other way round.
-- A site that gets localization later keeps its paths. The slug and the path stay stored as they were, so there is nothing to migrate.
+- A topic has one slug and one path, the same in every locale. A new slug saved in any locale renames the topic in all locales.
+- Its path is taken in every locale. A page at `/topics/crops` in any locale blocks a topic at that path, and the other way round.
+- If a site adds localization later, it keeps its paths. The slug and the path stay stored as they were, so there is nothing to migrate.
 
 <details>
 <summary>Good to know</summary>
 
-- Publishing is still per locale where the collection has a localized field of its own, such as a localized title. Without one, a publish publishes every locale at once.
-- A draft's new slug is a pending move while the topic is published in any locale, and a publish in any locale moves it, with its branch, in all of them.
+- Publishing is still per locale if the collection has a localized field of its own, such as a localized title. Without one, a publish publishes every locale at once.
+- A draft's new slug is a pending move while the topic is published in any locale. A publish in any locale then moves the topic and its branch in all locales.
 
 </details>
 
 ## Switching a collection that has documents
 
 :::caution
-Adding or removing `localized: true` on a collection that has documents is a migration you write. The plugin doesn't copy the slugs, and doesn't notice when they haven't been copied.
+If a collection has documents, adding or removing `localized: true` needs a migration that you write. The plugin doesn't copy the slugs, and doesn't notice when they haven't been copied.
 :::
 
 <Steps>
 
-1. Copy the slugs to where the field now lives, in the documents and in their versions. When you remove `localized: true`, pick the locale whose slug to keep.
+1. Copy the slugs to where the field is now stored, in the documents and in their versions. When you remove `localized: true`, pick which locale's slug to keep.
 
 2. Run [`backfillPaths`](/path/api/backfill-paths/) once.
 

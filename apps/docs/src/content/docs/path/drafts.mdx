@@ -1,6 +1,6 @@
 ---
 title: Drafts
-description: A published document stays at its path until its draft is published, while one that isn't published follows its draft at once.
+description: A published document stays at its path until its draft is published. A document that isn't published follows its draft at once.
 ---
 
 import PathChange from '../../../components/path/PathChange.astro'
@@ -42,15 +42,15 @@ import PathTree from '../../../components/path/PathTree.astro'
 
 | An editor or your code                                               | The document's path                        |
 | -------------------------------------------------------------------- | ------------------------------------------ |
-| Saves a draft with a new slug or parent, on a published document     | Stays as it is, with a pending move        |
+| Saves a draft with a new slug or parent, on a published document     | Stays, with a pending move                 |
 | Saves a draft with a new slug or parent, on one that isn't published | Moves at once, with the documents below it |
 | Publishes the draft                                                  | Moves to the draft's path                  |
 | Unpublishes the document                                             | Moves to the latest draft's path           |
 | Updates it through the API without `draft`                           | Moves to the latest draft's path           |
-| Restores a version                                                   | Takes the path its parent and slug make    |
+| Restores a version                                                   | Gets the path from its parent and slug     |
 
-- A pending move takes no path until it is published. The sidebar shows the path the draft would give the document.
-- Publishing checks that path again, since another document may be at it by then. Two pending moves may name the same path, and the first one published gets it.
+- A pending move takes no path until it is published. The sidebar shows the path the document gets when the draft is published.
+- Publishing checks that path again, because another document may be at it by then. Two pending moves can point to the same path. The first one published gets it.
 
 <details>
 <summary>Good to know</summary>
@@ -61,7 +61,7 @@ Older versions keep the paths they had.
 
 ## Autosave
 
-An autosave is checked like any save. A new document has no slug and no path until the autosave that gives it a title, and a draft without a slug can't be published.
+An autosave is checked like any other save. A new document has no slug and no path until an autosave gives it a title. A draft without a slug can't be published.
 
 ## Previews
 
