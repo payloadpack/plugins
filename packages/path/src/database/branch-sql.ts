@@ -101,7 +101,8 @@ export async function buildStatementsBelowInSql(collection: string, id: Id, loca
       ? selectRowsBelow(relationships, ancestorsField)
       : sql`SELECT ${rowsTable.id} FROM ${rowsTable}
           WHERE ${rowsTable.latest} = ${true} AND ${rowsTable.id} IN (${selectRowsBelow(relationships, ancestorsField)})`
-    // Postgres takes the column an update sets by its name alone, without its table.
+    // Postgres takes the column an update sets by its name alone, without its table, so each SET names
+    // its column with sql.identifier.
     return {
       // A row's ancestors are rows of the table of relationships, in the order of a number each holds.
       // So the old ones move back to make room at the front for the new ones, and then the old ones up
