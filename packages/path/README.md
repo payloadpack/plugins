@@ -96,6 +96,8 @@ export default buildConfig({
 })
 ```
 
+`getPathCollectionSlugs(config)` lists the collections that get a path, in either way, for a plugin after `pathPlugin()`, a field's config function or `payload.config`, such as a link field that picks only documents with a path.
+
 Every option and every message an editor can meet are in the [docs](https://docs.payloadpack.com/path/configuration/).
 
 ## Languages

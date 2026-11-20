@@ -8,6 +8,7 @@ export type {
 } from './plugin/options.js'
 export { pathPlugin } from './plugin/plugin.js'
 export { withPath } from './plugin/with-path.js'
+export { getPathCollectionSlugs, WITH_PATH_KEY } from './plugin/options.js'
 export { defaultSlugify } from './plugin/slugify.js'
 export { backfillPaths, type BackfillReport } from './api/backfill-paths.js'
 export { findByPath, type FoundByPath } from './api/find-by-path.js'

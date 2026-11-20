@@ -122,4 +122,4 @@ export const notGivenCollectionsError = (collectionSlugs: string[]) =>
   `@payloadpack/path was asked for collections that pathPlugin() wasn't given: ${collectionSlugs.join(', ')}.`
 
 export const PLUGIN_MISSING_ERROR =
-  '@payloadpack/path: add pathPlugin() to the Payload config, with a collection in collections or wrapped in withPath, before calling findByPath, findPaths or backfillPaths'
+  '@payloadpack/path: add pathPlugin() to the Payload config, with a collection in collections or wrapped in withPath, before calling findByPath, findPaths, backfillPaths or getPathCollectionSlugs'

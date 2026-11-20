@@ -87,7 +87,13 @@ export default defineConfig({
               },
               {
                 label: 'API',
-                items: ['path/api/find-by-path', 'path/api/find-paths', 'path/api/on-paths-changed', 'path/api/backfill-paths']
+                items: [
+                  'path/api/find-by-path',
+                  'path/api/find-paths',
+                  'path/api/on-paths-changed',
+                  'path/api/backfill-paths',
+                  'path/api/get-path-collection-slugs'
+                ]
               }
             ]
           }
