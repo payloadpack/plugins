@@ -107,27 +107,27 @@ A lookup is one indexed query per collection, and none for a path your site rese
 
 <!-- speed-table:start -->
 
-The median and 95th percentile (p95) of each, on a database with 100,000 documents. Run on 2026-11-19, on Apple M3 Max with 128 GB of memory and Node 26.13.1.
+The median and 95th percentile (p95) of each, on a database with 100,000 documents. Run on 2026-11-20, on Apple M3 Max with 128 GB of memory and Node 26.13.1.
 
 Without localization:
 
 | Operation           | MongoDB             | Postgres            | SQLite              |
 | ------------------- | ------------------- | ------------------- | ------------------- |
-| Lookup by path      | 0.3 ms (p95 0.5 ms) | 0.5 ms (p95 0.6 ms) | 0.3 ms (p95 0.4 ms) |
-| Autosave            | 9.1 ms (p95 13 ms)  | 4.6 ms (p95 5.8 ms) | 50 ms (p95 55 ms)   |
-| Publish, same slug  | 9.2 ms (p95 13 ms)  | 4.5 ms (p95 5.1 ms) | 28 ms (p95 32 ms)   |
-| Publish, new slug   | 11 ms (p95 14 ms)   | 5.9 ms (p95 6.7 ms) | 29 ms (p95 34 ms)   |
-| Move of 1,000 pages | 892 ms (p95 1.1 s)  | 2.2 s (p95 2.3 s)   | 1.9 s (p95 1.9 s)   |
+| Lookup by path      | 0.3 ms (p95 0.5 ms) | 0.5 ms (p95 0.7 ms) | 0.3 ms (p95 0.4 ms) |
+| Autosave            | 9.1 ms (p95 11 ms)  | 4.6 ms (p95 5.4 ms) | 48 ms (p95 55 ms)   |
+| Publish, same slug  | 9.2 ms (p95 15 ms)  | 4.7 ms (p95 5.7 ms) | 29 ms (p95 34 ms)   |
+| Publish, new slug   | 10 ms (p95 12 ms)   | 6.7 ms (p95 9 ms)   | 29 ms (p95 37 ms)   |
+| Move of 1,000 pages | 101 ms (p95 112 ms) | 185 ms (p95 196 ms) | 112 ms (p95 127 ms) |
 
 With localization (two locales):
 
 | Operation           | MongoDB             | Postgres            | SQLite              |
 | ------------------- | ------------------- | ------------------- | ------------------- |
-| Lookup by path      | 0.2 ms (p95 0.4 ms) | 0.7 ms (p95 1 ms)   | 0.3 ms (p95 0.4 ms) |
-| Autosave            | 9.4 ms (p95 13 ms)  | 4.9 ms (p95 5.5 ms) | 45 ms (p95 51 ms)   |
-| Publish, same slug  | 10 ms (p95 13 ms)   | 5.9 ms (p95 6.4 ms) | 26 ms (p95 30 ms)   |
-| Publish, new slug   | 11 ms (p95 14 ms)   | 7.7 ms (p95 11 ms)  | 27 ms (p95 33 ms)   |
-| Move of 1,000 pages | 924 ms (p95 1 s)    | 3.3 s (p95 3.4 s)   | 2.2 s (p95 2.3 s)   |
+| Lookup by path      | 0.2 ms (p95 0.4 ms) | 0.6 ms (p95 0.8 ms) | 0.3 ms (p95 0.4 ms) |
+| Autosave            | 8.3 ms (p95 9.9 ms) | 5.4 ms (p95 6.3 ms) | 44 ms (p95 50 ms)   |
+| Publish, same slug  | 8.7 ms (p95 10 ms)  | 7.2 ms (p95 11 ms)  | 26 ms (p95 30 ms)   |
+| Publish, new slug   | 11 ms (p95 15 ms)   | 8.2 ms (p95 14 ms)  | 26 ms (p95 30 ms)   |
+| Move of 1,000 pages | 126 ms (p95 135 ms) | 352 ms (p95 370 ms) | 162 ms (p95 519 ms) |
 
 <!-- speed-table:end -->
 
