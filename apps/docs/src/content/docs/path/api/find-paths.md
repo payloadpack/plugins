@@ -10,13 +10,13 @@ const paths = await findPaths({ collection: 'pages', id: page.id, payload })
 // [{ locale: 'en', path: '/about' }, { locale: 'sv', path: '/om-oss' }]
 ```
 
-| Argument     | Purpose                                                                | Default  |
-| ------------ | ---------------------------------------------------------------------- | -------- |
-| `payload`    | Your Payload instance                                                  | Required |
-| `collection` | Collection slug (must be configured in `pathPlugin`)                   | Required |
-| `id`         | Document ID                                                            | Required |
-| `draft`      | Return the latest draft's paths for [previews](/path/drafts/#previews) | `false`  |
-| `req`        | Request whose transaction the read should join                         | Omitted  |
+| Argument     | Purpose                                                                | Default        |
+| ------------ | ---------------------------------------------------------------------- | -------------- |
+| `payload`    | Your Payload instance                                                  | Required       |
+| `collection` | Collection slug (must be configured in `pathPlugin`)                   | Required       |
+| `id`         | Document ID                                                            | Required       |
+| `draft`      | Return the latest draft's paths for [previews](/path/drafts/#previews) | `false`        |
+| `req`        | Request whose transaction the read should join                         | No transaction |
 
 ## What it returns
 
