@@ -13,7 +13,7 @@ import {
   readPath,
   remove,
   store,
-  storeStrayPath,
+  storePathInRow,
   update
 } from './support/documents.js'
 import {
@@ -372,7 +372,7 @@ describeEachSetup(
       const { payload } = test
       const wharf = await create(payload, 'pages', { slug: 'wharf', title: 'Wharf' })
       const bale = await create(payload, 'pages', { parent: wharf.id, slug: 'bale', title: 'Bale' })
-      await storeStrayPath(payload, setup, 'pages', bale.id, '/wharf-annex/bale')
+      await storePathInRow(payload, setup, 'pages', bale.id, '/wharf-annex/bale')
       await setTimestampsThatAreNoDates(payload, 'pages', bale.id)
       const readRow = () =>
         payload.db.findOne<{ [field: string]: unknown; id: Id }>({ collection: 'pages', where: { id: { equals: bale.id } } })
@@ -411,7 +411,7 @@ describeEachSetup(
       const { payload } = test
       const voyages = await create(payload, 'logbooks', { slug: 'voyages', title: 'Voyages' })
       const atlantic = await create(payload, 'logbooks', { parent: voyages.id, slug: 'atlantic', title: 'Atlantic' })
-      await storeStrayPath(payload, setup, 'logbooks', atlantic.id, '/voyages-annex/atlantic')
+      await storePathInRow(payload, setup, 'logbooks', atlantic.id, '/voyages-annex/atlantic')
 
       const report = await backfillPaths({ collections: ['logbooks'], payload })
 

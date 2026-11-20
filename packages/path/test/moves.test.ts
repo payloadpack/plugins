@@ -16,9 +16,9 @@ import {
   remove,
   restoreVersion,
   store,
-  storeStrayDraftAncestors,
-  storeStrayParent,
-  storeStrayPath,
+  storeDraftAncestorsInRow,
+  storeParentInRow,
+  storePathInRow,
   update
 } from './support/documents.js'
 import { holdRow, readStoredParentAndAncestors, waitForRowWait } from './support/raw-access.js'
@@ -390,10 +390,10 @@ describeEachSetup('', {}, (test, setup) => {
       // published, which takes its parent from its latest version, with another page in its own parent
       // field. And a latest version whose ancestors lack the page.
       const pagePath = ['', ...above, slug].join('/')
-      await storeStrayPath(payload, setup, 'pages', stall.id, `${pagePath}-annex/stall`)
-      await storeStrayPath(payload, setup, 'pages', booth.id, `${pagePath}/stand`)
-      await storeStrayParent(payload, 'pages', cart.id, lane.id)
-      await storeStrayDraftAncestors(payload, 'pages', awning.id, [...aboveIds, kiosk.id])
+      await storePathInRow(payload, setup, 'pages', stall.id, `${pagePath}-annex/stall`)
+      await storePathInRow(payload, setup, 'pages', booth.id, `${pagePath}/stand`)
+      await storeParentInRow(payload, 'pages', cart.id, lane.id)
+      await storeDraftAncestorsInRow(payload, 'pages', awning.id, [...aboveIds, kiosk.id])
 
       const ancestors = await change(page!, aboveIds)
 
@@ -419,7 +419,7 @@ describeEachSetup('', {}, (test, setup) => {
     // A row out of step, as an import may leave it. The crate's ancestors and path say below the silo
     // and its parent field names a page outside the silo's branch, so a rename of the silo builds
     // nothing for it by the rule and writes nothing to it.
-    await storeStrayParent(payload, 'pages', crate.id, yard.id)
+    await storeParentInRow(payload, 'pages', crate.id, yard.id)
     changes.length = 0
 
     await update(payload, 'pages', silo.id, { slug: 'hangar' })

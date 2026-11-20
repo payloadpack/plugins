@@ -106,19 +106,19 @@ async function storeInRow(payload: Payload, collection: CollectionSlug, id: Id, 
  * through the database adapter, so no hook runs and the row keeps every other value. A move and a
  * backfill give such a row the path its slug and its parent make.
  */
-export function storeStrayPath(payload: Payload, { localized }: Setup, collection: CollectionSlug, id: Id, path: string) {
+export function storePathInRow(payload: Payload, { localized }: Setup, collection: CollectionSlug, id: Id, path: string) {
   const paths = localized ? Object.fromEntries(LOCALES.map((locale) => [locale, path])) : path
   return storeInRow(payload, collection, id, { path: paths })
 }
 
-// Stores a parent that disagrees with a document's ancestors in its row, as storeStrayPath stores a path.
-export function storeStrayParent(payload: Payload, collection: CollectionSlug, id: Id, parent: Id) {
+// Stores a parent that disagrees with a document's ancestors in its row, as storePathInRow stores a path.
+export function storeParentInRow(payload: Payload, collection: CollectionSlug, id: Id, parent: Id) {
   return storeInRow(payload, collection, id, { parent })
 }
 
 // Stores ancestors that nothing the plugin writes leaves behind in a document's latest version,
 // through the database adapter, so no hook runs and the version keeps every other value.
-export async function storeStrayDraftAncestors(payload: Payload, collection: CollectionSlug, id: Id, ancestors: Id[]) {
+export async function storeDraftAncestorsInRow(payload: Payload, collection: CollectionSlug, id: Id, ancestors: Id[]) {
   const latestVersion = await findLatestVersionRow(payload, collection, id)
   await payload.db.updateVersion({
     collection,

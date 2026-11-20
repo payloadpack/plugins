@@ -9,7 +9,7 @@ import {
   readPath,
   readRows,
   remove,
-  storeStrayPath,
+  storePathInRow,
   update
 } from './support/documents.js'
 
@@ -21,7 +21,7 @@ describeEachSetup('', {}, (test, setup) => {
     const stall = await create(payload, 'pages', { parent: arcade.id, slug: 'stall', title: 'Stall' })
     // Stored at a path that nothing the plugin writes leaves behind. A lift makes each path again from
     // the slug and the parent, so it never rewrites what a path starts with.
-    await storeStrayPath(payload, setup, 'pages', stall.id, '/arcade-annex/stall')
+    await storePathInRow(payload, setup, 'pages', stall.id, '/arcade-annex/stall')
 
     await remove(payload, 'pages', arcade.id)
 
