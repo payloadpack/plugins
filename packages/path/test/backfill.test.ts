@@ -329,8 +329,7 @@ describeEachSetup(
       await refuseWritesOf(test, setup, { ancestorsOf: people.id, collection: 'pages' }, () =>
         expect(remove(payload, 'pages', team.id)).rejects.toThrow()
       )
-      const stopped = await readDocument(payload, 'pages', people.id)
-      expect({ ancestors: stopped.ancestors, parent: stopped.parent, path: stopped.path }).toEqual({
+      expect(await readDocument(payload, 'pages', people.id)).toMatchObject({
         ancestors: [company.id, team.id],
         parent: company.id,
         path: '/company/people'
@@ -405,17 +404,17 @@ describeEachSetup(
       const letGo = await holdRow(payload, setup, 'pages', cellar)
 
       const backfill = backfillPaths({ collections: ['pages'], payload })
-      const waited = await waitForRowWait(payload)
+      const backfillWaited = await waitForRowWait(payload)
       await update(payload, 'pages', vintage, { title: 'Vintage, restocked' })
       await letGo()
       await backfill
 
       const { path: vintagePath, title } = await readDocument(payload, 'pages', vintage)
-      expect({ latest: await countLatestVersions(payload, 'pages', vintage), path: vintagePath, title, waited }).toEqual({
+      expect({ backfillWaited, latest: await countLatestVersions(payload, 'pages', vintage), path: vintagePath, title }).toEqual({
+        backfillWaited: true,
         latest: 1,
         path: '/cellar/vintage',
-        title: 'Vintage, restocked',
-        waited: true
+        title: 'Vintage, restocked'
       })
     })
 
@@ -426,13 +425,13 @@ describeEachSetup(
       const commit = await holdRow(payload, setup, 'pages', pantry, { savedTitle: 'Larder' })
 
       const backfill = backfillPaths({ collections: ['pages'], payload })
-      const waited = await waitForRowWait(payload)
+      const backfillWaited = await waitForRowWait(payload)
       await commit()
       const report = await backfill
 
       expect(report).toMatchObject({ left: [], updated: 1 })
       const { path: pantryPath, title } = await readDocument(payload, 'pages', pantry)
-      expect({ path: pantryPath, title, waited }).toEqual({ path: '/pantry', title: 'Larder', waited: true })
+      expect({ backfillWaited, path: pantryPath, title }).toEqual({ backfillWaited: true, path: '/pantry', title: 'Larder' })
     })
   }
 )

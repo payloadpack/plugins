@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { CollectionSlug, Payload } from 'payload'
 import { beforeEach, expect, it } from 'vitest'
 
 import { findByPath } from '../src/index.js'
@@ -21,8 +21,8 @@ const LOCALIZED_SETUPS = SETUPS.filter(({ localized }) => localized)
 const inSwedish = { locale: 'sv' }
 
 // Each locale's stored path, read from the database, where Payload's own fallback can't fill one in.
-const readStoredPaths = async (payload: Payload, id: Id) =>
-  (await payload.db.findOne<{ id: Id; path: unknown }>({ collection: 'pages', where: { id: { equals: id } } }))?.path
+const readStoredPaths = async (payload: Payload, collection: CollectionSlug, id: Id) =>
+  (await payload.db.findOne<{ id: Id; path: unknown }>({ collection, where: { id: { equals: id } } }))?.path
 
 describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
   beforeEach(() => {
@@ -87,8 +87,8 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
     await update(payload, 'pages', contact.id, { slug: 'kontakt' }, { draft: true, locale: 'sv' })
     await update(payload, 'pages', reachUs.id, { slug: 'contact' }, inSwedish)
 
-    expect(await readStoredPaths(payload, contact.id)).toEqual({ en: '/contact', sv: '/kontakt' })
-    expect(await readStoredPaths(payload, reachUs.id)).toEqual({ en: '/reach-us', sv: '/contact' })
+    expect(await readStoredPaths(payload, 'pages', contact.id)).toEqual({ en: '/contact', sv: '/kontakt' })
+    expect(await readStoredPaths(payload, 'pages', reachUs.id)).toEqual({ en: '/reach-us', sv: '/contact' })
   })
 
   it('checks the locales whose path follows the saved slug, and names the locale of a path in use', async () => {
@@ -464,17 +464,17 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
     // Payload writes a publish in one locale to the page itself without what the other locale held.
     await update(payload, 'pages', cellar.id, { title: 'Wine cellar' })
 
-    expect(await readStoredPaths(payload, cellar.id)).toEqual({ en: '/cellar', sv: '/cellar' })
+    expect(await readStoredPaths(payload, 'pages', cellar.id)).toEqual({ en: '/cellar', sv: '/cellar' })
     expect(await findByPath({ draft: true, locale: 'sv', path: '/cellar', payload })).toMatchObject({
       document: { id: cellar.id }
     })
     // A page saved below it afterwards gets its path in every locale.
     const corks = await create(payload, 'pages', { parent: cellar.id, slug: 'corks', title: 'Corks' })
-    expect(await readStoredPaths(payload, corks.id)).toEqual({ en: '/cellar/corks', sv: '/cellar/corks' })
+    expect(await readStoredPaths(payload, 'pages', corks.id)).toEqual({ en: '/cellar/corks', sv: '/cellar/corks' })
 
     await update(payload, 'pages', cellar.id, { slug: 'wine-cellar' })
 
-    expect(await readStoredPaths(payload, casks.id)).toEqual({ en: '/wine-cellar/casks', sv: '/wine-cellar/casks' })
+    expect(await readStoredPaths(payload, 'pages', casks.id)).toEqual({ en: '/wine-cellar/casks', sv: '/wine-cellar/casks' })
   })
 
   // A site that publishes the default locale first: the post waits as a draft in Swedish, with a
@@ -513,7 +513,7 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
 
     await update(payload, 'pages', pantry.id, { slug: 'larder' })
 
-    expect(await readStoredPaths(payload, jars.id)).toEqual({ en: '/larder/jars', sv: '/larder/burkar' })
+    expect(await readStoredPaths(payload, 'pages', jars.id)).toEqual({ en: '/larder/jars', sv: '/larder/burkar' })
     expect(await findByPath({ locale: 'sv', path: '/larder/burkar', payload })).toMatchObject({ document: { id: jars.id } })
   })
 
@@ -523,7 +523,7 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
 
     await payload.update({ collection: 'pages', data: { title: 'The scullery' }, id: scullery.id, overrideAccess: true })
 
-    expect(await readStoredPaths(payload, scullery.id)).toEqual({ en: '/scullery', sv: '/scullery' })
+    expect(await readStoredPaths(payload, 'pages', scullery.id)).toEqual({ en: '/scullery', sv: '/scullery' })
   })
 
   it('moves nothing in a locale a page is unpublished in when it is published in another locale', async () => {
@@ -539,15 +539,15 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
       locale: 'sv',
       overrideAccess: true
     })
-    expect(await readStoredPaths(payload, bakehouse.id)).toEqual({ en: '/bakehouse', sv: '/bagarstuga' })
+    expect(await readStoredPaths(payload, 'pages', bakehouse.id)).toEqual({ en: '/bakehouse', sv: '/bagarstuga' })
     changes.length = 0
 
     // Payload writes the English publish to the page itself without the Swedish slug. The page isn't
     // published in Swedish, so there it is where its latest draft says, which is where it was.
     await update(payload, 'pages', bakehouse.id, {})
 
-    expect(await readStoredPaths(payload, bakehouse.id)).toEqual({ en: '/bakehouse', sv: '/bagarstuga' })
-    expect(await readStoredPaths(payload, ovens.id)).toEqual({ en: '/bakehouse/ovens', sv: '/bagarstuga/ovens' })
+    expect(await readStoredPaths(payload, 'pages', bakehouse.id)).toEqual({ en: '/bakehouse', sv: '/bagarstuga' })
+    expect(await readStoredPaths(payload, 'pages', ovens.id)).toEqual({ en: '/bakehouse/ovens', sv: '/bagarstuga/ovens' })
     expect(changes).toEqual([[{ collection: 'pages', from: '/bakehouse', id: bakehouse.id, locale: 'en', to: '/bakehouse' }]])
     expect(await readLatestVersion(payload, 'pages', bakehouse.id)).toMatchObject({
       path: { en: '/bakehouse', sv: '/bagarstuga' }
@@ -555,8 +555,8 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
 
     await update(payload, 'pages', bakehouse.id, {}, inSwedish)
 
-    expect(await readStoredPaths(payload, bakehouse.id)).toEqual({ en: '/bakehouse', sv: '/bagarstuga' })
-    expect(await readStoredPaths(payload, ovens.id)).toEqual({ en: '/bakehouse/ovens', sv: '/bagarstuga/ovens' })
+    expect(await readStoredPaths(payload, 'pages', bakehouse.id)).toEqual({ en: '/bakehouse', sv: '/bagarstuga' })
+    expect(await readStoredPaths(payload, 'pages', ovens.id)).toEqual({ en: '/bakehouse/ovens', sv: '/bagarstuga/ovens' })
   })
 
   it('moves nothing when a publish keeps the slug and the parent of a page published in every locale', async () => {
@@ -568,8 +568,8 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
 
     await update(payload, 'pages', dairy.id, { title: 'The dairy' })
 
-    expect(await readStoredPaths(payload, dairy.id)).toEqual({ en: '/dairy', sv: '/mejeri' })
-    expect(await readStoredPaths(payload, churn.id)).toEqual({ en: '/dairy/churn', sv: '/mejeri/churn' })
+    expect(await readStoredPaths(payload, 'pages', dairy.id)).toEqual({ en: '/dairy', sv: '/mejeri' })
+    expect(await readStoredPaths(payload, 'pages', churn.id)).toEqual({ en: '/dairy/churn', sv: '/mejeri/churn' })
     expect(changes).toEqual([[{ collection: 'pages', from: '/dairy', id: dairy.id, locale: 'en', to: '/dairy' }]])
   })
 
@@ -586,7 +586,7 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
       select: { title: true }
     })
 
-    expect(await readStoredPaths(payload, icehouse.id)).toEqual({ en: '/icehouse', sv: '/icehouse' })
+    expect(await readStoredPaths(payload, 'pages', icehouse.id)).toEqual({ en: '/icehouse', sv: '/icehouse' })
     expect(changes).toEqual([[{ collection: 'pages', from: '/icehouse', id: icehouse.id, locale: 'en', to: '/icehouse' }]])
   })
 
@@ -612,13 +612,11 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
     const lounge = await create(payload, 'notices', { slug: 'lounge', title: 'Lounge' })
     const menu = await create(payload, 'notices', { parent: lounge.id, slug: 'menu', title: 'Menu' })
     await update(payload, 'notices', menu.id, { slug: 'meny', title: 'Meny' }, inSwedish)
-    const readMenuPaths = async () =>
-      (await payload.db.findOne<{ id: Id; path: unknown }>({ collection: 'notices', where: { id: { equals: menu.id } } }))?.path
-    expect(await readMenuPaths()).toEqual({ en: '/lounge/menu', sv: null })
+    expect(await readStoredPaths(payload, 'notices', menu.id)).toEqual({ en: '/lounge/menu', sv: null })
 
     await update(payload, 'notices', lounge.id, { slug: 'salong', title: 'Salong' }, inSwedish)
 
-    expect(await readMenuPaths()).toEqual({ en: '/lounge/menu', sv: '/salong/meny' })
+    expect(await readStoredPaths(payload, 'notices', menu.id)).toEqual({ en: '/lounge/menu', sv: '/salong/meny' })
   })
 
   it('gives the documents below a deleted document of a collection without drafts their path in a locale the deleted document had none in', async () => {
@@ -628,13 +626,11 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
     await update(payload, 'notices', map.id, { slug: 'karta', title: 'Karta' }, inSwedish)
     // Beside it, a document whose paths the lift's statements give it, so they run.
     const desk = await create(payload, 'notices', { parent: lobby.id, slug: 'desk', title: 'Desk' })
-    const readMapPaths = async () =>
-      (await payload.db.findOne<{ id: Id; path: unknown }>({ collection: 'notices', where: { id: { equals: map.id } } }))?.path
-    expect(await readMapPaths()).toEqual({ en: '/lobby/map', sv: null })
+    expect(await readStoredPaths(payload, 'notices', map.id)).toEqual({ en: '/lobby/map', sv: null })
 
     await remove(payload, 'notices', lobby.id)
 
-    expect(await readMapPaths()).toEqual({ en: '/map', sv: '/karta' })
+    expect(await readStoredPaths(payload, 'notices', map.id)).toEqual({ en: '/map', sv: '/karta' })
     expect(await readDocument(payload, 'notices', map.id)).toMatchObject({ ancestors: [], parent: null })
     expect(await readPath(payload, 'notices', desk.id)).toBe('/desk')
   })
@@ -644,13 +640,11 @@ describeEachSetup('', { setups: LOCALIZED_SETUPS }, (test) => {
     const foyer = await create(payload, 'notices', { slug: 'foyer', title: 'Foyer' })
     await update(payload, 'notices', foyer.id, { slug: 'entre', title: 'Entré' }, inSwedish)
     const coats = await create(payload, 'notices', { parent: foyer.id, slug: 'coats', title: 'Coats' })
-    const readCoatsPaths = async () =>
-      (await payload.db.findOne<{ id: Id; path: unknown }>({ collection: 'notices', where: { id: { equals: coats.id } } }))?.path
-    expect(await readCoatsPaths()).toEqual({ en: '/foyer/coats' })
+    expect(await readStoredPaths(payload, 'notices', coats.id)).toEqual({ en: '/foyer/coats' })
 
     await update(payload, 'notices', foyer.id, { slug: { en: 'lobby', sv: 'lobbyn' } }, { locale: 'all' })
 
-    expect(await readCoatsPaths()).toEqual({ en: '/lobby/coats' })
+    expect(await readStoredPaths(payload, 'notices', coats.id)).toEqual({ en: '/lobby/coats' })
   })
 })
 
@@ -676,7 +670,7 @@ describeEachSetup(
 
       await update(payload, 'pages', about.id, { slug: 'om-oss' }, inSwedish)
 
-      expect(await readStoredPaths(payload, about.id)).toEqual({ en: '/about', nb: '/about', sv: '/om-oss' })
+      expect(await readStoredPaths(payload, 'pages', about.id)).toEqual({ en: '/about', nb: '/about', sv: '/om-oss' })
     })
 
     it('makes the path of a locale without a slug or a fallbackLocale from the first locale listed with a slug', async () => {
@@ -685,7 +679,7 @@ describeEachSetup(
 
       await update(payload, 'pages', contact.id, { slug: 'kontakt' }, { locale: 'nb' })
 
-      expect(await readStoredPaths(payload, contact.id)).toEqual({ en: '/contact', nb: '/kontakt', sv: '/kontakt' })
+      expect(await readStoredPaths(payload, 'pages', contact.id)).toEqual({ en: '/contact', nb: '/kontakt', sv: '/kontakt' })
     })
   }
 )

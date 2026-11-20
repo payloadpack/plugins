@@ -14,7 +14,6 @@ import {
   update
 } from './support/documents.js'
 import { holdRow, isRowFree, refuseWritesOf, waitForRowWait } from './support/raw-access.js'
-import { SETUPS } from './support/setups.js'
 
 describeEachSetup('', {}, (test, setup) => {
   it('leaves every path, ancestor and version as it was when a move fails at one of its writes', async () => {
@@ -74,6 +73,135 @@ describeEachSetup('', {}, (test, setup) => {
       })
 
       expect(queries.filter(({ parallel }) => parallel)).toEqual([])
+    })
+  }
+
+  // Two saves in one branch at once wait for each other's rows, and must not each hold a row the other
+  // waits for. Step by step on Postgres with transactions: a statement of the test holds a row of the
+  // branch, so a rename of the page at the top waits for it, and another connection then tries to lock
+  // a row the rename may hold. Payload's write of a document holds its row so that the foreign key
+  // check of another save that names it as an ancestor waits, so the move takes its rows before it.
+  // Holding a row so that a write waits for it is Postgres's, and without transactions nothing is held.
+  if (setup.database === 'postgres') {
+    it("lets the foreign key check of another save through to the renamed page's row while the rename waits", async () => {
+      const { payload } = test
+      const ridge = await create(payload, 'pages', { slug: 'ridge', title: 'Ridge' })
+      const slope = await create(payload, 'pages', { parent: ridge.id, slug: 'slope', title: 'Slope' })
+      const cairn = await create(payload, 'pages', { parent: slope.id, slug: 'cairn', title: 'Cairn' })
+      const letGo = await holdRow(payload, setup, 'pages', cairn.id)
+
+      const rename = update(payload, 'pages', ridge.id, { slug: 'crest' })
+      const renameWaited = await waitForRowWait(payload)
+      const ridgeRowIsFree = await isRowFree(payload, setup, 'pages', ridge.id, 'KEY SHARE')
+      await letGo()
+      await rename
+
+      expect({
+        cairn: await readPath(payload, 'pages', cairn.id),
+        renameWaited,
+        ridgeRowIsFree,
+        slope: await readPath(payload, 'pages', slope.id)
+      }).toEqual({ cairn: '/crest/slope/cairn', renameWaited: true, ridgeRowIsFree: true, slope: '/crest/slope' })
+    })
+
+    // A save that waits for a move above it to end finds its document moved, and its statements must
+    // replace the start the rows below have now, or every row below gets a write of its own. The save
+    // above stays open in a transaction of the test until the save below waits for it.
+    it.each([
+      { name: 'a rename below a rename', kind: 'rename' },
+      { name: 'a move below a move', kind: 'move' }
+    ] as const)(
+      'moves the documents below $name that waited for the one above with the same statements for 30 below as for 3',
+      async ({ kind }) => {
+        const { payload } = test
+        // Atlas, harbor and quay at the top level, a branch below atlas and rows below the branch. Atlas
+        // is saved, the branch is saved while atlas's save holds the branch, and the statements of the
+        // branch's save are returned, once each row is where its slug and parent put it.
+        const readStatementsOfSaveThatWaited = async (size: number) => {
+          const prefix = `${kind}-${size}`
+          const [atlas, harbor, quay] = await Promise.all(
+            ['atlas', 'harbor', 'quay'].map(
+              async (top) => (await create(payload, 'pages', { slug: `${prefix}-${top}`, title: top })).id
+            )
+          )
+          const branch = (await create(payload, 'pages', { parent: atlas, slug: 'branch', title: 'Branch' })).id
+          const rows = await Promise.all(
+            Array.from(
+              { length: size },
+              async (_, number) => (await create(payload, 'pages', { parent: branch, slug: `row-${number}`, title: 'Row' })).id
+            )
+          )
+          const { above, ancestors, below, path } =
+            kind === 'rename'
+              ? {
+                  above: { slug: `${prefix}-atlas-renamed` },
+                  ancestors: [atlas, branch],
+                  below: { slug: 'branch-renamed' },
+                  path: `/${prefix}-atlas-renamed/branch-renamed`
+                }
+              : { above: { parent: harbor }, ancestors: [quay, branch], below: { parent: quay }, path: `/${prefix}-quay/branch` }
+          const req = await createPayloadRequest({ payload })
+          await initTransaction(req)
+          onTestFinished(() => killTransaction(req))
+          await update(payload, 'pages', atlas!, above, { req })
+
+          let saveWaited = false
+          const queries = await test.countQueries(async () => {
+            const save = update(payload, 'pages', branch, below)
+            saveWaited = await waitForRowWait(payload)
+            await commitTransaction(req)
+            await save
+          })
+
+          expect(saveWaited).toBe(true)
+          for (const draft of [false, true]) {
+            expect(await readDocument(payload, 'pages', branch, { draft })).toMatchObject({
+              ancestors: ancestors.slice(0, -1),
+              path
+            })
+            for (const [number, row] of rows.entries()) {
+              expect(await readDocument(payload, 'pages', row, { draft })).toMatchObject({
+                ancestors,
+                path: `${path}/row-${number}`
+              })
+            }
+          }
+          // What waitForRowWait asks, and the commit of atlas's save, are no statements of the save.
+          return queries
+            .filter(({ operation, sql }) => operation !== 'commit' && !sql?.text.includes('pg_stat_activity'))
+            .map(({ collection, operation }) => `${operation} ${collection}`)
+        }
+
+        expect(await readStatementsOfSaveThatWaited(30)).toEqual(await readStatementsOfSaveThatWaited(3))
+      }
+    )
+
+    it('holds no row below the row the rename of a page waits for', async () => {
+      const { payload } = test
+      const delta = await create(payload, 'pages', { slug: 'delta', title: 'Delta' })
+      const channel = await create(payload, 'pages', { parent: delta.id, slug: 'channel', title: 'Channel' })
+      const islets = await Promise.all(
+        Array.from(
+          { length: 30 },
+          async (_, number) =>
+            (await create(payload, 'pages', { parent: channel.id, slug: `islet-${number}`, title: 'Islet' })).id
+        )
+      )
+      const letGo = await holdRow(payload, setup, 'pages', channel.id)
+
+      const rename = update(payload, 'pages', delta.id, { slug: 'estuary' })
+      const renameWaited = await waitForRowWait(payload)
+      const heldIslets: Id[] = []
+      for (const islet of islets) if (!(await isRowFree(payload, setup, 'pages', islet, 'NO KEY UPDATE'))) heldIslets.push(islet)
+      await letGo()
+      await rename
+
+      const isletPaths = await Promise.all(islets.map((islet) => readPath(payload, 'pages', islet)))
+      expect({ heldIslets, isletPaths, renameWaited }).toEqual({
+        heldIslets: [],
+        isletPaths: islets.map((_, number) => `/estuary/channel/islet-${number}`),
+        renameWaited: true
+      })
     })
   }
 })
@@ -298,131 +426,3 @@ for (const transactions of [true, false]) {
     }
   )
 }
-
-// Two saves in one branch at once wait for each other's rows, and must not each hold a row the other
-// waits for. Step by step on Postgres with transactions: a statement of the test holds a row of the
-// branch, so a rename of the page at the top waits for it, and another connection then tries to lock
-// a row the rename may hold. Payload's write of a document holds its row so that the foreign key
-// check of another save that names it as an ancestor waits, so the move takes its rows before it.
-// Holding a row so that a write waits for it is Postgres's, and without transactions nothing is held.
-describeEachSetup(
-  'a move that waits for a row of its branch, transactions on',
-  { setups: SETUPS.filter(({ database }) => database === 'postgres') },
-  (test, setup) => {
-    it("lets the foreign key check of another save through to the renamed page's row while the rename waits", async () => {
-      const { payload } = test
-      const ridge = await create(payload, 'pages', { slug: 'ridge', title: 'Ridge' })
-      const slope = await create(payload, 'pages', { parent: ridge.id, slug: 'slope', title: 'Slope' })
-      const cairn = await create(payload, 'pages', { parent: slope.id, slug: 'cairn', title: 'Cairn' })
-      const letGo = await holdRow(payload, setup, 'pages', cairn.id)
-
-      const rename = update(payload, 'pages', ridge.id, { slug: 'crest' })
-      const renameWaited = await waitForRowWait(payload)
-      const ridgeRowIsFree = await isRowFree(payload, setup, 'pages', ridge.id, 'KEY SHARE')
-      await letGo()
-      await rename
-
-      expect({
-        cairn: await readPath(payload, 'pages', cairn.id),
-        renameWaited,
-        ridgeRowIsFree,
-        slope: await readPath(payload, 'pages', slope.id)
-      }).toEqual({ cairn: '/crest/slope/cairn', renameWaited: true, ridgeRowIsFree: true, slope: '/crest/slope' })
-    })
-
-    // A save that waits for a move above it to end finds its document moved, and its statements must
-    // replace the start the rows below have now, or every row below gets a write of its own. The save
-    // above stays open in a transaction of the test until the save below waits for it.
-    it.each([
-      { name: 'a rename below a rename', kind: 'rename' },
-      { name: 'a move below a move', kind: 'move' }
-    ] as const)(
-      'moves the documents below $name that waited for the one above with the same statements for 30 below as for 3',
-      async ({ kind }) => {
-        const { payload } = test
-        // Atlas, harbor and quay at the top level, a branch below atlas and rows below the branch. Atlas
-        // is saved, the branch is saved while atlas's save holds the branch, and the statements of the
-        // branch's save are returned, once each row is where its slug and parent put it.
-        const readStatementsOfSaveThatWaited = async (size: number) => {
-          const prefix = `${kind}-${size}`
-          const [atlas, harbor, quay] = await Promise.all(
-            ['atlas', 'harbor', 'quay'].map(
-              async (top) => (await create(payload, 'pages', { slug: `${prefix}-${top}`, title: top })).id
-            )
-          )
-          const branch = (await create(payload, 'pages', { parent: atlas, slug: 'branch', title: 'Branch' })).id
-          const rows: Id[] = []
-          for (let number = 0; number < size; number++) {
-            rows.push((await create(payload, 'pages', { parent: branch, slug: `row-${number}`, title: 'Row' })).id)
-          }
-          const { above, ancestors, below, path } =
-            kind === 'rename'
-              ? {
-                  above: { slug: `${prefix}-atlas-renamed` },
-                  ancestors: [atlas, branch],
-                  below: { slug: 'branch-renamed' },
-                  path: `/${prefix}-atlas-renamed/branch-renamed`
-                }
-              : { above: { parent: harbor }, ancestors: [quay, branch], below: { parent: quay }, path: `/${prefix}-quay/branch` }
-          const req = await createPayloadRequest({ payload })
-          await initTransaction(req)
-          onTestFinished(() => killTransaction(req))
-          await update(payload, 'pages', atlas!, above, { req })
-
-          let saveWaited = false
-          const queries = await test.countQueries(async () => {
-            const save = update(payload, 'pages', branch, below)
-            saveWaited = await waitForRowWait(payload)
-            await commitTransaction(req)
-            await save
-          })
-
-          expect(saveWaited).toBe(true)
-          for (const draft of [false, true]) {
-            expect(await readDocument(payload, 'pages', branch, { draft })).toMatchObject({
-              ancestors: ancestors.slice(0, -1),
-              path
-            })
-            for (const [number, row] of rows.entries()) {
-              expect(await readDocument(payload, 'pages', row, { draft })).toMatchObject({
-                ancestors,
-                path: `${path}/row-${number}`
-              })
-            }
-          }
-          // What waitForRowWait asks, and the commit of atlas's save, are no statements of the save.
-          return queries
-            .filter(({ operation, sql }) => operation !== 'commit' && !sql?.text.includes('pg_stat_activity'))
-            .map(({ collection, operation }) => `${operation} ${collection}`)
-        }
-
-        expect(await readStatementsOfSaveThatWaited(30)).toEqual(await readStatementsOfSaveThatWaited(3))
-      }
-    )
-
-    it('holds no row below the row the rename of a page waits for', async () => {
-      const { payload } = test
-      const delta = await create(payload, 'pages', { slug: 'delta', title: 'Delta' })
-      const channel = await create(payload, 'pages', { parent: delta.id, slug: 'channel', title: 'Channel' })
-      const islets: Id[] = []
-      for (let number = 0; number < 30; number++) {
-        islets.push((await create(payload, 'pages', { parent: channel.id, slug: `islet-${number}`, title: 'Islet' })).id)
-      }
-      const letGo = await holdRow(payload, setup, 'pages', channel.id)
-
-      const rename = update(payload, 'pages', delta.id, { slug: 'estuary' })
-      const renameWaited = await waitForRowWait(payload)
-      const heldIslets: Id[] = []
-      for (const islet of islets) if (!(await isRowFree(payload, setup, 'pages', islet, 'NO KEY UPDATE'))) heldIslets.push(islet)
-      await letGo()
-      await rename
-
-      const isletPaths = await Promise.all(islets.map((islet) => readPath(payload, 'pages', islet)))
-      expect({ heldIslets, isletPaths, renameWaited }).toEqual({
-        heldIslets: [],
-        isletPaths: islets.map((_, number) => `/estuary/channel/islet-${number}`),
-        renameWaited: true
-      })
-    })
-  }
-)

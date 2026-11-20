@@ -129,11 +129,11 @@ describeEachSetup(
 // A site's own slugify that keeps a slug as it is typed, so a slug can hold the two characters a
 // pattern of SQL matches other text with, and a letter outside the basic plane, which JavaScript
 // counts as two characters and each database as one.
-const asTyped: Slugify = ({ valueToSlugify }) => (typeof valueToSlugify === 'string' ? valueToSlugify : undefined)
+const slugifyAsTyped: Slugify = ({ valueToSlugify }) => (typeof valueToSlugify === 'string' ? valueToSlugify : undefined)
 
 describeEachSetup(
   'with slugs that a pattern or a count of characters could take for others',
-  { boot: { options: { slugify: asTyped } } },
+  { boot: { options: { slugify: slugifyAsTyped } } },
   (test, setup) => {
     it('gives the documents below a renamed document their new paths', async () => {
       const { payload } = test

@@ -173,14 +173,18 @@ describeEachSetup('', { boot: GUIDES }, (test, setup) => {
     })
     // Stored through the database adapter without a slug and without a path field at all, which an
     // update pipeline on MongoDB would give an empty object of locales.
-    const stored = await store(test, setup, 'pages', { ancestors: [reception.id], parent: reception.id, title: 'Untitled' })
-    const before = await readRows(payload, 'pages', [draft, stored])
+    const pageWithoutPathField = await store(test, setup, 'pages', {
+      ancestors: [reception.id],
+      parent: reception.id,
+      title: 'Untitled'
+    })
+    const before = await readRows(payload, 'pages', [draft, pageWithoutPathField])
     expect(before.documents).toMatchObject([{ ancestors: [reception.id] }, { ancestors: [reception.id] }])
 
     await update(payload, 'pages', reception.id, { slug: 'front-desk' })
 
     expect(await readPath(payload, 'pages', desk.id)).toBe('/front-desk/desk')
-    expect(await readRows(payload, 'pages', [draft, stored])).toEqual(before)
+    expect(await readRows(payload, 'pages', [draft, pageWithoutPathField])).toEqual(before)
   })
 
   it('refuses a document without a path as a parent, until it has one', async () => {

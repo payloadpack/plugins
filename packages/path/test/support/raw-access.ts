@@ -5,7 +5,7 @@ import type { SQLiteAdapter } from '@payloadcms/db-sqlite'
 import { sql as sqliteSql } from '@payloadcms/db-sqlite/drizzle'
 import type { Payload, PayloadRequest } from 'payload'
 
-import type { Query } from './adapters.js'
+import { ADAPTER_SQL, type Query } from './adapters.js'
 import type { TestPayload } from './boot-payload.js'
 import type { Setup } from './setups.js'
 
@@ -13,6 +13,10 @@ import type { Setup } from './setups.js'
 const mongodbOf = (payload: Payload) => (payload.db as unknown as MongooseAdapter).connection.getClient().db()
 const postgresOf = (payload: Payload) => payload.db as unknown as PostgresAdapter
 const sqliteOf = (payload: Payload) => payload.db as unknown as SQLiteAdapter
+
+// MongoDB keeps an id as an ObjectId or as the number or text a site chose, and a test knows it as
+// text, so a field is compared to an id as text.
+const fieldHoldsId = (field: string, id: number | string) => ({ $eq: [{ $toString: `$${field}` }, String(id)] })
 
 type IndexRow = { definition: string; table: string }
 
@@ -89,7 +93,7 @@ export async function refuseWritesOf(
     const name = versions ? `_${collection}_versions` : collection
     // Every other document, and this one while it keeps the ancestors it stores now.
     const keepsAncestors = async (id: number | string) => {
-      const isDocument = { $eq: [{ $toString: '$_id' }, String(id)] }
+      const isDocument = fieldHoldsId('_id', id)
       const { ancestors } = (await db.collection(name).findOne({ $expr: isDocument }))!
       return { $or: [{ $expr: { $not: [isDocument] } }, { ancestors: { $eq: ancestors } }] }
     }
@@ -98,7 +102,7 @@ export async function refuseWritesOf(
         ? { [`${versions ? 'version.' : ''}path${setup.localized ? '.en' : ''}`]: { $ne: refused.path } }
         : 'ancestorsOf' in refused
           ? await keepsAncestors(refused.ancestorsOf)
-          : { $expr: { $ne: [{ $toString: '$_id' }, String(refused.id)] } }
+          : { $expr: { $not: [fieldHoldsId('_id', refused.id)] } }
     await db.command({ collMod: name, validator })
     try {
       return await work()
@@ -164,9 +168,8 @@ export async function readStoredParentAndAncestors(
 ) {
   if (setup.database === 'mongodb') {
     const db = mongodbOf(payload)
-    const isOf = (field: string) => ({ $expr: { $eq: [{ $toString: `$${field}` }, String(id)] } })
-    const document = await db.collection(collection).findOne(isOf('_id'))
-    const version = await db.collection(`_${collection}_versions`).findOne({ latest: true, ...isOf('parent') })
+    const document = await db.collection(collection).findOne({ $expr: fieldHoldsId('_id', id) })
+    const version = await db.collection(`_${collection}_versions`).findOne({ $expr: fieldHoldsId('parent', id), latest: true })
     return {
       document: { ancestors: document?.ancestors, parent: document?.parent },
       version: { ancestors: version?.version.ancestors, parent: version?.version.parent }
@@ -178,8 +181,8 @@ export async function readStoredParentAndAncestors(
   )
   const idKey = `${collection}ID`
   // The same statements on both, each in the drizzle its adapter brings.
-  const sql = setup.database === 'postgres' ? postgresSql : (sqliteSql as unknown as typeof postgresSql)
-  const latest = sql`SELECT ${versions.id} FROM ${versions} WHERE ${versions.parent} = ${id} AND ${versions.latest} = ${true}`
+  const sql = ADAPTER_SQL[setup.database] as typeof postgresSql
+  const latestVersionId = sql`SELECT ${versions.id} FROM ${versions} WHERE ${versions.parent} = ${id} AND ${versions.latest} = ${true}`
   const readIds = async (statement: ReturnType<typeof postgresSql>) =>
     setup.database === 'postgres'
       ? (await postgresOf(payload).drizzle.execute<{ id: unknown }>(statement)).rows.map((row) => row.id)
@@ -196,21 +199,20 @@ export async function readStoredParentAndAncestors(
     version: {
       ancestors: await readIds(
         sql`SELECT ${versionRels[idKey]} AS id FROM ${versionRels}
-          WHERE ${versionRels.path} = ${'version.ancestors'} AND ${versionRels.parent} IN (${latest})
+          WHERE ${versionRels.path} = ${'version.ancestors'} AND ${versionRels.parent} IN (${latestVersionId})
           ORDER BY ${versionRels.order}`
       ),
       parent: (
-        await readIds(sql`SELECT ${versions.version_parent} AS id FROM ${versions} WHERE ${versions.id} IN (${latest})`)
+        await readIds(sql`SELECT ${versions.version_parent} AS id FROM ${versions} WHERE ${versions.id} IN (${latestVersionId})`)
       )[0]
     }
   }
 }
 
-// MongoDB keeps an id as an ObjectId or as the number or text a site chose, and a test knows it as text.
 const setOnMongodb = (payload: Payload, collection: string, id: number | string, values: Record<string, unknown>) =>
   mongodbOf(payload)
     .collection(collection)
-    .updateOne({ $expr: { $eq: [{ $toString: '$_id' }, String(id)] } }, { $set: values })
+    .updateOne({ $expr: fieldHoldsId('_id', id) }, { $set: values })
 
 /**
  * Stores a row's updatedAt as text that Payload didn't write, as an import or another tool may: on
@@ -250,6 +252,29 @@ export async function holdTable(payload: Payload, collection: string, req: Paylo
 }
 
 /**
+ * Locks a document's row of a collection on Postgres in a transaction with a lock clause, such as FOR
+ * NO KEY UPDATE, and in a localized setup its row of English in the table of locales too, the rows
+ * holdRow holds and isRowFree tries.
+ */
+async function lockRows(
+  payload: Payload,
+  { localized }: Setup,
+  tx: Pick<PostgresAdapter['drizzle'], 'execute'>,
+  collection: string,
+  id: number | string,
+  lockClause: string
+) {
+  const { tables } = postgresOf(payload)
+  const lock = postgresSql.raw(lockClause)
+  await tx.execute(postgresSql`SELECT id FROM ${tables[collection]} WHERE id = ${id} ${lock}`)
+  if (localized) {
+    await tx.execute(
+      postgresSql`SELECT id FROM ${tables[`${collection}_locales`]} WHERE _parent_id = ${id} AND _locale = 'en' ${lock}`
+    )
+  }
+}
+
+/**
  * Holds a document's row of a collection on Postgres in a transaction of its own, so a write of it
  * waits, until the returned function lets it go. In a localized setup it holds the document's row of
  * English in the collection's table of locales too, which is where a move's statement writes the path
@@ -262,7 +287,7 @@ export async function holdTable(payload: Payload, collection: string, req: Paylo
  */
 export async function holdRow(
   payload: Payload,
-  { localized }: Setup,
+  setup: Setup,
   collection: string,
   id: number | string,
   { savedTitle }: { savedTitle?: string } = {}
@@ -274,16 +299,13 @@ export async function holdRow(
   let held = () => {}
   const holding = new Promise<void>((resolve) => (held = resolve))
   const transaction = drizzle.transaction(async (tx) => {
-    await tx.execute(postgresSql`SELECT id FROM ${row} WHERE id = ${id} FOR NO KEY UPDATE`)
-    if (localized) {
-      await tx.execute(postgresSql`SELECT id FROM ${locales} WHERE _parent_id = ${id} AND _locale = 'en' FOR NO KEY UPDATE`)
-    }
+    await lockRows(payload, setup, tx, collection, id, 'FOR NO KEY UPDATE')
     held()
     await lettingGo
     if (savedTitle === undefined) return
     await tx.execute(postgresSql`UPDATE ${row} SET updated_at = clock_timestamp() WHERE id = ${id}`)
     await tx.execute(
-      localized
+      setup.localized
         ? postgresSql`UPDATE ${locales} SET title = ${savedTitle} WHERE _parent_id = ${id} AND _locale = 'en'`
         : postgresSql`UPDATE ${row} SET title = ${savedTitle} WHERE id = ${id}`
     )
@@ -302,19 +324,13 @@ export async function holdRow(
  */
 export async function isRowFree(
   payload: Payload,
-  { localized }: Setup,
+  setup: Setup,
   collection: string,
   id: number | string,
   mode: 'KEY SHARE' | 'NO KEY UPDATE'
 ) {
-  const { drizzle, tables } = postgresOf(payload)
-  const [row, locales] = [tables[collection], tables[`${collection}_locales`]]
-  const lock = postgresSql.raw(`FOR ${mode} NOWAIT`)
   try {
-    await drizzle.transaction(async (tx) => {
-      await tx.execute(postgresSql`SELECT id FROM ${row} WHERE id = ${id} ${lock}`)
-      if (localized) await tx.execute(postgresSql`SELECT id FROM ${locales} WHERE _parent_id = ${id} AND _locale = 'en' ${lock}`)
-    })
+    await postgresOf(payload).drizzle.transaction((tx) => lockRows(payload, setup, tx, collection, id, `FOR ${mode} NOWAIT`))
     return true
   } catch (error) {
     // Postgres refuses a lock NOWAIT can't take at once with lock_not_available.

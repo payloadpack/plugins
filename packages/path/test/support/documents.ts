@@ -94,37 +94,36 @@ export async function store(
   return id as Id
 }
 
+// Stores values in a document's row through the database adapter, so no hook runs and the row keeps
+// every other value.
+async function storeInRow(payload: Payload, collection: CollectionSlug, id: Id, values: Record<string, unknown>) {
+  const row = await payload.db.findOne({ collection, where: { id: { equals: id } } })
+  await payload.db.updateOne({ collection, data: { ...row, ...values }, id })
+}
+
 /**
  * Stores a path that nothing the plugin writes leaves behind in a document's row, in every locale,
  * through the database adapter, so no hook runs and the row keeps every other value. A move gives
  * such a row its path with a write of its own, where its statements can't.
  */
-export async function storeStrayPath(payload: Payload, { localized }: Setup, collection: CollectionSlug, id: Id, path: string) {
-  const stored = await payload.db.findOne({ collection, where: { id: { equals: id } } })
+export function storeStrayPath(payload: Payload, { localized }: Setup, collection: CollectionSlug, id: Id, path: string) {
   const paths = localized ? Object.fromEntries(LOCALES.map((locale) => [locale, path])) : path
-  await payload.db.updateOne({ collection, data: { ...stored, path: paths }, id })
+  return storeInRow(payload, collection, id, { path: paths })
 }
 
 // Stores a parent that disagrees with a document's ancestors in its row, as storeStrayPath stores a path.
-export async function storeStrayParent(payload: Payload, collection: CollectionSlug, id: Id, parent: Id) {
-  const stored = await payload.db.findOne({ collection, where: { id: { equals: id } } })
-  await payload.db.updateOne({ collection, data: { ...stored, parent }, id })
+export function storeStrayParent(payload: Payload, collection: CollectionSlug, id: Id, parent: Id) {
+  return storeInRow(payload, collection, id, { parent })
 }
 
 // Stores ancestors that nothing the plugin writes leaves behind in a document's latest version,
 // through the database adapter, so no hook runs and the version keeps every other value.
 export async function storeStrayDraftAncestors(payload: Payload, collection: CollectionSlug, id: Id, ancestors: Id[]) {
-  const { docs } = await payload.db.findVersions<Document>({
-    collection,
-    limit: 1,
-    pagination: false,
-    where: { and: [{ parent: { equals: id } }, { latest: { equals: true } }] }
-  })
-  const latest = docs[0]!
+  const latestVersion = await findLatestVersionRow(payload, collection, id)
   await payload.db.updateVersion({
     collection,
-    id: latest.id,
-    versionData: { ...latest, version: { ...latest.version, ancestors } }
+    id: latestVersion.id,
+    versionData: { ...latestVersion, version: { ...latestVersion.version, ancestors } }
   })
 }
 
@@ -189,24 +188,28 @@ export async function restoreVersion(
   return payload.restoreVersion({ collection, draft, id: docs[version]!.id, locale, overrideAccess: true })
 }
 
-// A document's latest version as the database holds it, with every locale's values.
-export async function readLatestVersion(payload: Payload, collection: CollectionSlug, id: Id) {
+// The where that finds a document's latest version among its versions.
+const whereLatestVersion = (id: Id): Where => ({ and: [{ parent: { equals: id } }, { latest: { equals: true } }] })
+
+// The row of a document's latest version as the database holds it, with every locale's values.
+async function findLatestVersionRow(payload: Payload, collection: CollectionSlug, id: Id) {
   const { docs } = await payload.db.findVersions<Document>({
     collection,
     limit: 1,
     pagination: false,
-    where: { and: [{ parent: { equals: id } }, { latest: { equals: true } }] }
+    where: whereLatestVersion(id)
   })
-  return docs[0]!.version
+  return docs[0]!
+}
+
+// A document's latest version as the database holds it, with every locale's values.
+export async function readLatestVersion(payload: Payload, collection: CollectionSlug, id: Id) {
+  return (await findLatestVersionRow(payload, collection, id)).version
 }
 
 // How many latest versions a document has.
 export async function countLatestVersions(payload: Payload, collection: CollectionSlug, id: Id) {
-  const { docs } = await payload.db.findVersions({
-    collection,
-    pagination: false,
-    where: { and: [{ parent: { equals: id } }, { latest: { equals: true } }] }
-  })
+  const { docs } = await payload.db.findVersions({ collection, pagination: false, where: whereLatestVersion(id) })
   return docs.length
 }
 
