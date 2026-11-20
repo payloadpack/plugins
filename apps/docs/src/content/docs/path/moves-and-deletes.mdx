@@ -1,6 +1,6 @@
 ---
 title: Moves and deletes
-description: A renamed or moved document brings its branch along. The documents below a deleted one move up a level.
+description: Renaming or moving a document moves its whole branch. Deleting a document lifts the documents below it up one level.
 ---
 
 import PathChange from '../../../components/path/PathChange.astro'
@@ -47,9 +47,9 @@ import PathTree from '../../../components/path/PathTree.astro'
 
 ## Moves
 
-- A new slug or parent moves the whole branch, latest versions too. A branch stays in one collection, so a move only writes to that collection.
-- Before it writes anything, the plugin checks every new path in the branch. It [refuses](/path/refusals/#taken-paths) the move if one is taken or reserved, but never for its size. [Speed](/path/speed/) shows how long a branch of 1,000 pages takes.
-- A draft of a published document moves nothing until it is published. See [Drafts](/path/drafts/).
+- Changing a slug or parent updates the entire branch, including latest versions. Because a branch stays in one collection, a move only writes to that collection.
+- Every new path in the branch is checked before writing. If any is taken or reserved, the move is [refused](/path/refusals/#taken-paths). There is no branch size limit ([Speed](/path/speed/) shows timings for a 1,000-page branch).
+- Saving a draft on a published document moves nothing until it is published. See [Drafts](/path/drafts/).
 
 ## Deletes
 
@@ -64,6 +64,8 @@ import PathTree from '../../../components/path/PathTree.astro'
           {
             title: 'Team',
             path: '/company/team',
+            state: 'removed',
+            note: 'deleting',
             documents: [{ title: 'People', path: '/company/team/people' }]
           }
         ]
@@ -83,21 +85,20 @@ import PathTree from '../../../components/path/PathTree.astro'
   />
 </PathDiagram>
 
-- A delete lifts the documents right below it one level, to its parent or to the top level of the collection.
-- The plugin [refuses](/path/refusals/) the delete, and nothing moves, if a lifted document would land on a taken path, a reserved slug or `/`.
-- With Payload's `trash`, nothing is lifted until the document is deleted for good. A document in the trash takes no path, so another document can take its path. Then taking the first one out of the trash is refused.
+- Deleting a document lifts the documents right below it up one level — to its parent, or to the top level of the collection.
+- If a lifted document would land on a taken path, a reserved slug, or `/`, the delete is [refused](/path/refusals/) and nothing moves.
+- **With Payload's `trash`**: Sending a document to the trash frees its path without lifting documents below it. Another document can take that path — if it does, restoring the trashed document is refused. Documents below lift only when it is permanently deleted.
+- In a collection with `parent: false`, documents have no parents, so deletes lift nothing.
 
 :::caution[With Payload's hierarchy]
-If the collection had documents with parents before you added the plugin, run [`backfillPaths`](/path/api/backfill-paths/) once before you delete anything in it. Until then, a delete also deletes the documents right below, as Payload does without the plugin. With `parent: false` as well, it always does.
+If a collection with Payload's hierarchy already had documents with parents before you added the plugin, run [`backfillPaths`](/path/api/backfill-paths/) once before deleting anything. Until then, a delete also deletes the documents right below (Payload's default behavior). If you also set `parent: false` on a hierarchy collection, Payload's default behavior always applies.
 :::
-
-<details>
-<summary>Good to know</summary>
-
-In a collection with `parent: false`, no document sits below another, so a delete lifts nothing.
-
-</details>
 
 ## A move that stops halfway
 
-With transactions, a failed move or delete leaves everything as it was. Without them, which is SQLite's default, some documents keep their old paths until you run [`backfillPaths`](/path/api/backfill-paths/). [Limits](/path/limits/) lists what else a save during a move, or a database without transactions, can leave.
+| Database setup                  | If a move or delete fails halfway                                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------- |
+| With transactions               | Everything rolls back — nothing changes                                                        |
+| Without them (SQLite's default) | Some documents keep their old paths until you run [`backfillPaths`](/path/api/backfill-paths/) |
+
+See [Limits](/path/limits/) for what else concurrent saves or databases without transactions can leave behind.

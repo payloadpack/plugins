@@ -1,6 +1,6 @@
 ---
 title: backfillPaths
-description: Give your existing documents their paths. When to run it, how to run it and what a run does.
+description: Populate paths and ancestors for existing documents — when to run it, how to run it, and what it changes.
 ---
 
 import { Steps } from '@astrojs/starlight/components'
@@ -11,11 +11,11 @@ import { backfillPaths } from '@payloadpack/path'
 const { left, unchanged, updated } = await backfillPaths({ payload })
 ```
 
-| Argument      | What it is                                                                         | Default     |
-| ------------- | ---------------------------------------------------------------------------------- | ----------- |
-| `payload`     | Your Payload instance                                                              |             |
-| `collections` | Which of the plugin's collections to go through                                    | All of them |
-| `req`         | A request whose transaction the run joins, such as a [migration's](#how-to-run-it) | none        |
+| Argument      | Purpose                                                                                 | Default                    |
+| ------------- | --------------------------------------------------------------------------------------- | -------------------------- |
+| `payload`     | Your Payload instance                                                                   | Required                   |
+| `collections` | Subset of configured collections to backfill                                            | All configured collections |
+| `req`         | Request whose transaction the run should join (such as a [migration's](#how-to-run-it)) | None                       |
 
 ## What it returns
 
@@ -23,20 +23,26 @@ const { left, unchanged, updated } = await backfillPaths({ payload })
 {
   updated: 12,
   unchanged: 3480,
-  left: [{ collection: 'pages', id: '…', refusal: 'Give this document a slug, or a title to make one from.' }]
+  left: [
+    {
+      collection: 'pages',
+      id: '…',
+      refusal: 'Give this document a slug, or a title to make one from.'
+    }
+  ]
 }
 ```
 
-- `updated`: how many documents got a new path or new ancestors, in the document or its latest version.
-- `unchanged`: how many documents already had the right ones.
-- `left`: each document it didn't change, with the message a save would get, or the message that names the other document at its path. You need to change each one before the next run can give it a path.
+- **`updated`:** Documents that got a new path or new ancestors (in the document or its latest version).
+- **`unchanged`:** Documents that already had the right path and ancestors.
+- **`left`:** Documents left untouched, each with its refusal message (or naming the other document at its path). Fix each one before re-running.
 
 <details>
-<summary>Good to know</summary>
+<summary>What ends up in left</summary>
 
-- It doesn't make up slugs. A document without one is left with the [refusal](/path/refusals/#slug-and-parent) a save would get, and so is every document below it.
-- If two documents ended up [at the same path](/path/paths/#one-document-per-path), both are left, each with the message that names the other. Give one of them another slug or parent, and the next run lists neither.
-- If `collections` names a collection the plugin wasn't given, it throws:
+- Never invents slugs. A document without a slug is left with the [refusal](/path/refusals/#slug-and-parent) a save would get, along with every document below it.
+- If two documents ended up [at the same path](/path/paths/#one-document-per-path), both are left — each naming the other. Change one document's slug or parent and re-run.
+- Passing a collection not given to `pathPlugin()` throws:
 
   > @payloadpack/path was asked for collections that pathPlugin() wasn't given: notices.
 
@@ -44,23 +50,23 @@ const { left, unchanged, updated } = await backfillPaths({ payload })
 
 ## When to run it
 
-| When                                                                                                  | Why                                                                                                  |
-| ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Once, after you add the plugin to a site that already has documents                                   | They were saved before the plugin, so they have no path yet and `findByPath` can't find them         |
-| After you add a collection that already has documents to the plugin                                   | The same, for that collection. Pass `collections: ['posts']` to run on that one only                 |
-| After documents were written without Payload's hooks, such as an import that writes with `payload.db` | Nothing gave them a path. An import that saves with `payload.create` needs no run                    |
-| After you add or remove `localized: true` on a collection that has documents                          | Once your migration has copied the slugs. See [Languages](/path/languages/#one-path-in-every-locale) |
-| When [Limits](/path/limits/) says so                                                                  | A move that stopped halfway without transactions, or a document that stayed at its old path          |
+| Situation                                                                         | Why                                                                                                                |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Once, after adding the plugin to a site with existing documents                   | Existing documents have no stored path yet, so `findByPath` won't find them                                        |
+| After adding an existing collection to `pathPlugin`                               | Same — pass `collections: ['posts']` to backfill only that collection                                              |
+| After bypassing Payload hooks (e.g. an import writing directly with `payload.db`) | Hooks didn't run to set paths. Imports using `payload.create` don't need a backfill                                |
+| After adding or removing `localized: true` on a collection with documents         | Once your migration has copied slugs (see [Languages](/path/languages/#switching-a-collection-that-has-documents)) |
+| After a rare event listed in [Limits](/path/limits/)                              | A move that stopped halfway without transactions, or a stale path after concurrent moves                           |
 
-- It is not part of a build or a deploy. A site that saves its documents through Payload doesn't need it again after the first run.
-- If a collection with Payload's hierarchy already has documents with parents, run it before you delete anything in it. See [Moves and deletes](/path/moves-and-deletes/#deletes).
-- An unneeded run does no harm, and a second run writes nothing.
+- Not part of builds or deploys — normal saves keep paths updated after the initial run.
+- In a collection with Payload's hierarchy that already has documents with parents, run it once before deleting anything ([Moves and deletes](/path/moves-and-deletes/#deletes)).
+- Safe to run anytime: a second run writes nothing.
 
 ## How to run it
 
 <Steps>
 
-1. Put it in a script. It is a function, not a command.
+1. **Create a script** (`backfillPaths` is a function, not a CLI command).
 
    ```ts title="scripts/backfill-paths.ts"
    import config from '@payload-config'
@@ -74,17 +80,19 @@ const { left, unchanged, updated } = await backfillPaths({ payload })
    process.exit(0)
    ```
 
-2. Run it. Your site can stay up while it runs. An edit saved before the run reaches that document is kept.
+2. **Run it.** Your site can stay live — edits saved before the run reaches a document are kept.
 
    ```sh
    bunx payload run scripts/backfill-paths.ts
    ```
 
-3. Make the change each message in `left` asks for, and run it again.
+3. **Fix any `left` items** as described in their refusal messages, then run it again.
 
 </Steps>
 
-In a migration, pass the migration's `req`. The run then joins the migration's transaction and is undone with it:
+### Inside a migration
+
+Pass the migration's `req` so the backfill joins the migration's transaction (and rolls back with it if anything fails):
 
 ```ts title="migrations/backfill-paths.ts"
 import type { MigrateUpArgs } from '@payloadcms/db-postgres'
@@ -95,12 +103,14 @@ export async function up({ payload, req }: MigrateUpArgs): Promise<void> {
 }
 ```
 
-Without `req`, the run would wait for the migration forever on Postgres, and fail on SQLite. A migration that changed a table locks it until the migration is done.
+:::caution
+Always pass `req` inside a migration. Without it, a migration that altered a table holds a lock on that table — causing `backfillPaths` to hang on Postgres and fail on SQLite.
+:::
 
 ## What a run does
 
-| It does                                                                  | It doesn't                                                                                                                          |
-| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Give every document the path its slug and its parent make, parents first | Make a new version or run the collection's hooks                                                                                    |
-| Write only what differs, in the document and in its latest version       | Call [`onPathsChanged`](/path/api/on-paths-changed/#what-is-yours-to-purge), so purge your cache after a run that updated documents |
-| Write each document on its own, so a run that stopped can be run again   | Move a published document to its draft's new slug or parent, which stays a pending move                                             |
+| Does                                                                     | Doesn't                                                                                                                       |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Compute every document's path and ancestors, parents first               | Create a new version or run collection hooks                                                                                  |
+| Write only what differs, in the document and its latest version          | Call [`onPathsChanged`](/path/api/on-paths-changed/#what-else-to-purge) — purge your cache after a run that updated documents |
+| Write each document on its own, so an interrupted run can resume cleanly | Apply a pending draft move on a published document (it stays pending)                                                         |

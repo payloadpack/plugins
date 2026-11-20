@@ -7,6 +7,7 @@ export interface PathTreeDocument {
   // The part of the path to point out, such as the document's own slug or the part a move changed.
   mark?: string
   note?: string
+  state?: 'pending' | 'refused' | 'removed'
   documents?: PathTreeDocument[]
 }
 
@@ -34,7 +35,7 @@ function splitPath({ basePath, mark, path }: PathTreeDocument) {
         const parts = splitPath(document)
         return (
           <li>
-            <span class="path-tree-document">
+            <span class:list={['path-tree-document', document.state && `path-tree-document-${document.state}`]}>
               <span class="path-tree-title">{document.title}</span>
               <span class="path-tree-path">
                 {parts.base && <span class="path-tree-base">{parts.base}</span>}
@@ -159,5 +160,32 @@ function splitPath({ basePath, mark, path }: PathTreeDocument) {
     font-size: 0.6875rem;
     font-weight: 500;
     color: var(--docs-muted-foreground);
+  }
+
+  .path-tree-document-removed {
+    border-style: dashed;
+    opacity: 0.65;
+  }
+
+  .path-tree-document-removed .path-tree-path {
+    text-decoration: line-through;
+  }
+
+  .path-tree-document-pending {
+    border-style: dashed;
+  }
+
+  .path-tree-document-refused {
+    border-color: color-mix(in oklab, #ef4444 45%, var(--docs-border));
+    background: color-mix(in oklab, #ef4444 8%, var(--sl-color-bg));
+  }
+
+  .path-tree-document-refused .path-tree-note {
+    border-color: color-mix(in oklab, #ef4444 40%, var(--docs-border));
+    color: #f87171;
+  }
+
+  :global(:root[data-theme='light']) .path-tree-document-refused .path-tree-note {
+    color: #dc2626;
   }
 </style>

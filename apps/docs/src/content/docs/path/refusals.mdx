@@ -1,0 +1,65 @@
+---
+title: Refusals
+description: Every message an editor can see when the plugin refuses a save, move, or delete — and why it happens.
+---
+
+import PathDiagram from '../../../components/path/PathDiagram.astro'
+import RefusalBox from '../../../components/path/RefusalBox.astro'
+
+<PathDiagram caption="Where a refusal appears in the admin form." layout="columns">
+  <RefusalBox
+    heading="Problem with the parent"
+    field="Parent"
+    value="Home"
+    message="The home page can't hold pages, so pick another parent."
+  />
+  <RefusalBox
+    heading="Anything else (or Payload's hierarchy)"
+    field="Slug"
+    value="plan-a"
+    message='Page "Plan A" is already at this path, so change the slug or the parent.'
+  />
+</PathDiagram>
+
+Refusals happen before anything is written. Every message uses your collections' labels and names both what's in the way and what to change.
+
+## Slug and parent
+
+| Message                                                    | When                                                                           |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Give this document a slug, or a title to make one from.    | No slug or title on publish, or on any save in a collection without drafts     |
+| The parent doesn't exist, so pick another one.             | Parent was deleted while editing, or belongs to another collection             |
+| The parent has no path yet, so save the parent first.      | Parent is a draft without a slug, or hasn't been saved since adding the plugin |
+| A document can't sit below itself, so pick another parent. | Parent is the document itself, or a document below it                          |
+
+## Taken paths
+
+| Message                                                                   | When                                                                 |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Page "Plan A" is already at this path, so change the slug or the parent.  | Another document is at this path (any collection, any status)        |
+| Post "Press" is already at /press, so change the slug or the parent.      | A move or delete would put a document below on a taken path          |
+| Page "Shop" is already at /butik in sv, so change the slug or the parent. | A locale falling back to the changed slug would land on a taken path |
+
+## Reserved slugs
+
+| Message                                                                                    | When                                                                                      |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| The site serves the CMS at /admin, so pick another slug or a parent.                       | First segment is in `root` with a reason (e.g. `admin: 'the CMS'`)                        |
+| The site serves the admin panel at /admin, so pick another slug or a parent.               | No `root` is set, so Payload's admin (`the admin panel`) and API (`the API`) are reserved |
+| The site serves something else at /shop, so pick another slug or a parent.                 | First segment is in `root`, passed as a string list                                       |
+| A path can't hold -, which starts the page and filters of a listing, so pick another slug. | Segment anywhere in the path is in `anyDepth` with a reason                               |
+| A path can't hold -, so pick another slug.                                                 | Segment anywhere in the path is in `anyDepth`, passed as a string list                    |
+
+See [Reserved slugs](/path/configuration/#reserved-slugs) to configure these.
+
+## Home page
+
+| Message                                                                      | When                                                           |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| The home page can't hold pages, so pick another parent.                      | Selected parent is the home page                               |
+| The home page can't hold pages, so move the ones under this page first.      | Saving would make a page with documents below it the home page |
+| Page "Start home" would become the home page at /, so change its slug first. | Deleting a parent would lift a document with `rootSlug` to `/` |
+
+## Bulk updates
+
+Bulk updates and bulk deletes handle each document on its own. Refused documents are listed in the operation's `errors` while the rest succeed. See [Limits](/path/limits/#bulk-updates).

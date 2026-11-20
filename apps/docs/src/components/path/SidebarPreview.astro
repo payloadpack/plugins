@@ -1,0 +1,163 @@
+---
+// Minimal visual preview of the fields @payloadpack/path adds to a collection's sidebar.
+interface Props {
+  caption?: string
+  parent?: string
+  path?: string
+  slug?: string
+}
+
+const {
+  caption = 'Added to the document sidebar. An indexed ancestors field is also stored for the API and hidden in the admin.',
+  parent = 'About',
+  path = '/about/team',
+  slug = 'team'
+} = Astro.props
+---
+
+<figure class="sidebar-preview">
+  <div class="sidebar-preview-card not-content">
+    <p class="sidebar-preview-title">Document sidebar</p>
+    <div class="sidebar-preview-fields">
+      <div class="sidebar-preview-field">
+        <span class="sidebar-preview-label">Parent <span class="sidebar-preview-meta">relationship</span></span>
+        <span class="sidebar-preview-control">
+          <span>{parent}</span>
+          <svg
+            class="sidebar-preview-chevron"
+            aria-hidden="true"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </span>
+      </div>
+      <div class="sidebar-preview-field">
+        <span class="sidebar-preview-label">
+          Slug <span class="sidebar-preview-meta">locked · refresh from title</span>
+        </span>
+        <span class="sidebar-preview-control sidebar-preview-mono">
+          <span>{slug}</span>
+          <span class="sidebar-preview-actions" aria-hidden="true">
+            <span class="sidebar-preview-tag">Unlock</span>
+          </span>
+        </span>
+      </div>
+      <div class="sidebar-preview-field">
+        <span class="sidebar-preview-label">Path <span class="sidebar-preview-meta">read-only · indexed</span></span>
+        <span class="sidebar-preview-control sidebar-preview-control-readonly sidebar-preview-mono">
+          <span class="docs-brand-gradient-text sidebar-preview-path">{path}</span>
+        </span>
+      </div>
+    </div>
+  </div>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .sidebar-preview {
+    margin-block: 1.5rem;
+  }
+
+  .sidebar-preview:first-child {
+    margin-block-start: 0;
+  }
+
+  .sidebar-preview-card {
+    max-width: 24rem;
+    padding: 1rem 1.125rem;
+    border: 1px solid var(--docs-border);
+    border-radius: 0.75rem;
+    background: var(--docs-card);
+  }
+
+  .sidebar-preview-title {
+    margin: 0 0 0.75rem;
+    font-family: var(--sl-font-mono);
+    font-size: 0.75rem;
+    color: var(--docs-muted-foreground);
+  }
+
+  .sidebar-preview-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .sidebar-preview-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .sidebar-preview-label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--docs-foreground);
+  }
+
+  .sidebar-preview-meta {
+    font-weight: 400;
+    color: var(--docs-muted-foreground);
+  }
+
+  .sidebar-preview-control {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.4375rem 0.625rem;
+    border: 1px solid var(--docs-border);
+    border-radius: 0.5rem;
+    background: var(--sl-color-bg);
+    font-size: 0.8125rem;
+    color: var(--docs-foreground);
+  }
+
+  .sidebar-preview-control-readonly {
+    background: color-mix(in oklab, var(--docs-secondary) 65%, transparent);
+  }
+
+  .sidebar-preview-mono {
+    font-family: var(--sl-font-mono);
+  }
+
+  .sidebar-preview-chevron {
+    flex-shrink: 0;
+    color: var(--docs-muted-foreground);
+  }
+
+  .sidebar-preview-tag {
+    padding: 0.0625rem 0.4375rem;
+    border: 1px solid var(--docs-border);
+    border-radius: 0.3125rem;
+    font-family: var(--sl-font);
+    font-size: 0.6875rem;
+    color: var(--docs-muted-foreground);
+  }
+
+  .sidebar-preview-path {
+    font-weight: 600;
+  }
+
+  :global(:root[data-theme='light']) .sidebar-preview-path {
+    background: none;
+    color: #059669;
+  }
+
+  figcaption {
+    margin-block-start: 0.5rem;
+    font-size: var(--sl-text-sm);
+    color: var(--docs-muted-foreground);
+  }
+</style>
