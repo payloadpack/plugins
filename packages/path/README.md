@@ -65,13 +65,13 @@ With transactions, a save, move or delete that fails leaves everything as it was
 
 ## Configure
 
-| Key                | What it sets                                                                                               | Default                                       |
-| ------------------ | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `collections`      | The collections whose documents get a path, each by its slug or as `{ slug, basePath, parent, localized }` |                                               |
-| `rootSlug`         | The slug that makes a top-level document the home page at `/`                                              | `home`                                        |
-| `reservedSegments` | Segments your site serves itself, at the root or at any depth, as a list or each with why                  | Payload's admin and API routes                |
-| `slugify`          | What makes a slug from a title and from what an editor types, as in Payload's own slug field               | Accents off Latin letters, other scripts kept |
-| `onPathsChanged`   | A function that hears which paths changed, so you can purge your cache and keep your redirects             | none                                          |
+| Key                | What it sets                                                                                                                                      | Default                                       |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `collections`      | The collections whose documents get a path, each by its slug or as `{ slug, basePath, parent, localized }`, beside the ones wrapped in `withPath` | none                                          |
+| `rootSlug`         | The slug that makes a top-level document the home page at `/`                                                                                     | `home`                                        |
+| `reservedSegments` | Segments your site serves itself, at the root or at any depth, as a list or each with why                                                         | Payload's admin and API routes                |
+| `slugify`          | What makes a slug from a title and from what an editor types, as in Payload's own slug field                                                      | Accents off Latin letters, other scripts kept |
+| `onPathsChanged`   | A function that hears which paths changed, so you can purge your cache and keep your redirects                                                    | none                                          |
 
 A collection given as `{ slug: 'posts', basePath: '/blog' }` puts its top-level documents below `/blog`, as in `/blog/hello-world`. The base path is optional, and a path still belongs to one document across all your collections.
 
@@ -82,6 +82,19 @@ Each collection decides where a document's parent comes from:
 - With Payload's own `hierarchy` on the collection, the plugin uses Payload's parent and you keep Payload's tree in the admin. There is nothing to set in the plugin for it.
 
 A collection also takes `slugField` and `parentField`, which set Payload's own field options such as `access` on the plugin's fields, for example so that only a save in the default locale changes a slug.
+
+A collection can also keep these settings in its own config, wrapped in `withPath`, which takes the same keys without `slug`. The plugin still has to be in `plugins`, and it adds the fields when it runs:
+
+```ts
+import { pathPlugin, withPath } from '@payloadpack/path'
+
+const posts = withPath({ slug: 'posts', fields: [] }, { basePath: '/blog', parent: false })
+
+export default buildConfig({
+  collections: [posts],
+  plugins: [pathPlugin()]
+})
+```
 
 Every option and every message an editor can meet are in the [docs](https://docs.payloadpack.com/path/configuration/).
 

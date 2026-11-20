@@ -1,6 +1,6 @@
 ---
 title: Configuration
-description: Only collections is required. Each collection can have a base path, a path per locale, or no parent.
+description: Give a collection its path in the plugin's options or in its own config. Each collection can have a base path, a path per locale, or no parent.
 ---
 
 import { TabItem, Tabs } from '@astrojs/starlight/components'
@@ -29,13 +29,13 @@ pathPlugin({
 })
 ```
 
-| Option             | Purpose                                                                                                                               | Default                                                 |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `collections`      | [Collections](#collections) that get a path. Pass a slug string or `{ slug, basePath, parent, localized, slugField, parentField }`    | Required                                                |
-| `rootSlug`         | Top-level slug used for the [home page](#home-page) (`/`)                                                                             | `'home'`                                                |
-| `reservedSegments` | [Slugs your site reserves](#reserved-slugs), as a string list or `{ segment: reason }`                                                | Payload's admin and API routes                          |
-| `slugify`          | Builds [a slug](/path/paths/#the-slug) from a title or input (also for the refresh button). Same signature as Payload's; may be async | Removes accents from Latin letters, keeps other scripts |
-| `onPathsChanged`   | Callback that receives [changed published paths](/path/api/on-paths-changed/)                                                         | None                                                    |
+| Option             | Purpose                                                                                                                                                                                                            | Default                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| `collections`      | [Collections](#collections) that get a path. Pass a slug string or `{ slug, basePath, parent, localized, slugField, parentField }`, or wrap the collection in [`withPath`](#in-the-collections-own-config) instead | None                                                    |
+| `rootSlug`         | Top-level slug used for the [home page](#home-page) (`/`)                                                                                                                                                          | `'home'`                                                |
+| `reservedSegments` | [Slugs your site reserves](#reserved-slugs), as a string list or `{ segment: reason }`                                                                                                                             | Payload's admin and API routes                          |
+| `slugify`          | Builds [a slug](/path/paths/#the-slug) from a title or input (also for the refresh button). Same signature as Payload's; may be async                                                                              | Removes accents from Latin letters, keeps other scripts |
+| `onPathsChanged`   | Callback that receives [changed published paths](/path/api/on-paths-changed/)                                                                                                                                      | None                                                    |
 
 ## Collections
 
@@ -60,6 +60,29 @@ pathPlugin({
 
 - With `basePath: '/blog'`, a top-level post lives at `/blog/my-post`. Because a base path is not a document, a page can still live at `/blog`.
 - Parents always come from the same collection (a post can't sit below a page). Paths are still unique across **all** collections.
+
+### In the collection's own config
+
+{/* prettier-ignore */}
+```ts title="collections/posts.ts"
+import { withPath } from '@payloadpack/path'
+
+export const posts = withPath(
+  { slug: 'posts', fields: [{ name: 'title', type: 'text' }] },
+  { basePath: '/blog', parent: false }
+)
+```
+
+```ts title="payload.config.ts"
+export default buildConfig({
+  collections: [pages, posts],
+  plugins: [pathPlugin()]
+})
+```
+
+- `withPath` takes the same keys as an object in `collections`, without `slug`, so a collection's path settings can sit next to the rest of its config.
+- `withPath` on its own adds nothing. `pathPlugin` adds the fields and hooks when it runs, so it still has to be in `plugins`, after any plugin that adds a wrapped collection.
+- You can wrap some collections and list others in `collections`, but give each collection once. With none listed and none wrapped, `pathPlugin` leaves the config as it is.
 
 ### The parent
 
@@ -277,13 +300,13 @@ The plugin uses `defaultSlugify` when `slugify` isn't set. Wrap it to run your o
 
 Invalid options stop Payload while building the config with one of these messages:
 
-| Message                                                                                                                 | Fix                                                                       |
-| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| @payloadpack/path was given collections the config doesn't have: posts.                                                 | Fix the collection slug, or place `pathPlugin` after the plugin adding it |
-| @payloadpack/path was given pages more than once, so list each collection once.                                         | List each collection once (with its options object if needed)             |
-| @payloadpack/path adds slug to pages, so remove its own.                                                                | Remove or rename the collection's own field                               |
-| @payloadpack/path adds no parent field to posts, so leave out its parentField.                                          | Remove `parentField` — only the plugin's own `parent` field uses it       |
-| @payloadpack/path was given the base path blog for posts, which doesn't start with a slash, so start it with one.       | Change to `/blog`                                                         |
-| @payloadpack/path was given the base path /blog/ for posts, which ends with a slash, so remove that slash.              | Change to `/blog`                                                         |
-| @payloadpack/path was given the base path /blog//news for posts, which has an empty segment, so remove the extra slash. | Change to `/blog/news`                                                    |
-| @payloadpack/path was given the base path / for posts, which is the root already, so leave basePath out.                | Remove `basePath`, or set a segment like `/blog`                          |
+| Message                                                                                                                 | Fix                                                                                                   |
+| ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| @payloadpack/path was given collections the config doesn't have: posts.                                                 | Fix the collection slug, or place `pathPlugin` after the plugin adding it                             |
+| @payloadpack/path was given pages more than once, so give each collection once, in collections or with withPath.        | List the collection once in `collections`, or wrap it in `withPath` and leave it out of `collections` |
+| @payloadpack/path adds slug to pages, so remove its own.                                                                | Remove or rename the collection's own field                                                           |
+| @payloadpack/path adds no parent field to posts, so leave out its parentField.                                          | Remove `parentField` — only the plugin's own `parent` field uses it                                   |
+| @payloadpack/path was given the base path blog for posts, which doesn't start with a slash, so start it with one.       | Change to `/blog`                                                                                     |
+| @payloadpack/path was given the base path /blog/ for posts, which ends with a slash, so remove that slash.              | Change to `/blog`                                                                                     |
+| @payloadpack/path was given the base path /blog//news for posts, which has an empty segment, so remove the extra slash. | Change to `/blog/news`                                                                                |
+| @payloadpack/path was given the base path / for posts, which is the root already, so leave basePath out.                | Remove `basePath`, or set a segment like `/blog`                                                      |

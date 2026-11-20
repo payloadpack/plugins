@@ -52,6 +52,7 @@ What the package does, as its owner confirmed it. Build to this list, and ask hi
 - It works with transactions and without.
   - With them, a failed save, move or delete leaves everything as it was.
   - Without them, a move that stops halfway is put right by `backfillPaths`.
+- A site gives a collection its path in the plugin's `collections`, or by wrapping it in `withPath` in its own config.
 - `findByPath` finds the document at a path in one indexed query per collection.
 - `onPathsChanged` hears every published path that changed, and where each document moved from and to.
 - `backfillPaths` gives the documents a site already has their paths.

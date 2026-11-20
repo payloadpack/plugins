@@ -12,7 +12,7 @@ import {
 import { generateTypes } from 'payload/node'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { pathPlugin, type PathCollection } from '../src/index.js'
+import { pathPlugin, withPath, type PathCollection, type PathCollectionOptions } from '../src/index.js'
 
 const collection = (slug: string, fields: CollectionConfig['fields'] = []): CollectionConfig => ({ slug, fields })
 
@@ -38,12 +38,33 @@ describe('pathPlugin', () => {
     ).rejects.toThrow("@payloadpack/path was given collections the config doesn't have: posts.")
   })
 
-  it('refuses a collection it is given more than once', async () => {
-    await expect(
-      configWith([collection('pages'), collection('posts')], {
-        collections: ['pages', 'posts', { basePath: '/pages', slug: 'pages' }]
-      })
-    ).rejects.toThrow('@payloadpack/path was given pages more than once, so list each collection once.')
+  it.each<[string, CollectionConfig, PathCollection[]]>([
+    ['twice in collections', collection('pages'), ['pages', 'posts', { basePath: '/pages', slug: 'pages' }]],
+    ['in collections and with withPath', withPath(collection('pages')), ['pages', 'posts']]
+  ])('refuses a collection it is given %s', async (_label, pages, collections) => {
+    await expect(configWith([pages, collection('posts')], { collections })).rejects.toThrow(
+      '@payloadpack/path was given pages more than once, so give each collection once, in collections or with withPath.'
+    )
+  })
+
+  it('leaves the config as it is without a collection, in collections or wrapped in withPath', async () => {
+    const config = { collections: [collection('pages')], secret: 'path-tests' } as Config
+
+    expect(await pathPlugin()(config)).toBe(config)
+  })
+
+  it('gives a collection wrapped in withPath the fields its options set', async () => {
+    const posts = withPath(collection('posts'), { localized: true, parent: false, slugField: { label: 'URL segment' } })
+    const config = await configWith([posts], {}, { defaultLocale: 'en', locales: ['en', 'sv'] })
+
+    expect(fieldsOf(config, 'posts')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'URL segment', localized: true, name: 'slug' }),
+        expect.objectContaining({ localized: true, name: 'path' })
+      ])
+    )
+    expect(fieldNamesOf(config, 'posts')).not.toContain('parent')
+    expect(fieldNamesOf(config, 'posts')).not.toContain('ancestors')
   })
 
   it('refuses a collection with a field of its own named like one it adds', async () => {
@@ -153,8 +174,8 @@ describe('pathPlugin', () => {
     expect(slugOf('posts')).toMatchObject({ admin: { components: { Field: component(undefined) } }, custom: { slugify } })
   })
 
-  const fieldsGiven = async (given: Omit<Extract<PathCollection, { slug: string }>, 'slug'>) => {
-    const config = await configWith([collection('pages')], { collections: [{ ...given, slug: 'pages' } as PathCollection] })
+  const fieldsGiven = async (given: PathCollectionOptions) => {
+    const config = await configWith([collection('pages')], { collections: [{ ...given, slug: 'pages' }] })
     const find = (name: string) => fieldsOf(config, 'pages').find((field) => field.name === name)
     return { parent: find('parent') as RelationshipField, slug: find('slug') as TextField }
   }
@@ -253,12 +274,12 @@ describe('pathPlugin', () => {
   })
 
   // PathCollectionSlug reads them there, so findByPath without collections is typed to these ones.
-  it('names its collections in the types payload generate:types writes', async () => {
+  it('names its collections, in collections or with withPath, in the types payload generate:types writes', async () => {
     const config = await buildConfig({
-      collections: [collection('pages'), collection('posts'), collection('media')],
+      collections: [collection('pages'), withPath(collection('posts')), collection('media')],
       // An adapter only for the id type the types use: nothing connects to it.
       db: sqliteAdapter({ client: { url: 'file::memory:' } }),
-      plugins: [pathPlugin({ collections: ['pages', 'posts'] })],
+      plugins: [pathPlugin({ collections: ['pages'] })],
       secret: 'path-tests'
     })
     const { types } = await generateTypes(config, { log: false, returnString: true })

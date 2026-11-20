@@ -1,5 +1,5 @@
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
-import { pathPlugin } from '@payloadpack/path'
+import { pathPlugin, withPath } from '@payloadpack/path'
 import path from 'path'
 import { buildConfig, type CollectionConfig } from 'payload'
 import { fileURLToPath } from 'url'
@@ -33,7 +33,13 @@ export default buildConfig({
     page('pages', 'Page', 'Pages'),
     page('posts', 'Post', 'Posts'),
     // Payload's own hierarchy gives a topic its parent, which an editor picks with the button in the header.
-    { ...page('topics', 'Topic', 'Topics'), hierarchy: true }
+    // Topics get their path in their own config, with withPath, where pages and posts are listed in
+    // pathPlugin(). A topic has one slug and one path, the same in every locale, and keeps the slug it
+    // got in English: its slug field's access lets no save in Swedish change it.
+    withPath(
+      { ...page('topics', 'Topic', 'Topics'), hierarchy: true },
+      { basePath: '/topics', slugField: { access: { update: ({ req }) => req.locale !== 'sv' } } }
+    )
   ],
   // scripts/with-database.ts names the database; a build connects to none.
   db: mongooseAdapter({
@@ -51,14 +57,11 @@ export default buildConfig({
   onInit: seed,
   plugins: [
     pathPlugin({
-      // A page sits below a page by the plugin's own parent, a post has no parent, and a topic sits
-      // below a topic by the parent of Payload's hierarchy. With localization, a page and a post have
-      // a slug and a path per locale, and a topic has one slug and one path, the same in every locale.
-      // A topic keeps the slug it got in English: its slug field's access lets no save in Swedish change it.
+      // A page sits below a page by the plugin's own parent, and a post has no parent. With
+      // localization, a page and a post have a slug and a path per locale.
       collections: [
         { localized: true, slug: 'pages' },
-        { basePath: '/blog', localized: true, parent: false, slug: 'posts' },
-        { basePath: '/topics', slug: 'topics', slugField: { access: { update: ({ req }) => req.locale !== 'sv' } } }
+        { basePath: '/blog', localized: true, parent: false, slug: 'posts' }
       ],
       reservedSegments: {
         anyDepth: { '-': 'starts the page and filters of a listing' },

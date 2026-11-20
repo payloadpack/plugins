@@ -111,8 +111,7 @@ export const missingCollectionsError = (collectionSlugs: string[]) =>
   `@payloadpack/path was given collections the config doesn't have: ${collectionSlugs.join(', ')}.`
 
 export const repeatedCollectionsError = (collectionSlugs: string[]) =>
-  `@payloadpack/path was given ${collectionSlugs.join(', ')} more than once, so list each collection once.`
-
+  `@payloadpack/path was given ${collectionSlugs.join(', ')} more than once, so give each collection once, in collections or with withPath.`
 export const takenFieldNamesError = (fieldNames: string[], collectionSlug: string) =>
   `@payloadpack/path adds ${fieldNames.join(' and ')} to ${collectionSlug}, so remove its own.`
 
@@ -123,4 +122,4 @@ export const notGivenCollectionsError = (collectionSlugs: string[]) =>
   `@payloadpack/path was asked for collections that pathPlugin() wasn't given: ${collectionSlugs.join(', ')}.`
 
 export const PLUGIN_MISSING_ERROR =
-  '@payloadpack/path: add pathPlugin() to the Payload config before calling findByPath, findPaths or backfillPaths'
+  '@payloadpack/path: add pathPlugin() to the Payload config, with a collection in collections or wrapped in withPath, before calling findByPath, findPaths or backfillPaths'

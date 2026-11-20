@@ -19,8 +19,8 @@ export default async function SitePage({ params, searchParams }: Props) {
   // Only a logged-in user of the admin sees a draft, for a preview.
   const { user } = await payload.auth({ headers: await headers() })
 
-  // Without `collections`, `found.collection` is one of the collections given to pathPlugin(): pages,
-  // posts or topics. Pass `collections: ['pages', 'posts']` to narrow it further.
+  // Without `collections`, `found.collection` is one of the plugin's collections, in pathPlugin() or
+  // with withPath: pages, posts or topics. Pass `collections: ['pages', 'posts']` to narrow it further.
   const found = await findByPath({
     depth: 1,
     draft: draft === 'true' && user !== null,
