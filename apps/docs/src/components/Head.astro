@@ -1,0 +1,19 @@
+---
+import DefaultHead from '@astrojs/starlight/components/Head.astro'
+
+const currentPackage = Astro.locals.starlightSidebarTopics.topics.find((topic) => topic.isCurrent)?.label ?? ''
+---
+
+<DefaultHead />
+
+<script is:inline define:vars={{ currentPackage }}>
+  if (currentPackage) {
+    document.documentElement.dataset.package = currentPackage
+  } else {
+    delete document.documentElement.dataset.package
+  }
+</script>
+
+<script>
+  import '../scripts/polish'
+</script>

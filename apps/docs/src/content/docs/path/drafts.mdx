@@ -1,13 +1,13 @@
 ---
 title: Drafts
-description: A published document stays at its path until its draft is published. A document that isn't published follows its draft at once.
+description: A published document stays at its path until its draft is published. An unpublished document moves immediately.
 ---
 
 import PathChange from '../../../components/path/PathChange.astro'
 import PathDiagram from '../../../components/path/PathDiagram.astro'
 import PathTree from '../../../components/path/PathTree.astro'
 
-<PathDiagram>
+<PathDiagram caption="Published document: a draft edit creates a pending move until published.">
   <PathTree
     label="Published"
     documents={[{ title: 'Harbour', path: '/harbour', documents: [{ title: 'Ferries', path: '/harbour/ferries' }] }]}
@@ -19,6 +19,7 @@ import PathTree from '../../../components/path/PathTree.astro'
       {
         title: 'Harbour',
         path: '/harbour',
+        state: 'pending',
         note: 'pending move to /port',
         documents: [{ title: 'Ferries', path: '/harbour/ferries' }]
       }
@@ -38,30 +39,32 @@ import PathTree from '../../../components/path/PathTree.astro'
   />
 </PathDiagram>
 
+<PathDiagram caption="Unpublished document: draft edits move the document and its branch immediately.">
+  <PathTree label="Draft (never published)" documents={[{ title: 'Plans', path: '/plans' }]} />
+  <PathChange>Slug changed from `plans` to `roadmap`, saved as a draft</PathChange>
+  <PathTree label="Draft saved" documents={[{ title: 'Plans', path: '/roadmap', mark: '/roadmap' }]} />
+</PathDiagram>
+
 ## When a document moves
 
-| An editor or your code                                               | The document's path                        |
-| -------------------------------------------------------------------- | ------------------------------------------ |
-| Saves a draft with a new slug or parent, on a published document     | Stays, with a pending move                 |
-| Saves a draft with a new slug or parent, on one that isn't published | Moves at once, with the documents below it |
-| Publishes the draft                                                  | Moves to the draft's path                  |
-| Unpublishes the document                                             | Moves to the latest draft's path           |
-| Updates it through the API without `draft`                           | Moves to the latest draft's path           |
-| Restores a version                                                   | Gets the path from its parent and slug     |
+| Action                                                   | What happens to the path                   |
+| -------------------------------------------------------- | ------------------------------------------ |
+| Save a draft with a new slug or parent (published doc)   | Stays at current path, with a pending move |
+| Save a draft with a new slug or parent (unpublished doc) | Moves immediately, along with its branch   |
+| Publish the draft                                        | Moves to the draft's path                  |
+| Unpublish the document                                   | Moves to the latest draft's path           |
+| Update via the API without `draft: true`                 | Moves to the latest draft's path           |
+| Restore a version                                        | Built from that version's parent and slug  |
 
-- A pending move takes no path until it is published. The sidebar shows the path the document gets when the draft is published.
-- Publishing checks that path again, because another document may be at it by then. Two pending moves can point to the same path. The first one published gets it.
-
-<details>
-<summary>Good to know</summary>
-
-Older versions keep the paths they had.
-
-</details>
+- A pending move doesn't reserve its path. The sidebar shows the path the document will get when published.
+- Publishing checks the path again, in case another document took it in the meantime. Two pending moves can target the same path — the first one published gets it.
+- Older versions keep the paths they had.
 
 ## Autosave
 
-An autosave is checked like any other save. A new document has no slug and no path until an autosave gives it a title. A draft without a slug can't be published.
+- Autosaves run the same path checks as any other save.
+- A new document has no slug or path until an autosave saves a title (or slug).
+- A draft without a slug can't be published.
 
 ## Previews
 
@@ -69,4 +72,4 @@ An autosave is checked like any other save. A new document has no slug and no pa
 const found = await findByPath({ draft: true, path: '/plans', payload })
 ```
 
-`findByPath` returns published documents. With `draft: true` it finds the latest draft at a path.
+`findByPath` returns published documents by default. Pass `draft: true` to find the latest draft at a path.

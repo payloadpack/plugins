@@ -2,7 +2,7 @@
 // What happens between two trees of a PathDiagram, such as a publish or a delete.
 ---
 
-<p class="path-change"><span aria-hidden="true" class="docs-brand-gradient-text">↓</span> <slot /></p>
+<p class="path-change"><span aria-hidden="true">↓</span> <slot /></p>
 
 <style>
   .path-change {
@@ -15,6 +15,7 @@
   }
 
   span {
+    color: var(--docs-accent);
     font-weight: 700;
   }
 </style>

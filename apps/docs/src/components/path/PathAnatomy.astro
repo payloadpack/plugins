@@ -1,0 +1,163 @@
+---
+export interface PathSegment {
+  text: string
+  label?: string
+  kind?: 'base' | 'brand' | 'muted' | 'parent' | 'refused'
+}
+
+export interface PathAnatomyRow {
+  parts: PathSegment[]
+  badge?: string
+  status?: 'ok' | 'refused'
+}
+
+interface Props {
+  caption?: string
+  rows: PathAnatomyRow[]
+}
+
+const { caption, rows } = Astro.props
+---
+
+<figure class="path-anatomy">
+  <div class="path-anatomy-body not-content">
+    {
+      rows.map(({ badge, parts, status }) => (
+        <div class="path-anatomy-row">
+          <div class="path-anatomy-segments">
+            {parts.map(({ kind = 'parent', label, text }) => (
+              <span class:list={['path-anatomy-part', `path-anatomy-part-${kind}`]}>
+                <span class="path-anatomy-text">{text}</span>
+                {label && <span class="path-anatomy-label">{label}</span>}
+              </span>
+            ))}
+          </div>
+          {badge && <span class:list={['path-anatomy-badge', status && `path-anatomy-badge-${status}`]}>{badge}</span>}
+        </div>
+      ))
+    }
+  </div>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .path-anatomy {
+    margin-block: 1.5rem;
+  }
+
+  .path-anatomy:first-child {
+    margin-block-start: 0;
+  }
+
+  .path-anatomy-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.125rem;
+    border: 1px solid var(--docs-border);
+    border-radius: 0.75rem;
+    background: var(--docs-card);
+    box-shadow: var(--docs-shadow-card);
+    overflow-x: auto;
+  }
+
+  .path-anatomy-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    flex-wrap: wrap;
+  }
+
+  .path-anatomy-row + .path-anatomy-row {
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--docs-border);
+  }
+
+  .path-anatomy-segments {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+  }
+
+  .path-anatomy-part {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+
+  .path-anatomy-text {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--docs-border);
+    border-radius: 0.375rem;
+    background: var(--sl-color-bg);
+    font-family: var(--sl-font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.25;
+    color: var(--docs-foreground);
+    white-space: nowrap;
+  }
+
+  .path-anatomy-part-muted .path-anatomy-text {
+    border-color: transparent;
+    background: transparent;
+    padding-inline: 0.25rem;
+    color: var(--docs-muted-foreground);
+  }
+
+  .path-anatomy-part-base .path-anatomy-text {
+    border-style: dashed;
+    border-color: color-mix(in oklab, var(--docs-muted-foreground) 50%, transparent);
+  }
+
+  .path-anatomy-part-brand .path-anatomy-text {
+    border-color: var(--docs-accent-border);
+    background: var(--docs-accent-soft);
+    color: var(--docs-accent);
+    font-weight: 600;
+  }
+
+  .path-anatomy-part-refused .path-anatomy-text {
+    border-color: var(--docs-danger-border);
+    background: var(--docs-danger-soft);
+    color: var(--docs-danger);
+    font-weight: 600;
+  }
+
+  .path-anatomy-label {
+    padding-inline: 0.25rem;
+    font-size: 0.6875rem;
+    color: var(--docs-muted-foreground);
+    white-space: nowrap;
+  }
+
+  .path-anatomy-badge {
+    padding: 0.125rem 0.5rem;
+    border: 1px solid var(--docs-border);
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--docs-muted-foreground);
+    white-space: nowrap;
+  }
+
+  .path-anatomy-badge-ok {
+    border-color: var(--docs-accent-border);
+    background: var(--docs-accent-soft);
+    color: var(--docs-accent);
+  }
+
+  .path-anatomy-badge-refused {
+    border-color: var(--docs-danger-border);
+    background: var(--docs-danger-soft);
+    color: var(--docs-danger);
+  }
+
+  figcaption {
+    margin-block-start: 0.5rem;
+    font-size: var(--sl-text-sm);
+    color: var(--docs-muted-foreground);
+  }
+</style>

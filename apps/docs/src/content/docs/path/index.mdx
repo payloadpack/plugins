@@ -1,9 +1,13 @@
 ---
 title: Introduction
-description: Stored URL paths for Payload 4 pages and posts, built from the parent and slug an editor picks. Your site finds a document by its path in one indexed query.
+description: Stored URL paths for Payload 4 collections, unique across all configured collections and built from each document's parent and slug.
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components'
+import PathDiagram from '../../../components/path/PathDiagram.astro'
+import PathTree from '../../../components/path/PathTree.astro'
+import QueryCompare from '../../../components/path/QueryCompare.astro'
+
+`@payloadpack/path` adds `slug` and an indexed `path` field to the collections you choose. Every path is **unique across all configured collections** — drafts included — and stays updated when editors rename, move, publish, or delete.
 
 ```ts title="payload.config.ts"
 import { pathPlugin } from '@payloadpack/path'
@@ -17,40 +21,51 @@ export default buildConfig({
 import { findByPath } from '@payloadpack/path'
 
 const found = await findByPath({ path: '/about/team', payload })
-// { collection: 'pages', document: { id: '…', title: 'Team', path: '/about/team', … } }
+// {
+//   collection: 'pages',
+//   document: { id: '…', title: 'Team', path: '/about/team', … }
+// }
 ```
 
-- `@payloadpack/path` adds a slug and a stored path to the documents of the collections you name. It keeps every path correct when editors rename, move, publish and delete.
-- A document sits below a parent from its own collection. The plugin's own parent field or Payload's hierarchy stores the parent. A collection such as posts can also have no parents. You choose [per collection](/path/configuration/#collections).
+<PathDiagram
+  caption="Paths are built from each document's parent and slug, after an optional base path — and every path is unique across all collections."
+  layout="columns">
+  <PathTree
+    label="pages"
+    documents={[
+      { title: 'Home', path: '/', mark: '/' },
+      { title: 'About', path: '/about', mark: '/about', documents: [{ title: 'Team', path: '/about/team', mark: '/team' }] }
+    ]}
+  />
+  <PathTree
+    label="posts (basePath: '/blog')"
+    documents={[
+      {
+        title: 'Hello world',
+        path: '/blog/hello-world',
+        basePath: '/blog',
+        mark: '/hello-world'
+      }
+    ]}
+  />
+</PathDiagram>
+
+Each document can sit below a parent from its own collection — using the plugin's `parent` field or Payload's hierarchy — or have no parent at all (like blog posts). Configure this [per collection](/path/configuration/#collections).
 
 ## What you get
 
-<CardGrid>
-  <Card title="A stored path">
-    The parent's path, a slash and the slug, after an optional base path such as `/blog`. Saved on the document and indexed.
-  </Card>
-  <Card title="One document per path">
-    Across all your collections, drafts included. If an editor picks a taken path, the plugin names the document at it.
-  </Card>
-  <Card title="Branches that move along">
-    Rename or move a page or a post, and every document below it moves too, drafts included.
-  </Card>
-  <Card title="A home page and reserved slugs">
-    The top-level page with the slug `home` is at `/`. `/admin` and `/api` stay free for your site.
-  </Card>
-  <Card title="A path per language">
-    A collection has one path for all locales, or one path per locale if you choose. The path never contains the locale.
-  </Card>
-  <Card title="One query per lookup">
-    `findByPath` queries each collection once, on its index. For a reserved path it doesn't query at all.
-  </Card>
-</CardGrid>
+- **Unique across collections:** Every path belongs to one document across all configured collections, drafts included. If an editor picks a taken path, the refusal names the document already there.
+- **Stored and indexed:** Built from the parent's path, a slash, and the slug — after an optional base path like `/blog`. Saved on the document and indexed.
+- **Branches move together:** Rename or move a page or post and every document below it moves too, drafts included.
+- **One query per lookup:** `findByPath` runs one indexed query per collection, and zero queries for a reserved path.
+- **Home page and reserved slugs:** The top-level page with the slug `home` is served at `/`. `/admin` and `/api` stay reserved for your site.
+- **A path per language:** Keep one path across all locales, or give each locale its own path. The locale is never part of the stored path.
 
 ## Why the path is stored
 
-You can find a page from slugs and parents, with one query per segment. Every link your site shows then needs the same steps in reverse. With a stored path, a lookup is one query at any depth, and a link's path is on the document it points to.
+<QueryCompare />
 
-[Speed](/path/speed/) measures both on a MongoDB server on another machine, against the other ways we built and tried, and shows [where the others win](/path/speed/#where-the-others-win).
+[Speed](/path/speed/) measures both on a MongoDB server on another machine against the other ways we built and tried, and shows [where the others win](/path/speed/#where-the-others-win).
 
 ## Requirements
 
@@ -61,4 +76,4 @@ You can find a page from slugs and parents, with one query per segment. Every li
 | Postgres            | `@payloadcms/db-postgres` |
 | SQLite              | `@payloadcms/db-sqlite`   |
 
-The plugin works with database transactions and without them. See [Installation](/path/installation/#transactions).
+Works with and without database transactions. See [Installation](/path/installation/#transactions).

@@ -1,12 +1,29 @@
 ---
 title: Paths
-description: A path is the parent's path, a slash and the slug. It is stored on the document, and each path belongs to one document.
+description: A path is the parent's path, a slash, and the slug. It is stored on the document, and every path belongs to one document.
 ---
 
+import PathAnatomy from '../../../components/path/PathAnatomy.astro'
 import PathDiagram from '../../../components/path/PathDiagram.astro'
 import PathTree from '../../../components/path/PathTree.astro'
+import RefusalBox from '../../../components/path/RefusalBox.astro'
 
-<PathDiagram caption="Each document's own slug is marked. The posts' base path has a dashed line." layout="columns">
+<PathAnatomy
+  rows={[
+    {
+      parts: [
+        { text: '/blog', label: 'basePath (optional)', kind: 'base' },
+        { text: '/hello-world', label: "parent's path" },
+        { text: '/part-two', label: 'slug', kind: 'brand' }
+      ],
+      badge: 'Stored in path'
+    }
+  ]}
+/>
+
+<PathDiagram
+  caption="Each document's own slug is highlighted. The posts collection's basePath has a dashed underline."
+  layout="columns">
   <PathTree
     label="pages"
     documents={[
@@ -15,7 +32,7 @@ import PathTree from '../../../components/path/PathTree.astro'
     ]}
   />
   <PathTree
-    label="posts, with basePath: '/blog'"
+    label="posts (basePath: '/blog')"
     documents={[
       {
         title: 'Hello world',
@@ -28,42 +45,42 @@ import PathTree from '../../../components/path/PathTree.astro'
   />
 </PathDiagram>
 
-- A parent is a document of the same collection. You set [per collection](/path/configuration/#collections) where the parent comes from: the plugin's own field, Payload's hierarchy, or nowhere. A top-level document's path starts at its collection's [base path](/path/configuration/#collections), or at the root.
-- The path is stored on the document and indexed. Only the plugin writes it, and it ignores any value a save sends for it.
-- The top-level page with the slug `home` is the [home page](/path/configuration/#home-page). Its path is `/`.
+- **Same-collection parent**: A document's parent is always in the same collection. Configure [per collection](/path/configuration/#collections) whether it uses the plugin's `parent` field, Payload's hierarchy, or no parent. Top-level documents start at the collection's [base path](/path/configuration/#collections) or `/`.
+- **Read-only & indexed**: `path` is stored on the document and indexed. Only the plugin writes it — any `path` value sent on save is ignored.
+- **Home page**: The top-level page with the slug `home` is the [home page](/path/configuration/#home-page) at `/`.
 
 ## One document per path
 
-> Page "Plan A" is already at this path, so change the slug or the parent.
+<PathDiagram>
+  <RefusalBox
+    heading="Saving a post at /plan-a when a page is already there"
+    field="Slug"
+    value="plan-a"
+    message='Page "Plan A" is already at this path, so change the slug or the parent.'
+  />
+</PathDiagram>
 
-- Each path belongs to one document, across all collections and statuses, drafts included. Only a document in the trash takes no path.
-- The plugin [refuses](/path/refusals/#taken-paths) a taken path with the message above. Two documents can still have the same slug below different parents, such as `/north/contact` and `/south/contact`.
-- A duplicate gets the original's slug plus `-copy`, such as `/about-copy`. If that is taken below the same parent, it gets `-copy-2` and up.
+- **Unique across all collections:** Every path belongs to one document across all configured collections (`pages`, `posts`, etc.) and statuses, drafts included. Documents in the trash don't take a path.
+- Picking a taken path is [refused](/path/refusals/#taken-paths) with the message above. Documents under different parents can share a slug, like `/north/contact` and `/south/contact`.
+- Duplicating a document appends `-copy` (e.g. `/about` → `/about-copy`, or `-copy-2` and up if already taken under the same parent).
 
 <details>
-<summary>Good to know</summary>
+<summary>Concurrent saves</summary>
 
-Each save checks the path before it writes. So two saves of the same path at the same moment can both pass. [Limits](/path/limits/) shows what you see then and what to do.
+Each save checks the path before writing, so two saves of the same path at the exact same instant can both pass. See [Limits](/path/limits/) for what happens and how to fix it.
 
 </details>
 
 ## The slug
 
-| An editor types, or the title is   | The saved slug  |
-| ---------------------------------- | --------------- |
-| `Opening Hours`, as the title only | `opening-hours` |
-| `Summer Sale!`                     | `summer-sale`   |
-| `Vår historia`                     | `var-historia`  |
-| `Новости`                          | `новости`       |
+| Title or typed slug          | Saved slug                 |
+| ---------------------------- | -------------------------- |
+| `Opening Hours` (title only) | `opening-hours`            |
+| `Summer Sale!`               | `summer-sale`              |
+| `Vår historia`               | `var-historia`             |
+| `Новости`                    | `новости`                  |
+| `!!!` (cleaned to empty)     | _(none — counts as empty)_ |
 
-- Every save cleans the slug, with your own [`slugify`](/path/configuration/#slugify) if you set one.
-- A save that clears the slug keeps the old one. A new title never changes it. So a published URL never changes by itself.
-- The field is Payload's own slug field: locked until the editor unlocks it, with a button that makes the slug from the title.
-
-<details>
-<summary>Good to know</summary>
-
-- A typed slug that cleaning leaves empty, such as `!!!`, counts as no slug.
-- A collection without `admin.useAsTitle` has nothing to make a slug from.
-
-</details>
+- Every save cleans the slug (using your [`slugify`](/path/configuration/#slugify) if set).
+- Clearing the slug keeps the current one, and editing the title never changes the slug — published URLs never change on their own.
+- Uses Payload's slug field UI: locked until unlocked, with a button to generate from the title. Collections without `admin.useAsTitle` have no title to generate from.

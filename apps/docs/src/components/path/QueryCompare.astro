@@ -1,0 +1,164 @@
+---
+// Visual comparison of a stored path vs walking slugs and parents query by query.
+---
+
+<figure class="query-compare">
+  <div class="query-compare-grid not-content">
+    <section class="query-compare-card query-compare-card-winner">
+      <p class="query-compare-heading">Stored path <span class="query-compare-pill query-compare-pill-win">@payloadpack/path</span></p>
+      <div class="query-compare-item">
+        <span class="query-compare-label">Find <code>/about/team/people</code></span>
+        <div class="query-compare-steps">
+          <span class="query-compare-step query-compare-step-win"><code>path = '/about/team/people'</code></span>
+          <span class="query-compare-count query-compare-count-win">1 query</span>
+        </div>
+      </div>
+      <div class="query-compare-item">
+        <span class="query-compare-label">Render a link to that page</span>
+        <div class="query-compare-steps">
+          <span class="query-compare-step query-compare-step-win"><code>page.path</code></span>
+          <span class="query-compare-count query-compare-count-win">0 extra queries</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="query-compare-card">
+      <p class="query-compare-heading">Slug by slug <span class="query-compare-pill">Without stored paths</span></p>
+      <div class="query-compare-item">
+        <span class="query-compare-label">Find <code>/about/team/people</code></span>
+        <div class="query-compare-steps">
+          <span class="query-compare-step"><code>about</code></span>
+          <span class="query-compare-arrow" aria-hidden="true">→</span>
+          <span class="query-compare-step"><code>team</code></span>
+          <span class="query-compare-arrow" aria-hidden="true">→</span>
+          <span class="query-compare-step"><code>people</code></span>
+          <span class="query-compare-count">3 queries</span>
+        </div>
+      </div>
+      <div class="query-compare-item">
+        <span class="query-compare-label">Render a link to that page</span>
+        <div class="query-compare-steps">
+          <span class="query-compare-step"><code>people</code></span>
+          <span class="query-compare-arrow" aria-hidden="true">→</span>
+          <span class="query-compare-step"><code>team</code></span>
+          <span class="query-compare-arrow" aria-hidden="true">→</span>
+          <span class="query-compare-step"><code>about</code></span>
+          <span class="query-compare-count">3 queries</span>
+        </div>
+      </div>
+    </section>
+  </div>
+</figure>
+
+<style>
+  .query-compare {
+    margin-block: 1.5rem;
+  }
+
+  .query-compare:first-child {
+    margin-block-start: 0;
+  }
+
+  .query-compare-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+    gap: 1rem;
+  }
+
+  .query-compare-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+    padding: 1rem 1.125rem;
+    border: 1px solid var(--docs-border);
+    border-radius: 0.75rem;
+    background: var(--docs-card);
+    box-shadow: var(--docs-shadow-card);
+  }
+
+  .query-compare-card-winner {
+    border-color: var(--docs-accent-border);
+  }
+
+  .query-compare-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--docs-foreground);
+  }
+
+  .query-compare-pill {
+    padding: 0.125rem 0.4375rem;
+    border: 1px solid var(--docs-border);
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--docs-muted-foreground);
+  }
+
+  .query-compare-pill-win {
+    border-color: var(--docs-accent-border);
+    background: var(--docs-accent-soft);
+    color: var(--docs-accent);
+  }
+
+  .query-compare-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+
+  .query-compare-label {
+    font-size: 0.75rem;
+    color: var(--docs-muted-foreground);
+  }
+
+  .query-compare-label code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.75rem;
+    color: var(--docs-foreground);
+  }
+
+  .query-compare-steps {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.3125rem;
+  }
+
+  .query-compare-step {
+    padding: 0.1875rem 0.4375rem;
+    border: 1px solid var(--docs-border);
+    border-radius: 0.375rem;
+    background: var(--sl-color-bg);
+    font-family: var(--sl-font-mono);
+    font-size: 0.75rem;
+    color: var(--sl-color-gray-2);
+  }
+
+  .query-compare-step-win {
+    border-color: var(--docs-accent-border);
+    color: var(--docs-foreground);
+  }
+
+  .query-compare-arrow {
+    font-size: 0.75rem;
+    color: var(--docs-muted-foreground);
+  }
+
+  .query-compare-count {
+    margin-inline-start: auto;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--docs-muted-foreground);
+    white-space: nowrap;
+  }
+
+  .query-compare-count-win {
+    color: var(--docs-accent);
+  }
+</style>

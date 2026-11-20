@@ -1,8 +1,40 @@
 ---
 import DefaultPageTitle from '@astrojs/starlight/components/PageTitle.astro'
 
-const { description } = Astro.locals.starlightRoute.entry.data
+import { packageMetaByLabel } from '../data/packages'
+
+const { entry, sidebar, siteTitle } = Astro.locals.starlightRoute
+const { description } = entry.data
+const currentPackage = Astro.locals.starlightSidebarTopics.topics.find((topic) => topic.isCurrent)
+const currentMeta = currentPackage ? packageMetaByLabel[currentPackage.label] : undefined
+
+const currentGroup = sidebar.find(
+  (item) => item.type === 'group' && item.entries.some((child) => child.type === 'link' && child.isCurrent)
+)
+const sectionLabel = currentGroup?.type === 'group' ? currentGroup.label : undefined
 ---
 
+{
+  currentPackage && (
+    <p class="docs-page-eyebrow">
+      {currentMeta && (
+        <span aria-hidden="true" class="docs-package-glyph">
+          <Fragment set:html={currentMeta.iconSvg} />
+        </span>
+      )}
+      <span class="docs-page-eyebrow-pkg">
+        {siteTitle}/{currentPackage.label}
+      </span>
+      {sectionLabel && (
+        <>
+          <span aria-hidden="true" class="docs-page-eyebrow-sep">
+            ·
+          </span>
+          <span>{sectionLabel}</span>
+        </>
+      )}
+    </p>
+  )
+}
 <DefaultPageTitle />
 {description && <p class="docs-page-description">{description}</p>}
