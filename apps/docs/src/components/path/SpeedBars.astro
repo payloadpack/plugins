@@ -73,13 +73,13 @@ const formatTimesFaster = (times: number) =>
 </figure>
 
 <style>
-  /* The fastest bar of a group wears the brand's emerald, and the others stay neutral. */
+  /* The fastest bar of a group wears the package accent, and the others stay neutral. */
   .speed-bars {
     /* Kept free after the longest bar, for what the fastest says. */
     --speed-room: 5.5rem;
-    --speed-bar: color-mix(in oklab, var(--docs-foreground) 16%, transparent);
-    --speed-bar-fastest: #10b981;
-    --speed-bar-fastest-ink: #04281c;
+    --speed-bar: color-mix(in oklab, var(--docs-foreground) 14%, transparent);
+    --speed-bar-fastest: var(--docs-accent-solid);
+    --speed-bar-fastest-ink: var(--docs-accent-on-solid);
     margin-block: 1.5rem;
   }
 
@@ -163,7 +163,7 @@ const formatTimesFaster = (times: number) =>
   }
 
   .speed-bars-faster {
-    color: var(--docs-foreground);
+    color: var(--docs-accent);
     font-weight: 600;
   }
 
@@ -174,12 +174,6 @@ const formatTimesFaster = (times: number) =>
   }
 
   details {
-    margin-block-start: 0.75rem;
-    font-size: var(--sl-text-sm);
-  }
-
-  summary {
-    cursor: pointer;
-    color: var(--sl-color-gray-2);
+    margin-block-start: 0.875rem;
   }
 </style>

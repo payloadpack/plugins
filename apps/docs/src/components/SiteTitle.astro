@@ -1,43 +1,94 @@
 ---
+import arrowRightIcon from 'lucide-static/icons/arrow-right.svg?raw'
+import checkIcon from 'lucide-static/icons/check.svg?raw'
 import chevronDownIcon from 'lucide-static/icons/chevron-down.svg?raw'
 
 import DarkLogo from '../../../../.github/assets/icons/logo-dark.svg'
 import LightLogo from '../../../../.github/assets/icons/logo-light.svg'
+import { packageMetaByLabel } from '../data/packages'
 
 const PACKAGE_MENU_ID = 'docs-package-menu'
 
 const { siteTitle, siteTitleHref } = Astro.locals.starlightRoute
 const { topics } = Astro.locals.starlightSidebarTopics
 const currentPackage = topics.find((topic) => topic.isCurrent)
-const canSwitchPackage = currentPackage && topics.length > 1
+const currentMeta = currentPackage ? packageMetaByLabel[currentPackage.label] : undefined
+const canSwitchPackage = Boolean(currentPackage && topics.length > 1)
 ---
 
 <div class="docs-site-title sl-flex" translate="no">
   <a class="site-title sl-flex" href={siteTitleHref}>
     <DarkLogo aria-hidden="true" class="light:sl-hidden" />
     <LightLogo aria-hidden="true" class="dark:sl-hidden" />
-    <span>
-      {siteTitle}{currentPackage && '/'}{
-        currentPackage && !canSwitchPackage && <span class="docs-brand-gradient-text">{currentPackage.label}</span>
-      }
-    </span>
+    <span>{siteTitle}</span>
   </a>
+  {currentPackage && <span aria-hidden="true" class="docs-site-slash">/</span>}
   {
-    canSwitchPackage && (
+    currentPackage && !canSwitchPackage && (
+      <span class="docs-package-badge sl-flex">
+        {currentMeta && (
+          <span aria-hidden="true" class="docs-package-glyph">
+            <Fragment set:html={currentMeta.iconSvg} />
+          </span>
+        )}
+        <span>{currentPackage.label}</span>
+      </span>
+    )
+  }
+  {
+    canSwitchPackage && currentPackage && (
       <>
-        <button aria-label={`${currentPackage.label}, switch package`} class="docs-package-switcher sl-flex" popovertarget={PACKAGE_MENU_ID} type="button">
-          <span class="docs-brand-gradient-text">{currentPackage.label}</span>
-          <Fragment set:html={chevronDownIcon} />
+        <button
+          aria-label={`${currentPackage.label}, switch package`}
+          class="docs-package-switcher sl-flex"
+          popovertarget={PACKAGE_MENU_ID}
+          type="button">
+          {currentMeta && (
+            <span aria-hidden="true" class="docs-package-glyph">
+              <Fragment set:html={currentMeta.iconSvg} />
+            </span>
+          )}
+          <span>{currentPackage.label}</span>
+          <span aria-hidden="true" class="docs-package-chevron">
+            <Fragment set:html={chevronDownIcon} />
+          </span>
         </button>
-        <ul class="docs-package-menu" id={PACKAGE_MENU_ID} popover>
-          {topics.map((topic) => (
-            <li>
-              <a aria-current={topic.isCurrent ? 'true' : undefined} href={topic.link}>
-                {siteTitle}/{topic.label}
-              </a>
-            </li>
-          ))}
-        </ul>
+        <div class="docs-package-menu" id={PACKAGE_MENU_ID} popover>
+          <ul class="docs-package-menu-list">
+            {topics.map((topic) => {
+              const meta = packageMetaByLabel[topic.label]
+              return (
+                <li>
+                  <a aria-current={topic.isCurrent ? 'true' : undefined} href={topic.link}>
+                    {meta && (
+                      <span aria-hidden="true" class="docs-package-menu-icon">
+                        <Fragment set:html={meta.iconSvg} />
+                      </span>
+                    )}
+                    <span class="docs-package-menu-meta">
+                      <span class="docs-package-menu-name">
+                        <span>
+                          {siteTitle}/{topic.label}
+                        </span>
+                        {topic.isCurrent && (
+                          <span aria-hidden="true" class="docs-package-menu-check">
+                            <Fragment set:html={checkIcon} />
+                          </span>
+                        )}
+                      </span>
+                      {meta && <span class="docs-package-menu-desc">{meta.description}</span>}
+                    </span>
+                  </a>
+                </li>
+              )
+            })}
+          </ul>
+          <div class="docs-package-menu-divider" />
+          <a class="docs-package-menu-all" href={siteTitleHref}>
+            <span>All {siteTitle} plugins</span>
+            <Fragment set:html={arrowRightIcon} />
+          </a>
+        </div>
       </>
     )
   }

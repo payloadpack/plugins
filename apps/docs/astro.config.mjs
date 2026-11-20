@@ -23,9 +23,11 @@ export default defineConfig({
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/payloadpack/plugins' }],
       customCss: ['@fontsource-variable/inter', './src/styles/docs.css'],
       components: {
+        Head: './src/components/Head.astro',
         PageTitle: './src/components/PageTitle.astro',
         Sidebar: './src/components/Sidebar.astro',
-        SiteTitle: './src/components/SiteTitle.astro'
+        SiteTitle: './src/components/SiteTitle.astro',
+        ThemeSelect: './src/components/ThemeSelect.astro'
       },
       routeMiddleware: './src/routeData.ts',
       expressiveCode: {
@@ -34,7 +36,7 @@ export default defineConfig({
         styleOverrides: {
           borderColor: 'var(--docs-border)',
           borderRadius: '0.75rem',
-          codeBackground: 'var(--docs-card)',
+          codeBackground: 'var(--docs-code-bg)',
           codeFontSize: '0.8125rem',
           frames: {
             editorActiveTabBackground: 'var(--docs-card)',
@@ -42,8 +44,8 @@ export default defineConfig({
             editorActiveTabIndicatorBottomColor: 'transparent',
             editorTabBarBackground: 'var(--docs-card)',
             editorTabBarBorderBottomColor: 'var(--docs-border)',
-            frameBoxShadowCssValue: 'none',
-            terminalBackground: 'var(--docs-card)',
+            frameBoxShadowCssValue: 'var(--docs-shadow-card)',
+            terminalBackground: 'var(--docs-code-bg)',
             terminalTitlebarBackground: 'var(--docs-card)',
             terminalTitlebarBorderBottomColor: 'var(--docs-border)'
           }

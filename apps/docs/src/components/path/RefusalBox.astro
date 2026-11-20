@@ -48,7 +48,7 @@ const { field, heading, message, value } = Astro.props
 
   .refusal-box-input {
     padding: 0.4375rem 0.625rem;
-    border: 1px solid color-mix(in oklab, #ef4444 55%, var(--docs-border));
+    border: 1px solid var(--docs-danger-border);
     border-radius: 0.5rem;
     background: var(--sl-color-bg);
     font-family: var(--sl-font-mono);
@@ -60,10 +60,6 @@ const { field, heading, message, value } = Astro.props
     margin: 0;
     font-size: 0.8125rem;
     line-height: 1.4;
-    color: #f87171;
-  }
-
-  :global(:root[data-theme='light']) .refusal-box-message {
-    color: #dc2626;
+    color: var(--docs-danger);
   }
 </style>

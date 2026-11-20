@@ -1,0 +1,81 @@
+---
+import monitorIcon from 'lucide-static/icons/monitor.svg?raw'
+import moonIcon from 'lucide-static/icons/moon.svg?raw'
+import sunIcon from 'lucide-static/icons/sun.svg?raw'
+
+const themeOptions = [
+  { icon: sunIcon, label: Astro.locals.t('themeSelect.light'), value: 'light' },
+  { icon: moonIcon, label: Astro.locals.t('themeSelect.dark'), value: 'dark' },
+  { icon: monitorIcon, label: Astro.locals.t('themeSelect.auto'), value: 'auto' }
+] as const
+---
+
+<starlight-theme-select>
+  <div class="docs-theme-toggle" role="group" aria-label={Astro.locals.t('themeSelect.accessibleLabel')}>
+    {
+      themeOptions.map(({ icon, label, value }) => (
+        <button aria-label={label} aria-pressed="false" data-theme-value={value} title={label} type="button">
+          <Fragment set:html={icon} />
+        </button>
+      ))
+    }
+  </div>
+</starlight-theme-select>
+
+<script
+  is:inline
+  set:html={`(() => {
+    const stored = typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+    const active = stored === 'light' || stored === 'dark' ? stored : 'auto';
+    document.querySelectorAll('starlight-theme-select [data-theme-value]').forEach((btn) => {
+      btn.setAttribute('aria-pressed', String(btn.getAttribute('data-theme-value') === active));
+    });
+  })();`}
+/>
+
+<script>
+  type Theme = 'auto' | 'dark' | 'light'
+
+  const STORAGE_KEY = 'starlight-theme'
+
+  const parseTheme = (value: unknown): Theme => (value === 'auto' || value === 'dark' || value === 'light' ? value : 'auto')
+
+  const loadTheme = (): Theme => parseTheme(typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY))
+
+  const storeTheme = (theme: Theme) => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, theme === 'light' || theme === 'dark' ? theme : '')
+    }
+  }
+
+  const getPreferredColorScheme = (): 'dark' | 'light' =>
+    window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+
+  const applyTheme = (theme: Theme) => {
+    document.querySelectorAll<HTMLButtonElement>('starlight-theme-select [data-theme-value]').forEach((button) => {
+      button.setAttribute('aria-pressed', String(button.dataset.themeValue === theme))
+    })
+    document.documentElement.dataset.theme = theme === 'auto' ? getPreferredColorScheme() : theme
+    storeTheme(theme)
+  }
+
+  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+    if (loadTheme() === 'auto') applyTheme('auto')
+  })
+
+  class StarlightThemeSelect extends HTMLElement {
+    constructor() {
+      super()
+      applyTheme(loadTheme())
+      this.querySelectorAll<HTMLButtonElement>('[data-theme-value]').forEach((button) => {
+        button.addEventListener('click', () => {
+          applyTheme(parseTheme(button.dataset.themeValue))
+        })
+      })
+    }
+  }
+
+  if (!customElements.get('starlight-theme-select')) {
+    customElements.define('starlight-theme-select', StarlightThemeSelect)
+  }
+</script>

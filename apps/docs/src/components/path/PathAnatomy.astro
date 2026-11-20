@@ -57,6 +57,7 @@ const { caption, rows } = Astro.props
     border: 1px solid var(--docs-border);
     border-radius: 0.75rem;
     background: var(--docs-card);
+    box-shadow: var(--docs-shadow-card);
     overflow-x: auto;
   }
 
@@ -112,20 +113,17 @@ const { caption, rows } = Astro.props
   }
 
   .path-anatomy-part-brand .path-anatomy-text {
-    border-color: color-mix(in oklab, #10b981 50%, var(--docs-border));
-    background: color-mix(in oklab, #10b981 10%, var(--sl-color-bg));
+    border-color: var(--docs-accent-border);
+    background: var(--docs-accent-soft);
+    color: var(--docs-accent);
     font-weight: 600;
   }
 
   .path-anatomy-part-refused .path-anatomy-text {
-    border-color: color-mix(in oklab, #ef4444 50%, var(--docs-border));
-    background: color-mix(in oklab, #ef4444 10%, var(--sl-color-bg));
-    color: #f87171;
+    border-color: var(--docs-danger-border);
+    background: var(--docs-danger-soft);
+    color: var(--docs-danger);
     font-weight: 600;
-  }
-
-  :global(:root[data-theme='light']) .path-anatomy-part-refused .path-anatomy-text {
-    color: #dc2626;
   }
 
   .path-anatomy-label {
@@ -146,23 +144,15 @@ const { caption, rows } = Astro.props
   }
 
   .path-anatomy-badge-ok {
-    border-color: color-mix(in oklab, #10b981 45%, var(--docs-border));
-    background: color-mix(in oklab, #10b981 10%, transparent);
-    color: #34d399;
-  }
-
-  :global(:root[data-theme='light']) .path-anatomy-badge-ok {
-    color: #059669;
+    border-color: var(--docs-accent-border);
+    background: var(--docs-accent-soft);
+    color: var(--docs-accent);
   }
 
   .path-anatomy-badge-refused {
-    border-color: color-mix(in oklab, #ef4444 45%, var(--docs-border));
-    background: color-mix(in oklab, #ef4444 10%, transparent);
-    color: #f87171;
-  }
-
-  :global(:root[data-theme='light']) .path-anatomy-badge-refused {
-    color: #dc2626;
+    border-color: var(--docs-danger-border);
+    background: var(--docs-danger-soft);
+    color: var(--docs-danger);
   }
 
   figcaption {

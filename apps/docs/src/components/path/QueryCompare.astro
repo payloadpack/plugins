@@ -73,10 +73,11 @@
     border: 1px solid var(--docs-border);
     border-radius: 0.75rem;
     background: var(--docs-card);
+    box-shadow: var(--docs-shadow-card);
   }
 
   .query-compare-card-winner {
-    border-color: color-mix(in oklab, #10b981 40%, var(--docs-border));
+    border-color: var(--docs-accent-border);
   }
 
   .query-compare-heading {
@@ -100,13 +101,9 @@
   }
 
   .query-compare-pill-win {
-    border-color: color-mix(in oklab, #10b981 45%, var(--docs-border));
-    background: color-mix(in oklab, #10b981 10%, transparent);
-    color: #34d399;
-  }
-
-  :global(:root[data-theme='light']) .query-compare-pill-win {
-    color: #059669;
+    border-color: var(--docs-accent-border);
+    background: var(--docs-accent-soft);
+    color: var(--docs-accent);
   }
 
   .query-compare-item {
@@ -144,7 +141,7 @@
   }
 
   .query-compare-step-win {
-    border-color: color-mix(in oklab, #10b981 40%, var(--docs-border));
+    border-color: var(--docs-accent-border);
     color: var(--docs-foreground);
   }
 
@@ -162,10 +159,6 @@
   }
 
   .query-compare-count-win {
-    color: #34d399;
-  }
-
-  :global(:root[data-theme='light']) .query-compare-count-win {
-    color: #059669;
+    color: var(--docs-accent);
   }
 </style>

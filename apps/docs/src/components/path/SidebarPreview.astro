@@ -52,7 +52,7 @@ const {
       <div class="sidebar-preview-field">
         <span class="sidebar-preview-label">Path <span class="sidebar-preview-meta">read-only · indexed</span></span>
         <span class="sidebar-preview-control sidebar-preview-control-readonly sidebar-preview-mono">
-          <span class="docs-brand-gradient-text sidebar-preview-path">{path}</span>
+          <span class="sidebar-preview-path">{path}</span>
         </span>
       </div>
     </div>
@@ -75,6 +75,7 @@ const {
     border: 1px solid var(--docs-border);
     border-radius: 0.75rem;
     background: var(--docs-card);
+    box-shadow: var(--docs-shadow-card);
   }
 
   .sidebar-preview-title {
@@ -147,12 +148,8 @@ const {
   }
 
   .sidebar-preview-path {
+    color: var(--docs-accent);
     font-weight: 600;
-  }
-
-  :global(:root[data-theme='light']) .sidebar-preview-path {
-    background: none;
-    color: #059669;
   }
 
   figcaption {
