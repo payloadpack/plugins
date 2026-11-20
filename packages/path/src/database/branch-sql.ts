@@ -60,7 +60,7 @@ export async function lockBranchInPostgres(collection: string, id: Id, req: Payl
  * The write on Postgres and SQLite: an update of the path column, one of the parent column for the
  * rows that get another parent, and a delete and an insert for the rows that get other ancestors,
  * which are rows of their own in the table of relationships. Each statement reads its rows out of one
- * bound value, a JSON list, so it binds the same whatever the number of rows.
+ * bound value, a JSON list, so it is the same statement whatever the number of rows it is given.
  */
 export async function setPathAndAncestorsFieldsInSql(collection: string, kind: RowKind, rows: RowFields[], req: PayloadRequest) {
   const { payload } = req

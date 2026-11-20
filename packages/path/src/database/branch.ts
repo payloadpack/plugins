@@ -1,6 +1,7 @@
 import type { PayloadRequest } from 'payload'
 
 import type { Id } from '../path/build-path-and-ancestors.js'
+import { inChunks } from '../utils/in-chunks.js'
 import { setPathAndAncestorsFieldsInMongodb } from './branch-mongodb.js'
 import { lockBranchInPostgres, setPathAndAncestorsFieldsInSql } from './branch-sql.js'
 
@@ -21,13 +22,13 @@ export async function lockBranch(collection: string, id: Id, req: PayloadRequest
 }
 
 /**
- * Stores the path and ancestors of many rows at once, with statements of the package's own: a few,
- * whatever the number of rows, where Payload's database API writes one row at a time, whole. They
- * write only the fields given for a row and leave every other value of it as it was, updatedAt too.
- * They run in the request's transaction, where the database has one.
+ * Stores the path and ancestors of many rows at once, with statements of the package's own: a few
+ * for each chunk of rows, where Payload's database API writes one row at a time, whole. A chunk at a
+ * time keeps what one statement binds the same however many rows a branch has. They write only the
+ * fields given for a row and leave every other value of it as it was, updatedAt too. They run in the
+ * request's transaction, where the database has one.
  */
 export async function setPathAndAncestorsFields(collection: string, kind: RowKind, rows: RowFields[], req: PayloadRequest) {
-  if (rows.length === 0) return
   const setFields = usesSql(req.payload.db.name) ? setPathAndAncestorsFieldsInSql : setPathAndAncestorsFieldsInMongodb
-  await setFields(collection, kind, rows, req)
+  for (const chunk of inChunks(rows)) await setFields(collection, kind, chunk, req)
 }

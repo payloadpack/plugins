@@ -105,7 +105,7 @@ export const getLandings = ({ collection, documents }: BranchMove): TakenPath[] 
 
 /**
  * Stores a branch move: the path and ancestors the move built for each row, of the documents and then
- * of the latest versions, each kind in a few statements whatever the size of the branch. They write
+ * of the latest versions, each kind a chunk of rows at a time, in a few statements per chunk. They write
  * the path, the ancestors and the parent alone, so a save below that lands while the branch moves
  * keeps every other value. A row a save gave another slug or parent between the move's read of it
  * and these statements gets the path the move built from the row it read, until its next save or a

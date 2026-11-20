@@ -53,11 +53,11 @@ What a delete does to the documents right below the deleted document: they move 
 _Avoid_: promote, orphan, reparent
 
 **Chunk**:
-The most documents or paths a move names in one read or check, or asks for in one read. A branch of any size is read and checked a chunk at a time, and written by statements that hold all of its rows in one bound value.
+The most documents or paths a move names in one read or check, asks for in one read, or writes with one round of its statements. A branch of any size is read, checked and written a chunk at a time.
 _Avoid_: batch, and page, which is a document
 
 **Statements**:
-The package's own writes of the documents below a moved or deleted document and of their latest versions: a few per move, whatever the size of the branch, in the request's transaction. They store the path the move built for each row, and where the row holds other ones the ancestors and the parent, and leave every other value of the row.
+The package's own writes of the documents below a moved or deleted document and of their latest versions: a few for each chunk of rows, in the request's transaction. They store the path the move built for each row, and where the row holds other ones the ancestors and the parent, and leave every other value of the row.
 _Avoid_: query, raw SQL, bulk update
 
 **Taken path**:
