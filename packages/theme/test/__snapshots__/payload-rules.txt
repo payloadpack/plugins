@@ -226,10 +226,14 @@ html[data-theme='dark'] @media (max-width: 768px) .rich-text-lexical &.error > .
 .btn__content { display: flex; align-items: center; justify-content: center; }
 .btn--icon .btn__content { gap: var(--stroke-width-medium); }
 .btn--icon-position-left .btn__content { flex-direction: row-reverse; }
+.btn--dropdown .btn__content { gap: var(--spacer-1); }
+.btn--dropdown .btn__icon { width: var(--spacer-2-5); padding-inline-end: var(--spacer-1); flex-shrink: 0; }
+.btn--dropdown .icon--chevron { flex-shrink: 0; }
 .btn__label { white-space: nowrap; }
 .btn--size-medium { height: var(--button-height); padding: 0 var(--spacer-2); }
 .btn--size-medium &:not(.btn--icon-only).btn--icon-position-left { padding-inline-start: var(--spacer-1); }
 .btn--size-medium &:not(.btn--icon-only).btn--icon-position-right { padding-inline-end: var(--spacer-1); }
+.btn--size-medium &.btn--dropdown { padding-inline-start: calc(var(--spacer-2) - var(--stroke-width-small)); padding-inline-end: calc(var(--spacer-1) - var(--stroke-width-small)); }
 .btn--size-large { height: var(--spacer-5, 2rem); padding: 0 var(--spacer-3); }
 .btn--size-large &:not(.btn--icon-only).btn--icon-position-left { padding-inline-start: var(--spacer-2); }
 .btn--size-large &:not(.btn--icon-only).btn--icon-position-right { padding-inline-end: var(--spacer-2); }
@@ -641,7 +645,7 @@ html[data-enhanced-contrast] .nav-group__toggle .nav-group__indicator, :host([da
 .popup-button-list--with-icons .popup-button-list__label { padding: var(--spacer-1) 0 var(--spacer-1) var(--spacer-1); }
 .popup-button-list--with-actions .popup-button-list__button { padding-right: var(--spacer-2); align-items: center; }
 .popup-button-list--with-actions .popup-button-list__icon { display: flex; align-items: center; justify-content: center; width: calc(var(--spacer-3) + var(--spacer-1)); padding: var(--spacer-1) 0 var(--spacer-1) var(--spacer-1); }
-.popup-button-list--large .popup-button-list__icon { width: auto; padding: 0 0 0 var(--spacer-1); }
+.popup-button-list--large > .popup-button-list__button > .popup-button-list__icon { width: auto; padding: 0 0 0 var(--spacer-1); }
 
 == @payloadcms/ui/elements/Popup/PopupGroupLabel/index.css
 .popup-button-list .popup-list-group-label { padding-inline-start: var(--spacer-1); }
@@ -1239,6 +1243,7 @@ form > .form-submit .btn { width: 100%; }
 
 == @payloadcms/ui/views/Edit/index.css
 .template-default__wrap:has(.collection-edit__main-wrapper--scroll-fields-only) { height: auto; overflow: visible; }
+@media (min-width: 1024px) .collection-edit--constrain-document-width .collection-edit__main > .document-fields:not(.document-fields--force-sidebar-wrap):where( .document-fields--no-sidebar, :has(.document-fields__sidebar-fields > .render-fields:empty) ) { max-width: calc(var(--spacer-6) * 18); }
 .collection-edit__main-wrapper--has-upload-panel .collection-edit__main:not(:has(.field-type)) { display: none; }
 .collection-edit__main-wrapper--has-upload-panel .collection-edit__main:not(:has(.field-type)) ~ .file-manager { border-inline-start: none; }
 @container edit-main (min-width: 1024px) .template-default__wrap:has(.collection-edit__main-wrapper--scroll-fields-only) { height: 100dvh; overflow: hidden; }
