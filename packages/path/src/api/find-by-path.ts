@@ -6,7 +6,6 @@ import type {
   SelectType,
   TransformCollectionWithSelect,
   TypedCollectionSelect,
-  TypedLocale,
   Where
 } from 'payload'
 import { getSelectMode, hasDraftsEnabled } from 'payload/shared'
@@ -43,7 +42,7 @@ type FindByPathArguments<
   /** true finds the latest draft at the path, for a preview. Defaults to false. */
   draft?: boolean
   /** With localization, the locale whose path this is. The site keeps the locale out of the path. */
-  locale?: Exclude<TypedLocale, 'all'>
+  locale?: string
   /** The path as it is stored: it starts with a slash and, but for the home page's /, ends with none. */
   path: string
   /** true also gives the document's path in each locale, as findPaths does. */

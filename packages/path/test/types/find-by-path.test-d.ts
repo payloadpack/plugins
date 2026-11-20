@@ -98,6 +98,7 @@ declare module 'payload' {
 }
 
 declare const payload: Payload
+declare const localeFromRoute: string
 
 export async function verifyFindByPathTypes() {
   // 1. Default (no collections) -> automatically narrows to ONLY collections with path & slug (no users or payload-migrations)
@@ -196,10 +197,11 @@ export async function verifyFindByPathTypes() {
     where: { title: { equals: 'Om oss' } }
   })
 
+  // A locale as a site's route gets it from the URL, as the docs show.
+  await findByPath({ locale: localeFromRoute, path: '/om-oss', payload })
+
   // 9. Disallowed options and invalid values are rejected by TypeScript
   if (false as boolean) {
-    // @ts-expect-error locale 'all' is not allowed
-    await findByPath({ locale: 'all', path: '/about', payload })
     // @ts-expect-error collection is replaced by collections
     await findByPath({ collection: 'pages', path: '/about', payload })
     // @ts-expect-error limit is omitted

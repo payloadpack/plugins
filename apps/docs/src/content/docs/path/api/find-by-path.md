@@ -19,7 +19,7 @@ const found = await findByPath({ path: '/about/team', payload })
 | `path`           | Stored path starting with `/`, without a locale                                       | Required                   |
 | `collections`    | Subset of configured collections to search                                            | All configured collections |
 | `paths`          | Set `true` to also return [paths in each locale](#paths-in-each-locale)               | Omitted                    |
-| `locale`         | Locale to look up (when localization is enabled; `'all'` is not allowed)              | Payload's default locale   |
+| `locale`         | Locale to look up (when localization is enabled)                                      | Payload's default locale   |
 | `draft`          | Match the latest draft instead of published docs ([previews](/path/drafts/#previews)) | `false`                    |
 | `depth`          | Relationship population depth, as in `payload.find`                                   | `0`                        |
 | `overrideAccess` | Bypass access control, as in `payload.find`                                           | `true`                     |

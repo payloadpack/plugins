@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 type Props = {
   params: Promise<{ segments?: string[] }>
-  searchParams: Promise<{ draft?: string; locale?: 'en' | 'sv' }>
+  searchParams: Promise<{ draft?: string; locale?: string }>
 }
 
 export default async function SitePage({ params, searchParams }: Props) {
