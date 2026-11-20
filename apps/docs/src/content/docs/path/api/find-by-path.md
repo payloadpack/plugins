@@ -42,10 +42,10 @@ const found = await findByPath({
 })
 ```
 
-- **`select`:** Works in both include and exclude modes. On drafts-enabled collections, `findByPath` ensures `_status` is checked internally and strips it back off if your `select` didn't ask for it.
-- **`where`:** Combined with the `path` and published filters via `and` — never replaces them. When searching multiple collections, every searched collection must define the fields referenced in `where`.
-- **`req`:** Threads your transaction into both the lookup (running collections sequentially when a transaction is active) and `paths: true`.
-- **Omitted options:** `collection` (replaced by `collections`), `limit`, `page`, `pagination`, `sort`, and `trash` (documents in the trash take no path).
+- **`select`:** Include or exclude fields as in `payload.find`. You still only get published documents, whatever your `select` leaves out.
+- **`where`:** Added to the path and published checks, never in their place. Every collection you search needs the fields your `where` names.
+- **`req`:** The lookup, and `paths: true`, read inside your request's transaction.
+- **Left out:** `collection` (use `collections`), `limit`, `page`, `pagination`, `sort` and `trash`, since a document in the trash has no path.
 
 ## What it returns
 
