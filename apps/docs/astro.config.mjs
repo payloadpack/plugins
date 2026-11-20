@@ -4,6 +4,9 @@ import starlightSidebarTopics from 'starlight-sidebar-topics'
 
 export default defineConfig({
   site: 'https://docs.payloadpack.com',
+  // Starlight's Steps and Tabs run satteri, whose native binary is found next to its own files. Bun keeps
+  // satteri inside Starlight's folder, so a bundled copy would lose it: the build loads it from there.
+  vite: { build: { rollupOptions: { external: [/[\\/]satteri[\\/]dist[\\/]/] } } },
   integrations: [
     starlight({
       title: '@payloadpack',
