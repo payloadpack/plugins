@@ -66,9 +66,12 @@ function buildSelectWithStatus(select: SelectType | undefined, published: boolea
     return { querySelect: { ...select, _status: true }, stripStatus: true }
   }
   if (select._status === false) {
-    const rest = { ...select }
-    delete rest._status
-    return { querySelect: Object.keys(rest).length > 0 ? rest : undefined, stripStatus: true }
+    const selectWithoutStatus = { ...select }
+    delete selectWithoutStatus._status
+    return {
+      querySelect: Object.keys(selectWithoutStatus).length > 0 ? selectWithoutStatus : undefined,
+      stripStatus: true
+    }
   }
   return { querySelect: select, stripStatus: false }
 }
@@ -131,10 +134,10 @@ export async function findByPath<Slug extends PathCollectionSlug = PathCollectio
       trash: false,
       where: buildWhere(path, published, where)
     })
-    const matched = published ? docs.find(({ _status }) => _status === 'published') : docs[0]
-    if (!matched) return null
-    if (!stripStatus) return { collection, document: matched } as FoundByPath<Slug, TSelect>
-    const document = { ...matched }
+    const foundDocument = published ? docs.find(({ _status }) => _status === 'published') : docs[0]
+    if (!foundDocument) return null
+    if (!stripStatus) return { collection, document: foundDocument } as FoundByPath<Slug, TSelect>
+    const document = { ...foundDocument }
     delete document._status
     return { collection, document } as FoundByPath<Slug, TSelect>
   }

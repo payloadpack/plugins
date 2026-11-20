@@ -22,7 +22,7 @@ export async function findPaths({
   draft = false,
   id,
   payload,
-  req: given
+  req: transactionRequest
 }: {
   /** The collection the document is in, among the plugin's. */
   collection: PathCollectionSlug
@@ -37,7 +37,7 @@ export async function findPaths({
   pickCollections([collection], getPathConfig(payload))
   const config = payload.collections[collection].config
   const req = await createPayloadRequest({ locale: 'all', payload })
-  if (given?.transactionID) req.transactionID = given.transactionID
+  if (transactionRequest?.transactionID) req.transactionID = transactionRequest.transactionID
   const readsDraft = draft && hasDraftsEnabled(config)
   const stored: Partial<DocumentAndLatestVersion> | undefined = readsDraft
     ? await findDocumentAndLatestVersion(config, id, req)
