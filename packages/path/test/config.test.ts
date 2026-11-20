@@ -12,7 +12,7 @@ import {
 import { generateTypes } from 'payload/node'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { pathPlugin, withPath, type PathCollection, type PathCollectionOptions } from '../src/index.js'
+import { getPathCollectionSlugs, pathPlugin, withPath, type PathCollection, type PathCollectionOptions } from '../src/index.js'
 
 const collection = (slug: string, fields: CollectionConfig['fields'] = []): CollectionConfig => ({ slug, fields })
 
@@ -284,6 +284,30 @@ describe('pathPlugin', () => {
     })
     const { types } = await generateTypes(config, { log: false, returnString: true })
     expect(types).toMatch(/pathCollectionSlug: 'pages' \| 'posts';/)
+  })
+
+  it('names its collections, in collections or with withPath, to a plugin after it and in the built config', async () => {
+    const slugsInPluginAfter: string[][] = []
+    const config = await buildConfig({
+      collections: [collection('pages'), withPath(collection('posts')), collection('media')],
+      plugins: [
+        pathPlugin({ collections: ['pages'] }),
+        (incoming) => {
+          slugsInPluginAfter.push(getPathCollectionSlugs(incoming))
+          return incoming
+        }
+      ],
+      secret: 'path-tests'
+    } as Config)
+
+    expect(slugsInPluginAfter).toEqual([['pages', 'posts']])
+    expect(getPathCollectionSlugs(config)).toEqual(['pages', 'posts'])
+  })
+
+  it('asks for pathPlugin() when naming its collections in a config it has not run on', () => {
+    expect(() => getPathCollectionSlugs({ collections: [withPath(collection('posts'))] } as Config)).toThrow(
+      '@payloadpack/path: add pathPlugin() to the Payload config, with a collection in collections or wrapped in withPath, before calling findByPath, findPaths, backfillPaths or getPathCollectionSlugs'
+    )
   })
 
   it.each([

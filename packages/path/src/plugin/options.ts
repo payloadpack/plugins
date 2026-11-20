@@ -135,6 +135,7 @@ type PathConfig = {
 export type ReasonBySegment = Record<string, string | undefined>
 
 // Each entry in a custom is named for what writes it: withPath in a collection's, pathPlugin() in the config's.
+/** The key withPath keeps a collection's options under, in the collection's custom. */
 export const WITH_PATH_KEY = 'withPath'
 const PATH_PLUGIN_KEY = 'pathPlugin'
 
@@ -199,10 +200,25 @@ export function storePathConfig(custom: Record<string, unknown> | undefined, pat
   return { ...custom, [PATH_PLUGIN_KEY]: pathConfig }
 }
 
-export function getPathConfig(payload: Payload): PathConfig {
-  const pathConfig = payload.config.custom?.[PATH_PLUGIN_KEY] as PathConfig | undefined
+// A plugin after pathPlugin(), a field's config function and a running Payload all read the config
+// it kept.
+function getStoredPathConfig({ custom }: Pick<Config, 'custom'>): PathConfig {
+  const pathConfig = custom?.[PATH_PLUGIN_KEY] as PathConfig | undefined
   if (!pathConfig) throw new Error(PLUGIN_MISSING_ERROR)
   return pathConfig
+}
+
+export function getPathConfig(payload: Payload): PathConfig {
+  return getStoredPathConfig(payload.config)
+}
+
+/**
+ * The slugs of the plugin's collections, listed in collections or wrapped in withPath, from a config
+ * pathPlugin() has run on: the one a plugin after it gets, the one a field's config function gets,
+ * or payload.config.
+ */
+export function getPathCollectionSlugs(config: Pick<Config, 'custom'>): PathCollectionSlug[] {
+  return getStoredPathConfig(config).collections.map(({ slug }) => slug as PathCollectionSlug)
 }
 
 export function pickCollections(collections: CollectionSlug[] | undefined, pathConfig: PathConfig) {
