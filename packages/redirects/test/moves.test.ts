@@ -472,6 +472,21 @@ describeSite(
 
       expect(await findRedirectsFrom(site, ['/news/bulletin'])).toEqual([])
     })
+
+    // SQLite binds at most 32,766 values in one statement, which a change of tens of thousands would pass.
+    it('reads the redirects at the paths of a change 1,000 paths at a time', async () => {
+      const req = await createPayloadRequest({ payload: site.payload })
+      const changedPaths = Array.from({ length: 2_001 }, (_, index) => ({
+        collection: 'news',
+        from: null,
+        id: index + 1,
+        to: `/news/published-${index}`
+      }))
+
+      const queries = await site.listQueries(() => suggestRedirects({ changedPaths, payload: site.payload, req }))
+
+      expect(queries.filter(({ collection }) => collection === 'redirects')).toHaveLength(3)
+    })
   }
 )
 

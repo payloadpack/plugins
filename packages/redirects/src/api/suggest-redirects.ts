@@ -30,6 +30,16 @@ const isArrival = (changed: ChangedPath): changed is Arrival => changed.to !== n
 
 const isMove = (arrival: Arrival): arrival is Move => arrival.from !== null
 
+// SQLite binds at most 32,766 values in one statement, the tightest limit of the three databases, so
+// a change of any size is read and deleted 1,000 values at a time.
+const CHUNK_SIZE = 1_000
+
+function buildChunks<Value>(values: Value[]) {
+  const chunks: Value[][] = []
+  for (let start = 0; start < values.length; start += CHUNK_SIZE) chunks.push(values.slice(start, start + CHUNK_SIZE))
+  return chunks
+}
+
 // A locale's moves are compared with the same locale's, by the path each document moved from.
 const buildLocalePathKey = (locale: string | undefined, path: string) => JSON.stringify([locale ?? null, path])
 
@@ -64,34 +74,40 @@ const buildDocumentKey = (collection: string, id: unknown) => JSON.stringify([co
 async function findStoredArrivals(payload: Payload, req: PayloadRequest, arrivals: Arrival[]) {
   const storedDocumentKeys = new Set<string>()
   for (const collection of new Set(arrivals.map((arrival) => arrival.collection))) {
-    const { docs } = await payload.find({
-      collection: collection as CollectionSlug,
-      depth: 0,
-      overrideAccess: true,
-      pagination: false,
-      req,
-      select: {},
-      trash: true,
-      where: { id: { in: arrivals.filter((arrival) => arrival.collection === collection).map(({ id }) => id) } }
-    })
-    for (const { id } of docs) storedDocumentKeys.add(buildDocumentKey(collection, id))
+    const ids = arrivals.filter((arrival) => arrival.collection === collection).map(({ id }) => id)
+    for (const chunk of buildChunks(ids)) {
+      const { docs } = await payload.find({
+        collection: collection as CollectionSlug,
+        depth: 0,
+        overrideAccess: true,
+        pagination: false,
+        req,
+        select: {},
+        trash: true,
+        where: { id: { in: chunk } }
+      })
+      for (const { id } of docs) storedDocumentKeys.add(buildDocumentKey(collection, id))
+    }
   }
   return arrivals.filter(({ collection, id }) => storedDocumentKeys.has(buildDocumentKey(collection, id)))
 }
 
 // The redirects from the paths, each given as a From of a path is stored.
 async function findRedirectsFrom(payload: Payload, req: PayloadRequest, slug: CollectionSlug, froms: string[]) {
-  if (froms.length === 0) return []
-  const { docs } = await payload.find({
-    collection: slug,
-    depth: 0,
-    overrideAccess: true,
-    pagination: false,
-    req,
-    select: { [FROM_FIELD_NAME]: true, [STATUS_FIELD_NAME]: true, [TO_FIELD_NAME]: true },
-    where: { [FROM_FIELD_NAME]: { in: [...new Set(froms)] } }
-  })
-  return docs as unknown as StoredRedirect[]
+  const redirects: StoredRedirect[] = []
+  for (const chunk of buildChunks([...new Set(froms)])) {
+    const { docs } = await payload.find({
+      collection: slug,
+      depth: 0,
+      overrideAccess: true,
+      pagination: false,
+      req,
+      select: { [FROM_FIELD_NAME]: true, [STATUS_FIELD_NAME]: true, [TO_FIELD_NAME]: true },
+      where: { [FROM_FIELD_NAME]: { in: chunk } }
+    })
+    redirects.push(...(docs as unknown as StoredRedirect[]))
+  }
+  return redirects
 }
 
 const sendsToDocument = ({ to }: StoredRedirect, { collection, id }: Arrival) =>
@@ -169,13 +185,13 @@ export async function suggestRedirects({ changedPaths, payload, req }: SuggestRe
       redirectsByFrom.set(redirect.from, redirect)
     }
   }
-  if (deletedIds.size > 0) {
+  for (const chunk of buildChunks([...deletedIds])) {
     const { errors } = await payload.delete({
       collection: slug,
       depth: 0,
       overrideAccess: true,
       req,
-      where: { id: { in: [...deletedIds] } }
+      where: { id: { in: chunk } }
     })
     // A bulk delete reports what it couldn't delete instead of throwing, and the move can't go on as if
     // it were gone. Payload's own REST API answers such a delete with 400 too.
