@@ -45,7 +45,7 @@ A target that starts with `/` never leaves your site, and a URL target never lea
 
 ## Writing a regex
 
-A regex must match the whole path: `/news/(.*)` matches `/news/spring`, not `/old/news/spring`, so `^` and `$` change nothing. Its groups go into a URL target as `$1` to `$9`.
+A regex must match the whole path, without the slash at its end: `/news/(.*)` matches `/news/spring` and `/news/spring/` alike, not `/old/news/spring`, so `^` and `$` change nothing. Its groups go into a URL target as `$1` to `$9`.
 
 - **Start it with a fixed path,** such as `/news/(.*)` rather than `(.*)/news`. A regex is tried only on paths at or below its fixed start, so one without a fixed start is tried on every path no other redirect covers.
 - **To move a whole section, move its page** instead of writing a regex. The move suggests one redirect for the page and its subpaths, which is found faster and needs no groups.
@@ -76,7 +76,7 @@ const { foundRedirect } = await findRedirect({ hasDocument, path, payload, searc
 
 | Argument       | What it is                                                                                                                                                                                                |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `path`         | The path a visitor asked for, decoded, with a slash first and none last but for `/`                                                                                                                       |
+| `path`         | The path a visitor asked for, decoded, with a slash first. A slash at its end is dropped, as **From** drops it, so a site with `trailingSlash` passes its paths as they are                               |
 | `payload`      | Your Payload instance                                                                                                                                                                                     |
 | `searchParams` | Optional. The visitor's query string: `request.nextUrl.searchParams` in a proxy, or a page's `searchParams`                                                                                               |
 | `hasDocument`  | Whether a document holds a path. Optional by default, where it lets a visitor take one hop through a chain of redirects. Required with `winOverDocuments: 'perRedirect'`, and never asked with `'always'` |

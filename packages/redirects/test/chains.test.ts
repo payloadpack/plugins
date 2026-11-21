@@ -80,6 +80,16 @@ describeSite('findRedirect following a chain', {}, (site) => {
     expect(askedPaths).toEqual(['/новый', '/final'])
   })
 
+  it('follows a chain through a destination with a slash at its end, asking for the path without it', async () => {
+    await createRedirect(site.payload, { from: '/pamphlets', to: toUrl('/leaflets/') })
+    await createRedirect(site.payload, { from: '/leaflets', to: toUrl('/flyers/') })
+    heldPaths.add('/flyers')
+    askedPaths.length = 0
+
+    expect(await findFoundRedirect({ hasDocument, path: '/pamphlets', payload: site.payload })).toEqual(foundUrl('/flyers/'))
+    expect(askedPaths).toEqual(['/leaflets', '/flyers'])
+  })
+
   it('stops at a destination on another site', async () => {
     await createRedirect(site.payload, { from: '/away', to: toUrl('https://shop.example/two-away') })
     await createRedirect(site.payload, { from: '/two-away', to: toUrl('/never') })

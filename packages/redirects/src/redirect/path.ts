@@ -13,6 +13,12 @@ export function buildPathAndPathsAbove(path: string) {
   return paths
 }
 
+/**
+ * A path as a lookup asks for it: without the slash at its end that a site with Next's trailingSlash
+ * gives every path, but / for the home page. A From of a path is stored the same way.
+ */
+export const buildLookedUpPath = (path: string) => path.replace(/\/+$/, '') || '/'
+
 // A run of escapes, such as %C3%A9, decoded where it decodes, so a % that starts no escape stays.
 const ESCAPE_RUN = /(?:%[0-9a-f]{2})+/gi
 
@@ -52,8 +58,8 @@ export function cleanFromPath(value: string, trackingParameters: readonly string
   // A scheme of its own, such as mailto: or the old: a URL reads in old:page, leaves no path here.
   if (!url?.pathname.startsWith('/')) return null
   // A pasted URL keeps a doubled first slash in its path, and so does one a dot segment leaves.
-  const pathname = url.pathname.replace(/^\/{2,}/, '/').replace(/\/+$/, '')
-  const path = pathname.split('/').map(decodeEscapes).join('/') || '/'
+  const pathname = buildLookedUpPath(url.pathname.replace(/^\/{2,}/, '/'))
+  const path = pathname.split('/').map(decodeEscapes).join('/')
   const queryString = buildQueryString(url.searchParams, trackingParameters)
   return `${buildComparedPath(path)}${queryString ? `?${queryString}` : ''}`
 }
@@ -78,15 +84,15 @@ export function encodePath(path: string) {
 
 /**
  * The path a visitor's request for a destination on this site is looked up at: its path, decoded
- * segment by segment. Null for another site, and for a path that doesn't decode or holds a slash
- * inside a segment, which the site doesn't look up.
+ * segment by segment, as buildLookedUpPath says. Null for another site, and for a path that doesn't
+ * decode or holds a slash inside a segment, which the site doesn't look up.
  */
 export function buildSitePath(destination: string) {
   if (!destination.startsWith('/')) return null
   const { pathname } = new URL(destination, SITE_ORIGIN)
   try {
     const segments = pathname.split('/').map(decodeURIComponent)
-    return segments.some((segment) => segment.includes('/')) ? null : segments.join('/')
+    return segments.some((segment) => segment.includes('/')) ? null : buildLookedUpPath(segments.join('/'))
   } catch {
     return null
   }

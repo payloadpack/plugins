@@ -13,6 +13,7 @@ import { ORDER_FIELD_NAME } from '../plugin/redirects-collection.js'
 import { buildDestination, type DestinationParts } from '../redirect/destination.js'
 import {
   buildComparedPath,
+  buildLookedUpPath,
   buildPathAndPathsAbove,
   buildPathBelow,
   encodePath,
@@ -58,7 +59,10 @@ export type FindRedirectArgs = {
   hasDocument?: HasDocument
   /** With localization, the locale a document target is read in, whose path it sends visitors to. */
   locale?: string
-  /** The path a visitor asked for, decoded, with a slash first and, but for the home page's /, none last. */
+  /**
+   * The path a visitor asked for, decoded, with a slash first. A slash at its end is dropped, as a
+   * From's is, so a site with Next's trailingSlash finds the same redirects.
+   */
   path: string
   payload: Payload
   /**
@@ -338,7 +342,7 @@ export async function findRedirect({
   const perRedirectHasDocument = winOverDocuments === 'perRedirect' ? hasDocument : undefined
   const findStepAt: FindStepAt = (pathAsked, landsOnDocument) =>
     findRedirectStep(pathAsked.path, pathAsked.searchParams, options, config, perRedirectHasDocument, landsOnDocument)
-  const pathAsked = { path, searchParams: buildSearchParams(searchParams) }
+  const pathAsked = { path: buildLookedUpPath(path), searchParams: buildSearchParams(searchParams) }
   const firstStep = await findStepAt(pathAsked, false)
   if (!firstStep) return buildResult(null)
   if (winOverDocuments) return buildResult(await followChainOverDocuments(pathAsked, firstStep, findStepAt))

@@ -193,6 +193,21 @@ describeSite('findRedirect', {}, (site) => {
     expect(await findFoundRedirect({ path: '/faq', payload: site.payload, searchParams: new URLSearchParams('old') })).toBeNull()
   })
 
+  // As a site with Next's trailingSlash asks for every path.
+  it('drops the slash at the end of a path asked for, as a From drops it', async () => {
+    await createRedirect(site.payload, { from: '/brochures', to: toUrl('/leaflets') })
+    await createRedirect(site.payload, { from: '/brochures?id=4', to: toUrl('/leaflet-4') })
+    await createRedirect(site.payload, { from: '/handbook', match: 'below', to: toUrl('/guide') })
+    await createRedirect(site.payload, { from: '/manuals/(.*)', match: 'regex', to: toUrl('/docs/$1') })
+
+    expect(await findFoundRedirect({ path: '/brochures/', payload: site.payload })).toEqual(foundUrl('/leaflets'))
+    expect(await findFoundRedirect({ path: '/brochures/', payload: site.payload, searchParams: { id: '4' } })).toEqual(
+      foundUrl('/leaflet-4', { matchedQueryString: true })
+    )
+    expect(await findFoundRedirect({ path: '/handbook/setup/', payload: site.payload })).toEqual(foundUrl('/guide/setup'))
+    expect(await findFoundRedirect({ path: '/manuals/setup/', payload: site.payload })).toEqual(foundUrl('/docs/setup'))
+  })
+
   it('carries the rest of the path over lowercased to a document, whose path is lowercase', async () => {
     const company = await publish(site.payload, 'pages', { slug: 'firm', title: 'Firm' })
     await createRedirect(site.payload, { from: '/Old-Firm', match: 'below', to: toDocument('pages', company) })
