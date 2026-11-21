@@ -4,12 +4,12 @@
   "type": "module",
   "scripts": {
     "build": "next build",
-    "dev": "node --experimental-strip-types scripts/with-database.ts next dev --port ${DEMO_PORT:-3030}",
+    "dev": "node scripts/with-database.ts next dev --port ${DEMO_PORT:-3030}",
     "dev:localized": "DEMO_LOCALIZED=true bun run dev",
     "generate": "bun run generate:importmap && bun run generate:types",
     "generate:importmap": "payload generate:importmap",
     "generate:types": "DEMO_LOCALIZED=true payload generate:types",
-    "start": "node --experimental-strip-types scripts/with-database.ts next start --port ${DEMO_PORT:-3030}",
+    "start": "node scripts/with-database.ts next start --port ${DEMO_PORT:-3030}",
     "test:e2e": "playwright test",
     "typecheck": "next typegen && tsc --noEmit"
   },
