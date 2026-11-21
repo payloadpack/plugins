@@ -76,7 +76,7 @@ const { foundRedirect } = await findRedirect({ hasDocument, path, payload, searc
 
 | Argument       | What it is                                                                                                                                                                                                |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `path`         | The path a visitor asked for, decoded, with a slash first. A slash at its end is dropped, as **From** drops it, so a site with `trailingSlash` passes its paths as they are                               |
+| `path`         | The path a visitor asked for, decoded, with a slash first. A slash at its end is dropped, as **From** drops it                                                                                            |
 | `payload`      | Your Payload instance                                                                                                                                                                                     |
 | `searchParams` | Optional. The visitor's query string: `request.nextUrl.searchParams` in a proxy, or a page's `searchParams`                                                                                               |
 | `hasDocument`  | Whether a document holds a path. Optional by default, where it lets a visitor take one hop through a chain of redirects. Required with `winOverDocuments: 'perRedirect'`, and never asked with `'always'` |

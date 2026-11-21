@@ -107,7 +107,8 @@ export async function proxy(request: NextRequest) {
 
   let path: string
   try {
-    path = decodeURIComponent(request.nextUrl.pathname)
+    // A page's path has no slash at its end, which a site with trailingSlash adds.
+    path = decodeURIComponent(request.nextUrl.pathname).replace(/\/+$/, '') || '/'
   } catch {
     return NextResponse.next()
   }
