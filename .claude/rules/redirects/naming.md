@@ -98,7 +98,7 @@ A redirect with the status Suggested: what a move saves from the old path of the
 _Avoid_: proposal, pending redirect, draft, auto-redirect
 
 **Suggest redirects**:
-What a move does with `suggestRedirects`: one suggestion per moved branch, and the suggestions and any redirect to the moved document deleted from the path it moved to.
+What a move does with `suggestRedirects`: one suggestion per moved branch, and the suggestions and any redirect to the moved document deleted from the path it moved to, as the suggestions are from the path a document is published at.
 _Avoid_: redirect old paths, leave behind, generate, migrate
 
 **Notice**:

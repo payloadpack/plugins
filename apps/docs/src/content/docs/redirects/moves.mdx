@@ -49,13 +49,13 @@ A redirect an editor added from the old path, **On** or **Off**, stays as it is,
 
 ## Moving back
 
-A move deletes the suggestions from the path the document lands on, since it holds that path now, and any redirect from that path to the document itself, whatever its status, which would send the path and its subpaths back to itself. So a page that moves back to its old path takes it again, and the path it leaves gets a suggestion. When two pages swap paths in one change, neither gets one, since each old path is the other page's now, and the pages right below each get their own.
+A move, or a publish at a new path, deletes the suggestions from the path the document lands on, since it holds that path now, and any redirect from that path to the document itself, whatever its status, which would send the path and its subpaths back to itself. So a page that moves back to its old path takes it again, and the path it leaves gets a suggestion. When two pages swap paths in one change, neither gets one, since each old path is the other page's now, and the pages right below each get their own.
 
 When redirects an editor turned on do make a circle, such as a parent renamed, a new page at its old path and a child moved below that one, [`findRedirect`](/redirects/matching/#findredirect) with `hasDocument` answers `null` for it, and your site answers 404.
 
 ## What it writes
 
-- **Only for the collections a redirect can send visitors to,** the `collections` of `redirectsPlugin()`. A move in another collection suggests none.
+- **Only for the collections a redirect can send visitors to,** the `collections` of `redirectsPlugin()`. A move in another collection suggests none, but still deletes the suggestions from the path it lands on.
 - **In the save's transaction,** so with transactions a save that fails writes no suggestion, and your hooks on the Redirects collection run. See [Transactions](/redirects/installation/#transactions).
 - **Lowercased,** as every **From** of a path is saved.
 - **With localization,** a move in a locale suggests a redirect from that locale's old path. A collection with one path in every locale gets one.

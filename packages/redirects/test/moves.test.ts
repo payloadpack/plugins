@@ -189,6 +189,31 @@ describeSite('the redirects a move suggests', {}, (site, setup) => {
     ])
   })
 
+  it('gives way with an earlier suggestion from the old path to the newer move’s', async () => {
+    const plaza = await publish(site.payload, 'pages', { slug: 'plaza', title: 'Plaza' })
+    await createRedirect(site.payload, { from: '/square', match: 'below', status: 'suggested', to: toUrl('/elsewhere') })
+    const req = await createPayloadRequest({ payload: site.payload })
+
+    await suggestRedirects({
+      changedPaths: [{ collection: 'pages', from: '/square', id: plaza.id, to: '/plaza' }],
+      payload: site.payload,
+      req
+    })
+
+    expect(await describeRedirects(site, ['/square'])).toEqual([
+      { from: '/square', status: 'suggested', to: targetOf('pages', plaza) }
+    ])
+  })
+
+  it('deletes the suggestion from the path a page is published at, which a document holds now', async () => {
+    const quayside = await publish(site.payload, 'pages', { slug: 'quayside', title: 'Quayside' })
+    await publishChange(site.payload, 'pages', quayside, { slug: 'waterfront' })
+
+    await publish(site.payload, 'pages', { slug: 'quayside', title: 'New quayside' })
+
+    expect(await describeRedirects(site, ['/quayside'])).toEqual([])
+  })
+
   // One save moves one branch, so two documents that swap paths are reported as one change.
   it('suggests none for two documents that swap paths in one change, and deletes the suggestions at both', async () => {
     const left = await publish(site.payload, 'pages', { slug: 'left', title: 'Left' })
@@ -432,6 +457,20 @@ describeSite(
       await publishChange(site.payload, 'news', notice, { slug: 'notices' })
 
       expect(await findRedirects(site.payload)).toEqual([])
+    })
+
+    it('deletes the suggestion from the path a document of such a collection is published at', async () => {
+      const bulletin = await publish(site.payload, 'pages', { slug: 'bulletin', title: 'Bulletin' })
+      await createRedirect(site.payload, {
+        from: '/news/bulletin',
+        match: 'below',
+        status: 'suggested',
+        to: toDocument('pages', bulletin)
+      })
+
+      await publish(site.payload, 'news', { slug: 'bulletin', title: 'Bulletin' })
+
+      expect(await findRedirectsFrom(site, ['/news/bulletin'])).toEqual([])
     })
   }
 )
