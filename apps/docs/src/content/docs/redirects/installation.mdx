@@ -126,7 +126,7 @@ export const config = { matcher: ['/((?!(?:admin|api|_next)(?:/|$)).*)'] }
 ```
 
 - **A URL without a query string** goes straight on to your page route, with no database call, and the route answers its redirects as before.
-- **A URL with one** costs a lookup: one database query, and one more when the redirect found sends visitors to a page. Only when a redirect was found that didn't match the query string does the proxy ask whether a page holds the path.
+- **A URL with one** costs a lookup: one database query, and one more when the redirect found sends visitors to a page. When it sends them to any other path on your site, such as `/sale`, `findRedirect` asks `hasDocument` about that path too, and looks it up again where no page holds it. Only when a redirect was found that didn't match the query string does the proxy ask whether a page holds the path.
 - **It keeps the visitor's query string** on the destination, such as `utm_source`. The page route above doesn't pass it on, so a redirect it answers sends `/old-page?utm_source=newsletter` to `/new-page` without it.
 - **The matcher** skips the admin, the API and Next's own files as whole segments, so a path such as `/apiary` still reaches the proxy.
 - **A page always wins** over a redirect from its path. A redirect that matched the query string wins over the page, because it is more specific: `/products?id=5` can go elsewhere while `/products` stays.
