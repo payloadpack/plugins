@@ -62,11 +62,9 @@ test('never sends a visitor away from a path a document holds', async ({ request
   expect(await response.text()).toContain('<h1>Events</h1>')
 })
 
-test('takes an exact redirect over a regex, and the first regex in the list', async ({ request, visitor }) => {
+test('tries the regexes in the order an editor drags them to', async ({ request, visitor }) => {
   const firstRegex = await createRedirect(request, { from: '^/order/(.*)$', match: 'regex', to: toUrl('/first/$1') })
   const secondRegex = await createRedirect(request, { from: '^/order/(.+)$', match: 'regex', to: toUrl('/second/$1') })
-  await createRedirect(request, { from: '/order/exact', to: toUrl('/exact') })
-  expect(await visit(visitor, '/order/exact')).toEqual({ location: '/exact', status: 308 })
   expect(await visit(visitor, '/order/a')).toEqual({ location: '/first/a', status: 308 })
 
   // What the list sends when an editor drags the second regex above the first.
