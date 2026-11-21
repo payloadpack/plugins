@@ -322,6 +322,16 @@ describeSite('findRedirect', {}, (site) => {
       ).toEqual(foundUrl('/blanks', { matchedQueryString: true }))
     })
 
+    // A ? followed by a name with a space and = saves as a regex, and its text is what the visitor's
+    // path and query string compare as.
+    it('never takes a regex as a redirect from a query string, also one that reads as a path and query string', async () => {
+      await createRedirect(site.payload, { from: '/coupon?a b=1', match: 'regex', to: toUrl('/t/$1') })
+
+      expect(
+        await findFoundRedirect({ path: '/coupon', payload: site.payload, searchParams: new URLSearchParams('a%20b=1') })
+      ).toBeNull()
+    })
+
     it('falls through a redirect from a query string whose target sends nobody', async () => {
       const draftPage = await createDraft(site.payload, 'pages', { slug: 'draft-offer', title: 'Draft' })
       await createRedirect(site.payload, { from: '/offer?code=x', to: toDocument('pages', draftPage) })

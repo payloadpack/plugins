@@ -192,8 +192,9 @@ async function* findTries(
     where
   })
   const candidates = docs as unknown as Candidate[]
-  // The parameters it matched leave the destination, and the tracking parameters stay.
-  for (const candidate of candidates.filter(({ from }) => from === queryFrom)) {
+  // Only Exact path holds a query string, though a regex can be written as the same text. The
+  // parameters it matched leave the destination, and the tracking parameters stay.
+  for (const candidate of candidates.filter(({ from, match }) => match === 'exact' && from === queryFrom)) {
     yield {
       candidate,
       matchedQueryString: true,
