@@ -1,0 +1,61 @@
+---
+title: Moves and deletes
+description: The redirect suggestRedirects suggests when @payloadpack/path moves a page, a branch or a news item, or a delete lifts the pages below, and how an editor says yes or no on the moved page.
+---
+
+With `onPathsChanged: suggestRedirects` in [`pathPlugin()`](/path/api/on-paths-changed/), every published path that changes gets a suggestion: a redirect from where it was, which answers nobody until an editor says yes. The old path gets no redirect on its own, so no visitor is sent anywhere a person didn't pick. Without it a move suggests nothing, and your own `onPathsChanged` can pass on only the moves you want one for: see [Choosing which moves suggest a redirect](/redirects/installation/#choosing-which-moves-suggest-a-redirect).
+
+```ts title="payload.config.ts"
+pathPlugin({ collections: ['pages', 'posts'], onPathsChanged: suggestRedirects })
+```
+
+## What a move suggests
+
+| Editors                                               | Redirect suggested                                                      |
+| ----------------------------------------------------- | ----------------------------------------------------------------------- |
+| Rename `/about-us` to `/company`, with pages below it | One, from `/about-us` and its subpaths, to the page                     |
+| Move `/team` below `/company`                         | One, from `/team` and its subpaths, to the page                         |
+| Change a post's slug, at `/blog/spring-menu`          | One, from `/blog/spring-menu` and its subpaths, to the post             |
+| Give the home page, at `/`, another slug              | One, from `/` alone, to the page, since every path is below `/`         |
+| Delete `/workshops`, which lifts `/workshops/pottery` | One for each page lifted, such as from `/workshops/pottery` to the page |
+
+Each suggestion is permanent and sends visitors to the document, so once someone says yes it follows the document through every later move: a page moved twice sends its oldest path straight to its newest, with no chain between.
+
+A branch of any size gets one suggestion, from the path of the document at its top, which covers every page below: a move of a page with 1,000 below writes as much as one with 3. A page lifted by a delete or moved somewhere else than below its moved parent gets one of its own.
+
+Its **Match** is **Path and subpaths**, which only a suggestion has. An editor who makes a redirect picks **Exact path** or **Regex**.
+
+## Yes or no, on the moved page
+
+Right after the save that moves a page, the editor sees a notice above its fields for each redirect the move suggests to it:
+
+> This page moved from /about-us to /company. Should visitors who ask for /about-us be sent here?
+
+The notice names the document by its collection's singular label, such as news item, when that label is a plain string, and gives the path the page is at now as the editor reads it, drafts included. When your `buildDocumentPath` builds no path for it, the notice leaves out "to /company".
+
+- **Yes, redirect them** sets the redirect to **On**, so `/about-us` and its subpaths go to the page.
+- **Edit** opens the suggestion, so the editor can change it before picking **On**.
+- **No** deletes the suggestion, and `/about-us` answers 404 as before.
+
+They act as the signed-in editor, so the access you give the Redirects collection decides who can answer. The plugin adds the notice as a field that stores nothing, `redirectSuggestions`, first in every collection a redirect can send visitors to.
+
+## Suggestions nobody has answered
+
+A move through the API, a bulk edit or a delete that lifts the pages below moves documents nobody has open. Their suggestions wait in the Redirects list with the status **Suggested**, and as notices on each moved document the next time someone opens it. An editor can answer in either place: pick **On** in the list, or delete the redirect. Until then the old path answers 404, like any path no redirect covers.
+
+## When a redirect already holds the old path
+
+A redirect an editor added from the old path, **On** or **Off**, stays as it is, and the move suggests nothing from that path, since a From can only be used once. A suggestion an earlier move left there gives way to the new one.
+
+## Moving back
+
+A move deletes the suggestions from the path the document lands on, since it holds that path now, and any redirect from that path to the document itself, whatever its status, which would send the path and its subpaths back to itself. So a page that moves back to its old path takes it again, and the path it leaves gets a suggestion. When two pages swap paths in one change, neither gets one, since each old path is the other page's now.
+
+When redirects an editor turned on do make a circle, such as a parent renamed, a new page at its old path and a child moved below that one, [`findRedirect`](/redirects/matching/#findredirect) with `hasDocument` answers `null` for it, and your site answers 404.
+
+## What it writes
+
+- **Only for the collections a redirect can send visitors to,** the `collections` of `redirectsPlugin()`. A move in another collection suggests none.
+- **In the save's transaction,** so with transactions a save that fails writes no suggestion, and your hooks on the Redirects collection run. See [Transactions](/redirects/installation/#transactions).
+- **Lowercased,** as every **From** of a path is saved.
+- **With localization,** a move in a locale suggests a redirect from that locale's old path. A collection with one path in every locale gets one.

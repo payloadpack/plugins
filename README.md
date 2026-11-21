@@ -46,6 +46,19 @@ bun add @payloadpack/path
 
 <a href="https://docs.payloadpack.com/path/"><b>Documentation</b></a> · <a href="packages/path#readme">README</a> · <a href="packages/path/CHANGELOG.md">Changelog</a>
 
+## [@payloadpack/redirects](packages/redirects)
+
+<a href="https://www.npmjs.com/package/@payloadpack/redirects"><img alt="npm version" src="https://img.shields.io/npm/v/@payloadpack/redirects"></a>
+<a href="https://payloadcms.com"><img alt="Payload version" src="https://img.shields.io/npm/dependency-version/@payloadpack/redirects/peer/payload"></a>
+
+Redirects editors manage, from an exact path or a regex, to a page or a URL. Your site finds them through database indexes at the same cost for 100,000 as for 1,000, and with `@payloadpack/path` every move of a page suggests a redirect from its old path, which an editor turns on with a yes.
+
+```sh
+bun add @payloadpack/redirects
+```
+
+<a href="https://docs.payloadpack.com/redirects/"><b>Documentation</b></a> · <a href="packages/redirects#readme">README</a> · <a href="packages/redirects/CHANGELOG.md">Changelog</a>
+
 ## Contributing
 
 Each plugin lives in `packages/<name>` and releases on its own version. [CONTRIBUTING.md](CONTRIBUTING.md) covers the layout, the commands and how to add a plugin.

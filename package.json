@@ -7,6 +7,7 @@
     "dev:theme": "turbo dev --filter=@apps/theme-demo",
     "dev:path": "turbo dev --filter=@apps/path-demo",
     "dev:path:localized": "turbo dev:localized --filter=@apps/path-demo",
+    "dev:redirects": "turbo dev --filter=@apps/redirects-demo",
     "dev:docs": "turbo dev --filter=@apps/docs",
     "generate": "turbo generate:importmap generate:types",
     "test": "turbo test",

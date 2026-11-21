@@ -18,6 +18,7 @@ jobs:
       theme_demo_e2e: ${{ steps.affected.outputs.theme_demo_e2e }}
       theme_demo_visual: ${{ steps.affected.outputs.theme_demo_visual }}
       path_demo_e2e: ${{ steps.affected.outputs.path_demo_e2e }}
+      redirects_demo_e2e: ${{ steps.affected.outputs.redirects_demo_e2e }}
     steps:
       - name: Checkout
         if: github.event_name == 'pull_request'
@@ -36,6 +37,7 @@ jobs:
           echo "filter=--filter=...[origin/main]" >> "$GITHUB_OUTPUT"
           scripts/demo-tests.sh @apps/theme-demo >> "$GITHUB_OUTPUT"
           scripts/demo-tests.sh @apps/path-demo >> "$GITHUB_OUTPUT"
+          scripts/demo-tests.sh @apps/redirects-demo >> "$GITHUB_OUTPUT"
 
   build-and-test:
     needs: changes
@@ -63,7 +65,7 @@ jobs:
             exit 1
           fi
 
-      # The path package's tests start a MongoDB replica set, which downloads its binary once.
+      # The path and redirects packages' tests start a MongoDB replica set, which downloads its binary once.
       - name: Keep the MongoDB binary in the workspace
         run: echo "MONGOMS_DOWNLOAD_DIR=$GITHUB_WORKSPACE/.cache/mongodb-binaries" >> "$GITHUB_ENV"
 
@@ -201,9 +203,57 @@ jobs:
           name: path-e2e-traces
           path: apps/path-demo/test-results
 
+  redirects-e2e:
+    needs: changes
+    if: needs.changes.outputs.redirects_demo_e2e != 'false'
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      # The demo starts a MongoDB replica set, which downloads its binary once.
+      - name: Keep the MongoDB binary in the workspace
+        run: echo "MONGOMS_DOWNLOAD_DIR=$GITHUB_WORKSPACE/.cache/mongodb-binaries" >> "$GITHUB_ENV"
+
+      - name: Cache the MongoDB binary
+        uses: actions/cache@v4
+        with:
+          path: .cache/mongodb-binaries
+          key: mongodb-binaries-${{ hashFiles('bun.lock') }}
+          restore-keys: mongodb-binaries-
+
+      - name: Build the packages the demo uses
+        run: bun run build --filter=@apps/redirects-demo^...
+
+      - name: End-to-end tests
+        run: bun run test:e2e
+        working-directory: apps/redirects-demo
+
+      - name: Check that the generated types and import map are current
+        run: |
+          bun run generate
+          # The container runs as another user than the one that checked out, and git then takes the
+          # workspace for no repository and compares the two files with each other.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git diff --exit-code -- src/payload-types.ts "src/app/(payload)/admin/importMap.js"
+        working-directory: apps/redirects-demo
+
+      - name: Upload traces of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: redirects-e2e-traces
+          path: apps/redirects-demo/test-results
+
   validate:
     if: always()
-    needs: [changes, build-and-test, theme-e2e, theme-visual, path-e2e]
+    needs: [changes, build-and-test, theme-e2e, theme-visual, path-e2e, redirects-e2e]
     runs-on: ubuntu-latest
     steps:
       - name: Fail when a job did not pass

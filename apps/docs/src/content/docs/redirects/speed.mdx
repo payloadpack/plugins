@@ -1,0 +1,38 @@
+---
+title: Speed
+description: What checking for redirects adds to a page view, on MongoDB, Postgres and SQLite, at 100,000 redirects.
+---
+
+import AddedTimeTable from '../../../components/redirects/AddedTimeTable.astro'
+import BenchRun from '../../../components/redirects/BenchRun.astro'
+
+Your page route asks for a redirect only when no page holds the path, so a page view pays nothing for it. If you add the [proxy](/redirects/installation/#query-strings-in-a-proxy) for old URLs with a query string, it runs before every page, and this is what it adds:
+
+<AddedTimeTable proxyBuild="query-string-proxy" />
+
+<BenchRun />
+
+Without a query string, the proxy lets the page view through before it asks the database. With one, even if it's only `utm_source`, it asks the database once, so the farther away your database is, the more that adds. A lookup reads only the redirects that can cover the path, so 1,000 redirects cost what 100,000 do.
+
+## With redirects that win over pages
+
+With [`winOverDocuments`](/redirects/installation/#letting-redirects-win-over-pages), the proxy asks the database on every page view, with a query string or without one, and this is what that adds:
+
+<AddedTimeTable proxyBuild="win-over-documents-proxy" />
+
+That's the lookup a page view with a query string pays above, now on every page, so here too the farther away your database is, the more it adds. The numbers are from `'always'`, and with `'perRedirect'` a page view here makes the same one query, since `findRedirect` asks `hasDocument` only about a path a redirect covers, and none covers the pages viewed.
+
+## How it's measured
+
+The same Next.js app is built three times: with the proxy for query strings, with the one for redirects that win over pages, and without one. All three run on `next start`. Its pages are built ahead and never read the database, so the proxy is the only difference between them. Each database holds 100,000 redirects from paths right beside the pages viewed, and as many regexes, but none of them covers a page viewed. Every page view goes to a build with a proxy and to the one without, in random order, and the tables show the median and the p95 of how much longer the build with the proxy took. To put the database 5 ms away, a relay holds every packet back 2.5 ms each way. SQLite is a file on the server itself, so it can't be 5 ms away.
+
+These numbers are for a Node.js server you run yourself. On Vercel, the proxy runs as a function call of its own before the cache on every request, and that isn't measured here.
+
+## Run it yourself
+
+```sh
+cd apps/redirects-bench
+bun run bench
+```
+
+It builds the app, starts MongoDB, Postgres and SQLite on its own, and seeds 1,000, 10,000 and 100,000 redirects and as many regexes into each. Only a run of all of them writes the numbers on this page and the tables in the README.

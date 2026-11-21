@@ -96,6 +96,17 @@ export default defineConfig({
                 ]
               }
             ]
+          },
+          {
+            label: 'redirects',
+            link: '/redirects/',
+            items: [
+              { slug: 'redirects', attrs: { 'data-icon': 'book-open' } },
+              { slug: 'redirects/installation', attrs: { 'data-icon': 'download' } },
+              { slug: 'redirects/configuration', attrs: { 'data-icon': 'settings-2' } },
+              { slug: 'redirects/speed', attrs: { 'data-icon': 'gauge' } },
+              { label: 'How it works', items: ['redirects/matching', 'redirects/moves'] }
+            ]
           }
         ])
       ]

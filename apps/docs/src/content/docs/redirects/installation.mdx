@@ -1,0 +1,214 @@
+---
+title: Installation
+description: Install the package, add the plugin with the collections a redirect can send visitors to, run a migration on Postgres or SQLite, answer redirects in your site's page route, and add a proxy for query strings or for redirects that win over pages.
+---
+
+import { Steps } from '@astrojs/starlight/components'
+
+<Steps>
+
+1. **Install the package.**
+
+   ```sh
+   bun add @payloadpack/redirects
+   ```
+
+   Or use `npm install`, `pnpm add`, or `yarn add`. Peer dependencies: `payload`, `@payloadcms/ui` and `react`, which a Payload app with its admin already has.
+
+2. **Add the plugin** with the collections a redirect can send visitors to, and how your site builds the path of one of their documents. With `@payloadpack/path`, that is the path it keeps on the document, and `documentSelect` has a lookup read only that field. If you want a move to suggest a redirect from the old path, which an editor turns on with a yes on the moved page, pass `suggestRedirects` to `onPathsChanged`. Leave it out and moves suggest nothing:
+
+   ```ts title="payload.config.ts"
+   import { pathPlugin } from '@payloadpack/path'
+   import { redirectsPlugin, suggestRedirects } from '@payloadpack/redirects'
+
+   export default buildConfig({
+     plugins: [
+       pathPlugin({ collections: ['pages', 'posts'], onPathsChanged: suggestRedirects }),
+       redirectsPlugin({
+         collections: ['pages', 'posts'],
+         buildDocumentPath: ({ document }) => document.path,
+         documentSelect: { path: true }
+       })
+     ]
+   })
+   ```
+
+   Without `@payloadpack/path`, build the path from the document your site's own way. See [Building a document's path](/redirects/configuration/#building-a-documents-path).
+
+3. **Create a migration** on Postgres and SQLite for the redirects collection the plugin adds. In development with `push: true`, Payload adds the tables automatically.
+
+   ```sh
+   bunx payload migrate:create
+   ```
+
+4. **Let visitors read what a redirect sends them to.** A lookup reads as a visitor, so a document visitors can't read sends nobody. Payload 4 lets only users of the admin read a collection unless you set its read access, such as to published documents for everyone else:
+
+   ```ts title="collections/pages.ts"
+   access: {
+     read: ({ req: { payload, user } }) => user?.collection === payload.config.admin.user || { _status: { equals: 'published' } }
+   }
+   ```
+
+5. **Answer redirects in your page route**, the catch-all route that renders your pages, when no document holds the path. A page view pays nothing for it: the route asks only for paths no page holds. In Next.js:
+
+   ```tsx title="app/(frontend)/[[...segments]]/page.tsx"
+   import config from '@payload-config'
+   import { findByPath } from '@payloadpack/path'
+   import { findRedirect } from '@payloadpack/redirects'
+   import { notFound, permanentRedirect, redirect } from 'next/navigation'
+   import { getPayload } from 'payload'
+
+   export default async function SitePage({ params }: { params: Promise<{ segments?: string[] }> }) {
+     const { segments = [] } = await params
+     const payload = await getPayload({ config })
+     // Next gives each segment encoded, so /öppettider comes as %C3%B6ppettider.
+     const path = `/${segments.map(decodeURIComponent).join('/')}`
+
+     const found = await findByPath({ path, payload })
+     if (found) return <h1>{found.document.title}</h1>
+
+     const { foundRedirect } = await findRedirect({
+       hasDocument: async (nextPath) => (await findByPath({ path: nextPath, payload })) !== null,
+       path,
+       payload
+     })
+     if (!foundRedirect) notFound()
+     if (foundRedirect.permanent) permanentRedirect(foundRedirect.destination)
+     redirect(foundRedirect.destination)
+   }
+   ```
+
+   `permanentRedirect` answers 308 and `redirect` 307. With `hasDocument`, a visitor takes one hop through a chain of redirects. See [`findRedirect`](/redirects/matching/#findredirect). For redirects from a query string, such as `/news.aspx?id=123`, add [a proxy](#query-strings-in-a-proxy) too. To let redirects win over pages, the proxy answers them all instead: see [Letting redirects win over pages](#letting-redirects-win-over-pages).
+
+6. **Generate the import map and types,** so the admin finds the notice the plugin shows above a moved document's fields, and your Payload types include the `Redirect` collection.
+
+   ```sh
+   bunx payload generate:importmap
+   bunx payload generate:types
+   ```
+
+</Steps>
+
+## Query strings, in a proxy
+
+A redirect from a path and a query string, such as `/news.aspx?id=123`, needs the visitor's query string, and a page route never sees it when its page is cached per path. A proxy runs before every page and sees the whole URL. Next.js 16 runs `proxy.ts` on Node.js:
+
+```ts title="proxy.ts"
+import payloadConfig from '@payload-config'
+import { findByPath } from '@payloadpack/path'
+import { findRedirect } from '@payloadpack/redirects'
+import { NextResponse, type NextRequest } from 'next/server'
+import { getPayload } from 'payload'
+
+// Answers the redirects that match a query string, which the page route never sees when its page is
+// cached per path. A URL without one goes on to the page route, which checks for a redirect itself.
+export async function proxy(request: NextRequest) {
+  if (request.nextUrl.search === '') return NextResponse.next()
+
+  let path: string
+  try {
+    path = decodeURIComponent(request.nextUrl.pathname)
+  } catch {
+    return NextResponse.next()
+  }
+  const payload = await getPayload({ config: payloadConfig })
+  const hasDocument = async (pathAsked: string) => (await findByPath({ path: pathAsked, payload })) !== null
+
+  const { foundRedirect } = await findRedirect({ hasDocument, path, payload, searchParams: request.nextUrl.searchParams })
+  if (!foundRedirect) return NextResponse.next()
+  // A page always wins over a redirect from its path, but not over one that matched the query string.
+  if (!foundRedirect.matchedQueryString && (await hasDocument(path))) return NextResponse.next()
+  return NextResponse.redirect(new URL(foundRedirect.destination, request.url), foundRedirect.permanent ? 308 : 307)
+}
+
+// Skips the admin, the API and Next's own files, whole segments only, so a path such as /apiary passes.
+export const config = { matcher: ['/((?!(?:admin|api|_next)(?:/|$)).*)'] }
+```
+
+- **A URL without a query string** goes straight on to your page route, with no database call, and the route answers its redirects as before.
+- **A URL with one** costs a lookup: one database query, and one more when the redirect found sends visitors to a page. Only when a redirect was found that didn't match the query string does the proxy ask whether a page holds the path.
+- **It keeps the visitor's query string** on the destination, such as `utm_source`. The page route above doesn't pass it on, so a redirect it answers sends `/old-page?utm_source=newsletter` to `/new-page` without it.
+- **The matcher** skips the admin, the API and Next's own files as whole segments, so a path such as `/apiary` still reaches the proxy.
+- **A page always wins** over a redirect from its path. A redirect that matched the query string wins over the page, because it is more specific: `/products?id=5` can go elsewhere while `/products` stays.
+
+Every request passes the proxy, even one it sends on at once. On `next start` that costs next to nothing; on Vercel it is a function call per request. Keep the page route as well: it answers redirects for URLs without a query string, and the proxy leaves them to it.
+
+## Letting redirects win over pages
+
+A page at a path wins over a redirect from it, unless the redirect matched the visitor's query string. If you'd rather have redirects answer even where a page is, set `winOverDocuments`:
+
+```ts title="payload.config.ts"
+redirectsPlugin({
+  collections: ['pages', 'posts'],
+  buildDocumentPath: ({ document }) => document.path,
+  documentSelect: { path: true },
+  winOverDocuments: 'perRedirect'
+})
+```
+
+- **`'perRedirect'`** gives each redirect a **Wins over a page** box, unchecked by default, so editors pick the ones that answer over a page. A suggestion someone says yes to stays unchecked.
+- **`'always'`** lets every redirect that is on answer over a page, and adds no box.
+
+A redirect that matched the visitor's query string wins over a page either way.
+
+A page view can't skip the lookup any more, since a redirect may cover a path a page is at. So the proxy checks every request, not only the ones with a query string, and answers every redirect itself. This `proxy.ts` works with both values:
+
+```ts title="proxy.ts"
+import payloadConfig from '@payload-config'
+import { findByPath } from '@payloadpack/path'
+import { findRedirect } from '@payloadpack/redirects'
+import { NextResponse, type NextRequest } from 'next/server'
+import { getPayload } from 'payload'
+
+// Answers every redirect, since one can win over the page at its path. findRedirect decides by
+// winOverDocuments whether a page wins, and asks hasDocument only when it needs to.
+export async function proxy(request: NextRequest) {
+  let path: string
+  try {
+    path = decodeURIComponent(request.nextUrl.pathname)
+  } catch {
+    return NextResponse.next()
+  }
+  const payload = await getPayload({ config: payloadConfig })
+  const hasDocument = async (pathAsked: string) => (await findByPath({ path: pathAsked, payload })) !== null
+
+  const { foundRedirect } = await findRedirect({ hasDocument, path, payload, searchParams: request.nextUrl.searchParams })
+  if (!foundRedirect) return NextResponse.next()
+  return NextResponse.redirect(new URL(foundRedirect.destination, request.url), foundRedirect.permanent ? 308 : 307)
+}
+
+// Skips the admin, the API and Next's own files, whole segments only, so a path such as /apiary passes.
+export const config = { matcher: ['/((?!(?:admin|api|_next)(?:/|$)).*)'] }
+```
+
+- **Your page route needs no redirect check.** The proxy has answered every redirect before the route runs, so the route renders a page or answers 404.
+- **Every page view pays a lookup**, one database query. A redirect to a page costs two more: one to read the page's path, and a lookup there, since a redirect can win over that page too. Each step of a chain costs a lookup. Files from `public`, such as `/favicon.ico`, pass the matcher and pay one too, so have the matcher skip the ones you serve. [Speed](/redirects/speed/#with-redirects-that-win-over-pages) shows what a lookup adds to a page view.
+- **`hasDocument` is required with `'perRedirect'`.** `findRedirect` asks it only when the best redirect for a path can't win over a page by itself. With `'always'` it never asks, and follows a chain of redirects without it. Without `hasDocument`, `'perRedirect'` throws:
+
+  > @payloadpack/redirects: give findRedirect hasDocument, which says whether a document holds a path, because with winOverDocuments 'perRedirect' a document at the path wins over every redirect but the ones an editor picked and one that matched the query string
+
+- **A CDN in front of the proxy** serves a page it cached before the proxy runs, so a redirect saved later reaches visitors only once that path is purged at the CDN. Next's own [CDN caching guide](https://nextjs.org/docs/app/guides/cdn-caching) says the proxy should run before the CDN cache, or the CDN should skip caching the routes that depend on it.
+
+## Choosing which moves suggest a redirect
+
+`suggestRedirects` takes what `onPathsChanged` hears, so your own `onPathsChanged` decides which moves suggest a redirect, and can do more on a move. This one suggests redirects for pages only, and purges the cache on every move:
+
+```ts title="payload.config.ts"
+pathPlugin({
+  collections: ['pages', 'posts'],
+  onPathsChanged: async (args) => {
+    // Only a page's move suggests a redirect.
+    await suggestRedirects({ ...args, changedPaths: args.changedPaths.filter(({ collection }) => collection === 'pages') })
+    await purgeCache(args.changedPaths) // purgeCache is yours
+  }
+})
+```
+
+## Transactions
+
+| Database setup                  | If a save that moves a page fails                                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------- |
+| With transactions               | Everything rolls back, and no suggestion is written                                            |
+| Without them (SQLite's default) | The suggestions the move wrote before it failed stay, and answer nobody until someone says yes |
+
+Works with and without transactions on MongoDB, Postgres, and SQLite.

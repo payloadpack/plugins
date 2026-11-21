@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "erasableSyntaxOnly": true,
+    "incremental": true,
+    "noEmit": true,
+    "paths": {
+      "@payload-config": ["./src/payload.config.ts"]
+    },
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "verbatimModuleSyntax": true
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/query-string-proxy/types/**/*.ts",
+    ".next/query-string-proxy/dev/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", ".next/win-over-documents-proxy", ".next/baseline"]
+}

@@ -1,0 +1,638 @@
+{
+  "ranOn": {
+    "date": "2026-11-21",
+    "memoryGigabytes": 128,
+    "next": "16.4.6",
+    "node": "26.13.1",
+    "operatingSystem": "macOS 27.0.1",
+    "payload": "4.0.0-beta.11",
+    "processor": "Apple M3 Max"
+  },
+  "relayDelayEachWay": 2.5,
+  "timedPairs": 2000,
+  "warmUpPairs": 500,
+  "databases": [
+    {
+      "database": "mongodb",
+      "version": "8.2.6",
+      "roundTrip": {
+        "relayed": 5.43,
+        "same-machine": 0.1
+      },
+      "roundTripsPerCheck": 1.01
+    },
+    {
+      "database": "postgres",
+      "version": "18.6",
+      "roundTrip": {
+        "relayed": 5.31,
+        "same-machine": 0.07
+      },
+      "roundTripsPerCheck": 1.02
+    },
+    {
+      "database": "sqlite",
+      "version": "3.45.1"
+    }
+  ],
+  "cases": [
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "mongodb",
+      "distance": "same-machine",
+      "redirects": 1000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 0.57,
+        "p95": 0.95
+      },
+      "proxy": {
+        "median": 1.14,
+        "p95": 1.85
+      },
+      "baseline": {
+        "median": 0.57,
+        "p95": 0.9
+      }
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "mongodb",
+      "distance": "relayed",
+      "redirects": 1000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 5.9,
+        "p95": 6.5
+      },
+      "proxy": {
+        "median": 6.59,
+        "p95": 7.58
+      },
+      "baseline": {
+        "median": 0.69,
+        "p95": 1.08
+      },
+      "sentToDatabasePerCheck": 1
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "mongodb",
+      "distance": "same-machine",
+      "redirects": 10000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 0.57,
+        "p95": 0.95
+      },
+      "proxy": {
+        "median": 1.14,
+        "p95": 1.91
+      },
+      "baseline": {
+        "median": 0.57,
+        "p95": 0.97
+      }
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "mongodb",
+      "distance": "relayed",
+      "redirects": 10000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 5.72,
+        "p95": 6.15
+      },
+      "proxy": {
+        "median": 6.34,
+        "p95": 7.1
+      },
+      "baseline": {
+        "median": 0.62,
+        "p95": 0.95
+      },
+      "sentToDatabasePerCheck": 1
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "mongodb",
+      "distance": "same-machine",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 0.46,
+        "p95": 0.71
+      },
+      "proxy": {
+        "median": 0.97,
+        "p95": 1.42
+      },
+      "baseline": {
+        "median": 0.51,
+        "p95": 0.71
+      }
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "mongodb",
+      "distance": "relayed",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 5.84,
+        "p95": 6.39
+      },
+      "proxy": {
+        "median": 6.46,
+        "p95": 7.37
+      },
+      "baseline": {
+        "median": 0.62,
+        "p95": 0.98
+      },
+      "sentToDatabasePerCheck": 1
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "mongodb",
+      "distance": "same-machine",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": false,
+      "requests": 2000,
+      "added": {
+        "median": 0.08,
+        "p95": 0.12
+      },
+      "proxy": {
+        "median": 0.49,
+        "p95": 0.74
+      },
+      "baseline": {
+        "median": 0.41,
+        "p95": 0.62
+      }
+    },
+    {
+      "proxyBuild": "win-over-documents-proxy",
+      "database": "mongodb",
+      "distance": "same-machine",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": false,
+      "requests": 2000,
+      "added": {
+        "median": 0.49,
+        "p95": 0.77
+      },
+      "proxy": {
+        "median": 0.98,
+        "p95": 1.53
+      },
+      "baseline": {
+        "median": 0.49,
+        "p95": 0.76
+      }
+    },
+    {
+      "proxyBuild": "win-over-documents-proxy",
+      "database": "mongodb",
+      "distance": "relayed",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": false,
+      "requests": 2000,
+      "added": {
+        "median": 5.79,
+        "p95": 6.34
+      },
+      "proxy": {
+        "median": 6.4,
+        "p95": 7.32
+      },
+      "baseline": {
+        "median": 0.62,
+        "p95": 0.98
+      },
+      "sentToDatabasePerCheck": 1
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "mongodb",
+      "distance": "same-machine",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 20,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 0.84,
+        "p95": 1.12
+      },
+      "proxy": {
+        "median": 1.37,
+        "p95": 1.91
+      },
+      "baseline": {
+        "median": 0.53,
+        "p95": 0.8
+      }
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "mongodb",
+      "distance": "relayed",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 20,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 6.27,
+        "p95": 6.94
+      },
+      "proxy": {
+        "median": 6.91,
+        "p95": 7.94
+      },
+      "baseline": {
+        "median": 0.64,
+        "p95": 1.01
+      },
+      "sentToDatabasePerCheck": 1
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "postgres",
+      "distance": "same-machine",
+      "redirects": 1000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 0.56,
+        "p95": 0.77
+      },
+      "proxy": {
+        "median": 1.04,
+        "p95": 1.46
+      },
+      "baseline": {
+        "median": 0.48,
+        "p95": 0.69
+      }
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "postgres",
+      "distance": "relayed",
+      "redirects": 1000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 5.72,
+        "p95": 5.98
+      },
+      "proxy": {
+        "median": 6.39,
+        "p95": 6.96
+      },
+      "baseline": {
+        "median": 0.66,
+        "p95": 0.98
+      },
+      "sentToDatabasePerCheck": 1
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "postgres",
+      "distance": "same-machine",
+      "redirects": 10000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 0.56,
+        "p95": 0.77
+      },
+      "proxy": {
+        "median": 1.07,
+        "p95": 1.55
+      },
+      "baseline": {
+        "median": 0.5,
+        "p95": 0.78
+      }
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "postgres",
+      "distance": "relayed",
+      "redirects": 10000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 5.83,
+        "p95": 6.85
+      },
+      "proxy": {
+        "median": 6.44,
+        "p95": 8.4
+      },
+      "baseline": {
+        "median": 0.61,
+        "p95": 1.54
+      },
+      "sentToDatabasePerCheck": 1
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "postgres",
+      "distance": "same-machine",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 0.58,
+        "p95": 0.84
+      },
+      "proxy": {
+        "median": 1.09,
+        "p95": 1.57
+      },
+      "baseline": {
+        "median": 0.51,
+        "p95": 0.73
+      }
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "postgres",
+      "distance": "relayed",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 5.9,
+        "p95": 6.53
+      },
+      "proxy": {
+        "median": 6.53,
+        "p95": 7.54
+      },
+      "baseline": {
+        "median": 0.62,
+        "p95": 1.02
+      },
+      "sentToDatabasePerCheck": 1
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "postgres",
+      "distance": "same-machine",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": false,
+      "requests": 2000,
+      "added": {
+        "median": 0.08,
+        "p95": 0.12
+      },
+      "proxy": {
+        "median": 0.54,
+        "p95": 0.8
+      },
+      "baseline": {
+        "median": 0.46,
+        "p95": 0.68
+      }
+    },
+    {
+      "proxyBuild": "win-over-documents-proxy",
+      "database": "postgres",
+      "distance": "same-machine",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": false,
+      "requests": 2000,
+      "added": {
+        "median": 0.57,
+        "p95": 0.83
+      },
+      "proxy": {
+        "median": 1.06,
+        "p95": 1.6
+      },
+      "baseline": {
+        "median": 0.49,
+        "p95": 0.77
+      }
+    },
+    {
+      "proxyBuild": "win-over-documents-proxy",
+      "database": "postgres",
+      "distance": "relayed",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": false,
+      "requests": 2000,
+      "added": {
+        "median": 5.87,
+        "p95": 6.33
+      },
+      "proxy": {
+        "median": 6.48,
+        "p95": 7.3
+      },
+      "baseline": {
+        "median": 0.61,
+        "p95": 0.98
+      },
+      "sentToDatabasePerCheck": 1
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "postgres",
+      "distance": "same-machine",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 20,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 1.03,
+        "p95": 1.45
+      },
+      "proxy": {
+        "median": 1.58,
+        "p95": 2.28
+      },
+      "baseline": {
+        "median": 0.55,
+        "p95": 0.83
+      }
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "postgres",
+      "distance": "relayed",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 20,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 6.29,
+        "p95": 6.78
+      },
+      "proxy": {
+        "median": 6.91,
+        "p95": 7.68
+      },
+      "baseline": {
+        "median": 0.62,
+        "p95": 0.9
+      },
+      "sentToDatabasePerCheck": 1
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "sqlite",
+      "distance": "same-machine",
+      "redirects": 1000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 0.37,
+        "p95": 0.61
+      },
+      "proxy": {
+        "median": 0.86,
+        "p95": 1.32
+      },
+      "baseline": {
+        "median": 0.48,
+        "p95": 0.71
+      }
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "sqlite",
+      "distance": "same-machine",
+      "redirects": 10000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 0.37,
+        "p95": 0.62
+      },
+      "proxy": {
+        "median": 0.86,
+        "p95": 1.38
+      },
+      "baseline": {
+        "median": 0.49,
+        "p95": 0.75
+      }
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "sqlite",
+      "distance": "same-machine",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 0.38,
+        "p95": 0.56
+      },
+      "proxy": {
+        "median": 0.89,
+        "p95": 1.26
+      },
+      "baseline": {
+        "median": 0.51,
+        "p95": 0.7
+      }
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "sqlite",
+      "distance": "same-machine",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": false,
+      "requests": 2000,
+      "added": {
+        "median": 0.12,
+        "p95": 0.19
+      },
+      "proxy": {
+        "median": 0.55,
+        "p95": 0.83
+      },
+      "baseline": {
+        "median": 0.43,
+        "p95": 0.64
+      }
+    },
+    {
+      "proxyBuild": "win-over-documents-proxy",
+      "database": "sqlite",
+      "distance": "same-machine",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 0,
+      "queryString": false,
+      "requests": 2000,
+      "added": {
+        "median": 0.36,
+        "p95": 0.55
+      },
+      "proxy": {
+        "median": 0.86,
+        "p95": 1.3
+      },
+      "baseline": {
+        "median": 0.51,
+        "p95": 0.75
+      }
+    },
+    {
+      "proxyBuild": "query-string-proxy",
+      "database": "sqlite",
+      "distance": "same-machine",
+      "redirects": 100000,
+      "regexesWithoutFixedStart": 20,
+      "queryString": true,
+      "requests": 2000,
+      "added": {
+        "median": 0.81,
+        "p95": 1.1
+      },
+      "proxy": {
+        "median": 1.35,
+        "p95": 1.92
+      },
+      "baseline": {
+        "median": 0.54,
+        "p95": 0.81
+      }
+    }
+  ]
+}

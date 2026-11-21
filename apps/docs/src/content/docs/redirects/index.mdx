@@ -1,0 +1,49 @@
+---
+title: Introduction
+description: Redirects editors manage in Payload 4, found through database indexes at the same cost for 100,000 as for 1,000. With @payloadpack/path, every page move suggests a redirect from its old path.
+---
+
+`@payloadpack/redirects` adds a **Redirects** collection to the admin. Editors send an exact path or every path a regex matches to a page or a URL, and your site asks for a redirect whenever no document holds a path. With [`@payloadpack/path`](/path/), every move of a page suggests a redirect from its old path and its subpaths, which an editor turns on with a yes on the moved page.
+
+```ts title="payload.config.ts"
+import { pathPlugin } from '@payloadpack/path'
+import { redirectsPlugin, suggestRedirects } from '@payloadpack/redirects'
+
+export default buildConfig({
+  plugins: [
+    pathPlugin({ collections: ['pages', 'posts'], onPathsChanged: suggestRedirects }),
+    redirectsPlugin({
+      collections: ['pages', 'posts'],
+      buildDocumentPath: ({ document }) => document.path,
+      documentSelect: { path: true }
+    })
+  ]
+})
+```
+
+```ts
+import { findRedirect } from '@payloadpack/redirects'
+
+const { foundRedirect } = await findRedirect({ path: '/about-us/team', payload })
+// foundRedirect: { destination: '/company/team', matchedQueryString: false, permanent: true, to: { type: 'document' } }, or null
+```
+
+## What you get
+
+- **An exact path or a regex:** a path matches in any case, and a regex's groups go into a URL as `$1`, `$2` and so on. See [How redirects match](/redirects/matching/).
+- **Old URLs with a query string:** a redirect from `/news.aspx?id=123` matches whatever order and case the visitor's parameters come in, ignoring tracking parameters such as `utm_source`, which every destination keeps.
+- **A page target follows the page:** a redirect to a document sends visitors wherever the document is now, even after it moves.
+- **A suggested redirect from every old path:** with `@payloadpack/path`, a moved page suggests one redirect for its whole branch, however many pages sit below it, and the editor says yes or no right on the page. No redirect goes live until someone says yes. See [Moves and deletes](/redirects/moves/).
+- **One indexed query per lookup:** it finds only the redirects and regexes that can cover the path, so 100,000 of them cost what 1,000 do. When a redirect it finds sends visitors to a document, Payload reads the document's path with one more. See [Speed](/redirects/speed/).
+- **Regexes that can't hang your site:** they run on RE2, which never backtracks, and a regex too large to try on every path is refused when it's saved.
+- **Targets that stay on your site:** a path on your site never sends a visitor to another host, whatever a regex's groups fill in.
+
+## Requirements
+
+| Package or database | Version or setup                         |
+| ------------------- | ---------------------------------------- |
+| `payload`           | 4.0.0-beta.11 or later                   |
+| MongoDB             | `@payloadcms/db-mongodb`                 |
+| Postgres            | `@payloadcms/db-postgres`                |
+| SQLite              | `@payloadcms/db-sqlite`                  |
+| `@payloadpack/path` | 0.3.1 or later, for suggestions on moves |
