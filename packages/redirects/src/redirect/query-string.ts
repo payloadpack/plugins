@@ -25,7 +25,17 @@ export function buildSearchParams(searchParams: SearchParams | undefined) {
 // ends a parameter, = ends its name, + reads as a space and # starts a fragment.
 const KEPT_ENCODED = /[%&=+#]/g
 
-const encodeKept = (part: string) => part.replace(KEPT_ENCODED, encodeURIComponent)
+/**
+ * Text with what a URL reads as something else encoded, the characters readAsOther finds, and with
+ * the whitespace at its end encoded, which trim() and a URL drop. So cleaning what it gives again gives
+ * the same. Sliced off rather than matched, so a run of spaces costs what any other character does.
+ */
+export function encodeReadAsOther(text: string, readAsOther: RegExp) {
+  const trimmedText = text.trimEnd()
+  return `${trimmedText.replace(readAsOther, encodeURIComponent)}${encodeURIComponent(text.slice(trimmedText.length))}`
+}
+
+const encodeKept = (part: string) => encodeReadAsOther(part, KEPT_ENCODED)
 
 // By code unit, so a save and a lookup sort alike on any machine.
 const compare = (first: string, second: string) => (first < second ? -1 : first > second ? 1 : 0)

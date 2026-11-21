@@ -15,6 +15,9 @@ it('cleans what an editor typed into the decoded, lowercased path the site looks
     '///old-page/': '/old-page',
     '/old-page/': '/old-page',
     '  /old-page  ': '/old-page',
+    '\\\\old-page': '/old-page',
+    '/\\old-page': '/old-page',
+    '\\/old-page': '/old-page',
     '/q%26a': '/q&a',
     '/caf%C3%A9': '/café',
     '/%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82': '/привет',
@@ -44,14 +47,20 @@ it('keeps a query string as a redirect compares it: lowercased, decoded, sorted,
 })
 
 // An editor's save sends the stored from back, so it must clean to itself.
-it('cleans a cleaned from to itself, also where a parameter holds a character that splits a query string', () => {
+it('cleans a cleaned from to itself, also where a parameter holds a character that splits a query string, or whitespace or a slash ends up at an edge', () => {
   const typedFroms = [
     '/search?q=a%2Bb',
     '/search?q=a%26b%3Dc',
     '/search?q=100%25',
     '/search?q=%23tag',
     '/list?tag=b&tag=a&TAG=c',
-    '/q?a%3Db=1'
+    '/q?a%3Db=1',
+    'https://example.com/broken-link%20',
+    '/search?q=summer+',
+    'https://example.com//old-page',
+    '/%2Fold-start',
+    '/old-end%2F',
+    '/old%2F..%2Fpage'
   ]
 
   for (const typedFrom of typedFroms) {
@@ -64,12 +73,20 @@ it('cleans a cleaned from to itself, also where a parameter holds a character th
     '/search?q=100%25',
     '/search?q=%23tag',
     '/list?tag=a&tag=b&tag=c',
-    '/q?a%3Db=1'
+    '/q?a%3Db=1',
+    '/broken-link%20',
+    '/search?q=summer%20',
+    '/old-page',
+    '/old-start',
+    '/old-end',
+    '/page'
   ])
 })
 
-it('finds no path in a value that holds none', () => {
-  expect(['//', '///', 'https://', 'http://'].map(cleanPath)).toEqual([null, null, null, null])
+it('finds no path in a value that holds none on this site', () => {
+  const values = ['//', '///', '\\\\', '/%2F', 'https://', 'http://', 'mailto:someone@example.com', 'old:page']
+
+  expect(values.map(cleanPath)).toEqual(values.map(() => null))
 })
 
 it('keeps a % that starts no escape, encoded as the site compares it', () => {

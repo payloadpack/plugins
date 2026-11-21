@@ -1,4 +1,4 @@
-import { buildQueryString } from './query-string.js'
+import { buildQueryString, encodeReadAsOther } from './query-string.js'
 
 // Stands for the site's own origin, so a path parses as a URL on it and a target on another site has
 // another origin.
@@ -31,25 +31,29 @@ const READ_AS_OTHER = /[%?#\\\u0000-\u001f\u007f]/g
 
 /**
  * A path as a redirect from a path compares it: lowercased, as a page's path is, with what a URL
- * reads as something else encoded, such as /q%3Fa for /q?a. So a From that a save sends back cleans
- * to itself, and a visitor's path compares the same way.
+ * reads as something else or drops encoded, such as /q%3Fa for /q?a and /a%20 for a space at the end.
+ * So a From that a save sends back cleans to itself, and a visitor's path compares the same way.
  */
-export const buildComparedPath = (path: string) => path.toLowerCase().replace(READ_AS_OTHER, encodeURIComponent)
+export const buildComparedPath = (path: string) => encodeReadAsOther(path.toLowerCase(), READ_AS_OTHER)
 
 /**
- * A From of Exact path or Path and subpaths as the site looks it up, from what an
- * editor typed: a pasted URL becomes its path and query string, a missing first slash is added and a
- * doubled one dropped, a last slash goes, and every segment is decoded and compared as
- * buildComparedPath says. The query string is kept as a redirect compares it, after a ?, and none is
- * left when it holds only tracking parameters. Null when the value holds no path, such as // alone or
- * https:// alone.
+ * A From of Exact path or Path and subpaths as the site looks it up, from what an editor typed: a
+ * pasted URL becomes its path and query string, a missing first slash is added and a doubled one
+ * dropped, a last slash goes, and every segment is decoded and compared as buildComparedPath says. A
+ * backslash reads as a slash, as a URL reads it, and so does an encoded slash. The query string is
+ * kept as a redirect compares it, after a ?, and none is left when it holds only tracking parameters.
+ * Null when the value holds no path on this site, such as // alone, https:// alone or a mailto: link.
  */
 export function cleanFromPath(value: string, trackingParameters: readonly string[]) {
-  const trimmedValue = value.trim()
-  if (/^\/{2,}$/.test(trimmedValue)) return null
-  const url = URL.parse(trimmedValue.replace(/^\/{2,}/, '/'), SITE_ORIGIN)
-  if (!url) return null
-  const path = url.pathname.replace(/\/+$/, '').split('/').map(decodeEscapes).join('/') || '/'
+  // The site decodes the path a visitor asks for, so an encoded slash is a slash by the time it looks.
+  const trimmedValue = value.trim().replace(/%2f/gi, '/')
+  if (/^[/\\]{2,}$/.test(trimmedValue)) return null
+  const url = URL.parse(trimmedValue.replace(/^[/\\]{2,}/, '/'), SITE_ORIGIN)
+  // A scheme of its own, such as mailto: or the old: a URL reads in old:page, leaves no path here.
+  if (!url?.pathname.startsWith('/')) return null
+  // A pasted URL keeps a doubled first slash in its path, and so does one a dot segment leaves.
+  const pathname = url.pathname.replace(/^\/{2,}/, '/').replace(/\/+$/, '')
+  const path = pathname.split('/').map(decodeEscapes).join('/') || '/'
   const queryString = buildQueryString(url.searchParams, trackingParameters)
   return `${buildComparedPath(path)}${queryString ? `?${queryString}` : ''}`
 }
