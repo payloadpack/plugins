@@ -160,6 +160,9 @@ async function* findTries(
   const comparedPaths = paths.map(buildComparedPath)
   const queryString = buildQueryString(searchParams, trackingParameters)
   const queryFrom = queryString ? `${comparedPaths[0]}?${queryString}` : null
+  // Postgres refuses a NUL in a value, so no fixed start it stores holds one, and a path that holds one
+  // asks for no regex by it. The regexes found through the other paths still match the whole path.
+  const regexPaths = [...new Set([...paths.filter((regexPath) => !regexPath.includes('\u0000')), '/'])]
   // The lookup asks for redirects that are on itself, so a signed-in user's request, which may read
   // every redirect, never follows one that is off or suggested.
   const where: Where = {
@@ -167,7 +170,7 @@ async function* findTries(
       {
         or: [
           { [FROM_FIELD_NAME]: { in: queryFrom ? [queryFrom, ...comparedPaths] : comparedPaths } },
-          { [REGEX_PATH_FIELD_NAME]: { in: [...new Set([...paths, '/'])] } }
+          { [REGEX_PATH_FIELD_NAME]: { in: regexPaths } }
         ]
       },
       { [STATUS_FIELD_NAME]: { equals: 'on' satisfies Status } }

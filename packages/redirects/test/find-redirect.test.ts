@@ -160,6 +160,14 @@ describeSite('findRedirect', {}, (site) => {
     expect(await findFoundRedirect({ path: `${longestPath}b`, payload: site.payload })).toBeNull()
   })
 
+  // A visitor's %00 reaches the lookup decoded, as a NUL, which Postgres can't compare.
+  it('answers a path that holds a NUL, with a regex whose fixed start is a path above it, the NUL encoded', async () => {
+    await createRedirect(site.payload, { from: '/zero/(.*)', match: 'regex', to: toUrl('/nil/$1') })
+
+    expect(await findFoundRedirect({ path: '/a\u0000b', payload: site.payload })).toBeNull()
+    expect(await findFoundRedirect({ path: '/zero/a\u0000b', payload: site.payload })).toEqual(foundUrl('/nil/a%00b'))
+  })
+
   // A visitor's encoded slashes reach the lookup decoded, and the slash at its end is dropped before
   // its length is counted.
   it('gives no redirect to a path of 60,000 slashes, within 100 ms', async () => {
