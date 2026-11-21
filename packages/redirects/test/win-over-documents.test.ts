@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest'
 
-import { findRedirect, type SearchParams } from '../src/index.js'
+import { findRedirect, type FindRedirectArgs, type SearchParams } from '../src/index.js'
 import { HAS_DOCUMENT_MISSING_ERROR } from '../src/plugin/messages.js'
-import { describeSite } from './support/boot-payload.js'
+import { describeSite, type Site } from './support/boot-payload.js'
 import {
   acceptSuggestions,
   createDraft,
@@ -16,6 +16,27 @@ import {
   toDocument,
   toUrl
 } from './support/documents.js'
+
+// The limits on a chain, which either mode follows alike through paths no document holds.
+function testChainLimits(site: Site, hasDocument: FindRedirectArgs['hasDocument']) {
+  it('answers none for a path met twice', async () => {
+    await createRedirect(site.payload, { from: '/ping', to: toUrl('/pong') })
+    await createRedirect(site.payload, { from: '/pong', to: toUrl('/ping') })
+
+    expect(await findFoundRedirect({ hasDocument, path: '/ping', payload: site.payload })).toBeNull()
+  })
+
+  it('answers none for a chain of more than 10 paths, and follows one of 10', async () => {
+    for (let step = 1; step <= 11; step++) {
+      await createRedirect(site.payload, { from: `/step-${step}`, to: toUrl(`/step-${step + 1}`) })
+    }
+
+    // From step 2 the chain leaves 10 paths and ends at step 12, which no redirect covers, and from
+    // step 1 it would leave an 11th.
+    expect(await findFoundRedirect({ hasDocument, path: '/step-2', payload: site.payload })).toEqual(foundUrl('/step-12'))
+    expect(await findFoundRedirect({ hasDocument, path: '/step-1', payload: site.payload })).toBeNull()
+  })
+}
 
 describeSite("findRedirect with winOverDocuments 'perRedirect'", { redirects: { winOverDocuments: 'perRedirect' } }, (site) => {
   const { askedPaths, hasDocument, heldPaths } = recordHasDocument()
@@ -128,6 +149,8 @@ describeSite("findRedirect with winOverDocuments 'perRedirect'", { redirects: { 
 
     expect(await findAskingAnew('/harbour/crane')).toBeNull()
   })
+
+  testChainLimits(site, hasDocument)
 })
 
 describeSite("findRedirect with winOverDocuments 'always'", { redirects: { winOverDocuments: 'always' } }, (site) => {
@@ -179,13 +202,6 @@ describeSite("findRedirect with winOverDocuments 'always'", { redirects: { winOv
     )
   })
 
-  it('answers none for a path met twice', async () => {
-    await createRedirect(site.payload, { from: '/ping', to: toUrl('/pong') })
-    await createRedirect(site.payload, { from: '/pong', to: toUrl('/ping') })
-
-    expect(await findFoundRedirect({ hasDocument, path: '/ping', payload: site.payload })).toBeNull()
-  })
-
   it('answers none for a redirect that covers its own destination', async () => {
     const latestNews = await publish(site.payload, 'news', { slug: 'latest', title: 'Latest' })
     await createRedirect(site.payload, { from: '/news', match: 'below', to: toDocument('news', latestNews) })
@@ -193,14 +209,5 @@ describeSite("findRedirect with winOverDocuments 'always'", { redirects: { winOv
     expect(await findFoundRedirect({ hasDocument, path: '/news', payload: site.payload })).toBeNull()
   })
 
-  it('answers none for a chain of more than 10 paths, and follows one of 10', async () => {
-    for (let step = 1; step <= 11; step++) {
-      await createRedirect(site.payload, { from: `/step-${step}`, to: toUrl(`/step-${step + 1}`) })
-    }
-
-    // From step 2 the chain leaves 10 paths and ends at step 12, which no redirect covers, and from
-    // step 1 it would leave an 11th.
-    expect(await findFoundRedirect({ hasDocument, path: '/step-2', payload: site.payload })).toEqual(foundUrl('/step-12'))
-    expect(await findFoundRedirect({ hasDocument, path: '/step-1', payload: site.payload })).toBeNull()
-  })
+  testChainLimits(site, hasDocument)
 })
