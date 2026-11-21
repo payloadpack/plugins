@@ -11,11 +11,15 @@ const LOCALES = ['en', 'sv']
 const publishedOrAdminUser: Access = ({ req: { payload, user } }) =>
   user?.collection === payload.config.admin.user || { _status: { equals: 'published' } }
 
-const buildPublishableCollection = (slug: string, localized: boolean, labels?: CollectionConfig['labels']): CollectionConfig => ({
+// What a test adds to the pages collection: the labels a notice names a page by, or hooks of its own.
+type PagesConfig = Pick<CollectionConfig, 'hooks' | 'labels'>
+
+const buildPublishableCollection = (slug: string, localized: boolean, { hooks, labels }: PagesConfig = {}): CollectionConfig => ({
   slug,
   access: { read: publishedOrAdminUser },
   admin: { useAsTitle: 'title' },
   fields: [{ name: 'title', type: 'text', localized }],
+  hooks,
   labels,
   trash: true,
   versions: { drafts: true }
@@ -30,8 +34,7 @@ export type Site = {
 
 type SiteOptions = {
   localized?: boolean
-  // The pages collection's labels, which a notice names a page by.
-  pageLabels?: CollectionConfig['labels']
+  pages?: PagesConfig
   // Over the redirects to pages and news at the path @payloadpack/path keeps.
   redirects?: Partial<RedirectsPluginOptions>
 }
@@ -41,7 +44,7 @@ let startCount = 0
 
 async function startSite(
   { database, transactions }: Setup,
-  { localized = false, pageLabels, redirects = {} }: SiteOptions
+  { localized = false, pages, redirects = {} }: SiteOptions
 ): Promise<Site> {
   const name = `redirects_${process.pid}_${databaseCount++}`
   const changes: ChangedPath[][] = []
@@ -51,7 +54,7 @@ async function startSite(
       { slug: 'users', auth: true, fields: [] },
       // Users who sign in to the site but not to the admin, such as a shop's customers.
       { slug: 'members', auth: true, fields: [] },
-      buildPublishableCollection('pages', localized, pageLabels),
+      buildPublishableCollection('pages', localized, pages),
       buildPublishableCollection('news', localized)
     ],
     db: buildAdapter(database, name, record, transactions) as Config['db'],

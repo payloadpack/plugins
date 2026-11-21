@@ -107,7 +107,7 @@ describeSite(
 
 describeSite(
   'the notices of the redirects a move suggests, for a collection whose label is not a plain string',
-  { pageLabels: { plural: { en: 'Articles' }, singular: { en: 'Article' } } },
+  { pages: { labels: { plural: { en: 'Articles' }, singular: { en: 'Article' } } } },
   (site) => {
     it('names its document a page', async () => {
       const attic = await publish(site.payload, 'pages', { slug: 'attic', title: 'Attic' })

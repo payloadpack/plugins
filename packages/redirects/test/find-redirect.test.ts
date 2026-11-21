@@ -1,4 +1,4 @@
-import type { JsonObject } from 'payload'
+import type { Access, CollectionAfterReadHook, JsonObject } from 'payload'
 import { generateKeyBetween } from 'payload/shared'
 import { describe, expect, it } from 'vitest'
 
@@ -433,6 +433,58 @@ describeSite(
 
       expect(await findFoundRedirect({ locale: 'sv', path: '/who-we-are', payload: site.payload })).toEqual(
         foundDocument('/sv/om-oss')
+      )
+    })
+  }
+)
+
+// Each read's collection and the cache tag its context carries, as a site's own hook sees them.
+const seenReads: { cacheTag: unknown; collection: string }[] = []
+const recordRead: CollectionAfterReadHook = ({ collection, context }) =>
+  void seenReads.push({ cacheTag: context.cacheTag, collection: collection.slug })
+
+describeSite(
+  'findRedirect with a context',
+  {
+    pages: { hooks: { afterRead: [recordRead] } },
+    redirects: {
+      overrides: (redirects) => ({
+        ...redirects,
+        hooks: { ...redirects.hooks, afterRead: [...(redirects.hooks?.afterRead ?? []), recordRead] }
+      })
+    }
+  },
+  (site) => {
+    it("passes it on to the lookup and to the read of the document target, so the site's hooks see it", async () => {
+      const page = await publish(site.payload, 'pages', { slug: 'tagged', title: 'Tagged' })
+      await createRedirect(site.payload, { from: '/to-tagged', to: toDocument('pages', page) })
+      seenReads.length = 0
+
+      await findFoundRedirect({ context: { cacheTag: 'redirects' }, path: '/to-tagged', payload: site.payload })
+
+      expect(seenReads).toEqual([
+        { cacheTag: 'redirects', collection: 'redirects' },
+        { cacheTag: 'redirects', collection: 'pages' }
+      ])
+    })
+  }
+)
+
+// A site whose visitors read only the permanent redirects.
+const readPermanentOrSignedIn: Access = ({ req: { user } }) =>
+  Boolean(user) || { status: { equals: 'on' }, type: { equals: 'permanent' } }
+
+describeSite(
+  "findRedirect with the site's own read access",
+  { redirects: { overrides: (redirects) => ({ ...redirects, access: { ...redirects.access, read: readPermanentOrSignedIn } }) } },
+  (site) => {
+    it('follows only the redirects the request it is given can read', async () => {
+      await createRedirect(site.payload, { from: '/campaign-only', to: toUrl('/spring'), type: 'temporary' })
+      const req = await createEditorRequest(site.payload)
+
+      expect(await findFoundRedirect({ path: '/campaign-only', payload: site.payload })).toBeNull()
+      expect(await findFoundRedirect({ path: '/campaign-only', payload: site.payload, req })).toEqual(
+        foundUrl('/spring', { permanent: false })
       )
     })
   }
