@@ -109,7 +109,7 @@ With `'perRedirect'`, `findRedirect` needs `hasDocument` and throws without it:
 
 ### Chains
 
-A visitor goes straight to the end of a chain of redirects. The answer is permanent only if every step was. A chain that comes back to a path it met, or runs past 10 paths, answers `null`, so your site answers 404. With `winOverDocuments`, a chain that comes back to a path no redirect answers ends there, such as a redirect from `/products?id=5` to `/products`.
+A visitor goes straight to the end of a chain of redirects. The answer is permanent only if every step was. A chain that comes back to a path it met with the same query string, or runs past 10 paths, answers `null`, so your site answers 404. A redirect from `/products?id=5` to `/products` comes back to the path without its query string, so a redirect from `/products` sends the visitor on, and without one the chain ends there.
 
 | `winOverDocuments` | How a chain is followed                                                                                                                                                                                                                       |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

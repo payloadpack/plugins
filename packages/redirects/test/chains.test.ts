@@ -39,11 +39,24 @@ describeSite('findRedirect following a chain', {}, (site) => {
     expect(await findFoundRedirect({ hasDocument, path: '/to-nowhere', payload: site.payload })).toEqual(foundUrl('/nowhere'))
   })
 
-  it('answers none for a path met twice', async () => {
+  it('answers none for a path met twice with the same query string', async () => {
     await createRedirect(site.payload, { from: '/ping', to: toUrl('/pong') })
     await createRedirect(site.payload, { from: '/pong', to: toUrl('/ping') })
+    await createRedirect(site.payload, { from: '/tick?id=7', to: toUrl('/tock') })
+    await createRedirect(site.payload, { from: '/tock', to: toUrl('/tick?id=7') })
 
     expect(await findFoundRedirect({ hasDocument, path: '/ping', payload: site.payload })).toBeNull()
+    expect(await findFoundRedirect({ hasDocument, path: '/tick', payload: site.payload, searchParams: { id: '7' } })).toBeNull()
+  })
+
+  it('follows a chain back to the path asked for, without the query string a redirect matched', async () => {
+    await createRedirect(site.payload, { from: '/catalogue?id=7', to: toUrl('/catalogue') })
+    await createRedirect(site.payload, { from: '/catalogue', to: toUrl('/shop') })
+    heldPaths.add('/shop')
+
+    expect(
+      await findFoundRedirect({ hasDocument, path: '/catalogue', payload: site.payload, searchParams: { id: '7' } })
+    ).toEqual(foundUrl('/shop', { matchedQueryString: true }))
   })
 
   it('answers none for a chain of more than 10 paths, and follows one of 10', async () => {

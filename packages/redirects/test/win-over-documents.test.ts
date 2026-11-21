@@ -170,6 +170,15 @@ describeSite("findRedirect with winOverDocuments 'always'", { redirects: { winOv
     )
   })
 
+  it('follows a redirect from a query string back to the path asked for, where another redirect answers', async () => {
+    await createRedirect(site.payload, { from: '/back?old=1', to: toUrl('/back') })
+    await createRedirect(site.payload, { from: '/back', to: toUrl('/onward') })
+
+    expect(await findFoundRedirect({ hasDocument, path: '/back', payload: site.payload, searchParams: { old: '1' } })).toEqual(
+      foundUrl('/onward', { matchedQueryString: true })
+    )
+  })
+
   it('answers none for a path met twice', async () => {
     await createRedirect(site.payload, { from: '/ping', to: toUrl('/pong') })
     await createRedirect(site.payload, { from: '/pong', to: toUrl('/ping') })

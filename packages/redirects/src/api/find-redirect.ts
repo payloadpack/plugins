@@ -249,10 +249,21 @@ const buildResult = (step: null | Step): FindRedirectResult => {
   return { foundRedirect }
 }
 
-type FindStepAt = (path: string, searchParams: URLSearchParams, landsOnDocument: boolean) => Promise<null | Step>
+// A path a chain asks for, with the query string it is asked with.
+type PathAsked = { path: string; searchParams: URLSearchParams }
 
-// Each step is asked as a visitor asks for the destination before it, with its query string.
-const buildNextSearchParams = ({ destination }: Step) => new URL(destination, SITE_ORIGIN).searchParams
+type FindStepAt = (pathAsked: PathAsked, landsOnDocument: boolean) => Promise<null | Step>
+
+// Each step is asked as a visitor asks for the destination before it, with its query string. Null for
+// a destination on another site.
+function buildNextPathAsked({ destination }: Step): null | PathAsked {
+  const path = buildSitePath(destination)
+  return path === null ? null : { path, searchParams: new URL(destination, SITE_ORIGIN).searchParams }
+}
+
+// A chain comes back to a path it met only with the same query string: asked without it, a path can
+// answer with another redirect, as /products does after a redirect from /products?id=5.
+const buildPathAskedKey = ({ path, searchParams }: PathAsked) => JSON.stringify([path, searchParams.toString()])
 
 const joinSteps = (chain: Step, nextStep: Step): Step => ({
   ...nextStep,
@@ -263,35 +274,37 @@ const joinSteps = (chain: Step, nextStep: Step): Step => ({
 // Without winOverDocuments, a chain ends at a destination a document holds. A document holds its own
 // path, so a destination that is one needs no asking. The redirects moves write can send a path round
 // in a circle, such as a parent renamed, a new page at its old path and a child moved below that one.
-async function followChainToDocument(path: string, firstStep: Step, hasDocument: HasDocument, findStepAt: FindStepAt) {
-  const pathsMet = new Set([path])
+async function followChainToDocument(pathAsked: PathAsked, firstStep: Step, hasDocument: HasDocument, findStepAt: FindStepAt) {
+  const pathsMet = new Set([buildPathAskedKey(pathAsked)])
   let chain = firstStep
   for (;;) {
-    const nextPath = chain.landsOnDocument ? null : buildSitePath(chain.destination)
-    if (nextPath === null || (await hasDocument(nextPath))) return chain
-    if (pathsMet.has(nextPath) || pathsMet.size === MOST_PATHS_FOLLOWED) return null
-    pathsMet.add(nextPath)
-    const nextStep = await findStepAt(nextPath, buildNextSearchParams(chain), false)
+    const nextPathAsked = chain.landsOnDocument ? null : buildNextPathAsked(chain)
+    if (nextPathAsked === null || (await hasDocument(nextPathAsked.path))) return chain
+    const nextPathKey = buildPathAskedKey(nextPathAsked)
+    if (pathsMet.has(nextPathKey) || pathsMet.size === MOST_PATHS_FOLLOWED) return null
+    pathsMet.add(nextPathKey)
+    const nextStep = await findStepAt(nextPathAsked, false)
     if (!nextStep) return chain
     chain = joinSteps(chain, nextStep)
   }
 }
 
 // With winOverDocuments, a redirect can win over the document at a destination, so every destination
-// on this site is looked up, and a chain ends where no redirect answers, also at a path it met, such
-// as the one a redirect from a query string sends visitors back to. It comes round in a circle only
-// when a redirect sends visitors on from a path it met, and one that would leave an 11th path answers
-// none, as one does without winOverDocuments.
-async function followChainOverDocuments(path: string, firstStep: Step, findStepAt: FindStepAt) {
-  const pathsMet = new Set([path])
+// on this site is looked up, and a chain ends where no redirect answers, also at a path it met. It
+// comes round in a circle only when a redirect sends visitors on from a path it met with the same
+// query string, and one that would leave an 11th path answers none, as one does without
+// winOverDocuments.
+async function followChainOverDocuments(pathAsked: PathAsked, firstStep: Step, findStepAt: FindStepAt) {
+  const pathsMet = new Set([buildPathAskedKey(pathAsked)])
   let chain = firstStep
   for (;;) {
-    const nextPath = buildSitePath(chain.destination)
-    if (nextPath === null) return chain
-    const nextStep = await findStepAt(nextPath, buildNextSearchParams(chain), chain.landsOnDocument)
+    const nextPathAsked = buildNextPathAsked(chain)
+    if (nextPathAsked === null) return chain
+    const nextStep = await findStepAt(nextPathAsked, chain.landsOnDocument)
     if (!nextStep) return chain
-    if (pathsMet.has(nextPath) || pathsMet.size === MOST_PATHS_FOLLOWED) return null
-    pathsMet.add(nextPath)
+    const nextPathKey = buildPathAskedKey(nextPathAsked)
+    if (pathsMet.has(nextPathKey) || pathsMet.size === MOST_PATHS_FOLLOWED) return null
+    pathsMet.add(nextPathKey)
     chain = joinSteps(chain, nextStep)
   }
 }
@@ -301,7 +314,7 @@ async function followChainOverDocuments(path: string, firstStep: Step, findStepA
  * visitor's query string, then one from the path or from a path above it and every path below, the
  * deepest winning, then the first regex in the editors' order that matches. One whose target sends
  * nobody falls through to the next. A chain is followed to its end, permanent only if every step was,
- * and a circle or a chain of more than 10 paths gives null.
+ * and one that comes back to a path it met with the same query string, or passes 10 paths, gives null.
  *
  * Without winOverDocuments, a site asks only where no document holds the path, and findRedirect never
  * asks hasDocument about the path asked for: a site that also checks where a page may be, such as in a
@@ -323,11 +336,12 @@ export async function findRedirect({
   if (winOverDocuments === 'perRedirect' && !hasDocument) throw new Error(HAS_DOCUMENT_MISSING_ERROR)
   // Only with 'perRedirect' does a document at a path stop a redirect there.
   const perRedirectHasDocument = winOverDocuments === 'perRedirect' ? hasDocument : undefined
-  const findStepAt: FindStepAt = (stepPath, stepSearchParams, landsOnDocument) =>
-    findRedirectStep(stepPath, stepSearchParams, options, config, perRedirectHasDocument, landsOnDocument)
-  const firstStep = await findStepAt(path, buildSearchParams(searchParams), false)
+  const findStepAt: FindStepAt = (pathAsked, landsOnDocument) =>
+    findRedirectStep(pathAsked.path, pathAsked.searchParams, options, config, perRedirectHasDocument, landsOnDocument)
+  const pathAsked = { path, searchParams: buildSearchParams(searchParams) }
+  const firstStep = await findStepAt(pathAsked, false)
   if (!firstStep) return buildResult(null)
-  if (winOverDocuments) return buildResult(await followChainOverDocuments(path, firstStep, findStepAt))
+  if (winOverDocuments) return buildResult(await followChainOverDocuments(pathAsked, firstStep, findStepAt))
   if (!hasDocument) return buildResult(firstStep)
-  return buildResult(await followChainToDocument(path, firstStep, hasDocument, findStepAt))
+  return buildResult(await followChainToDocument(pathAsked, firstStep, hasDocument, findStepAt))
 }

@@ -90,7 +90,7 @@ Redirects that each send a visitor to a path another redirect answers: by defaul
 _Avoid_: hops, redirect loop, for one that ends
 
 **Circle**:
-A chain that comes back to a path it met, which answers no redirect. With `winOverDocuments`, only one where a redirect sends visitors on from that path again: a chain that comes back to a path no redirect answers ends there.
+A chain that comes back to a path it met with the same query string, which answers no redirect. With `winOverDocuments`, only one where a redirect sends visitors on from that path again: a chain that comes back to a path no redirect answers ends there.
 _Avoid_: loop, cycle
 
 **Suggestion**:
