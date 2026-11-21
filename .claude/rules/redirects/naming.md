@@ -94,7 +94,7 @@ A chain that comes back to a path it met, which answers no redirect. With `winOv
 _Avoid_: loop, cycle
 
 **Suggestion**:
-A redirect with the status Suggested: what a move saves from the old path of the document at the top of a branch and its subpaths, to that document. Someone says yes, which sets it On, opens it to change it first, or says no, which deletes it, in its notice or in the list. None is written from an old path a redirect that is On or Off holds.
+A redirect with the status Suggested: what a move saves from the old path of the document at the top of a branch and its subpaths, to that document. Someone says yes, which sets it On, opens it to change it first, or says no, which deletes it, in its notice or in the list. None is written from an old path a redirect that is On or Off holds, and each document right below that moved with it gets its own instead.
 _Avoid_: proposal, pending redirect, draft, auto-redirect
 
 **Suggest redirects**:

@@ -161,6 +161,22 @@ describeSite('the redirects a move suggests', {}, (site, setup) => {
     ])
   })
 
+  it('suggests one from the old path of each page right below a moved page whose old path an editor’s redirect keeps', async () => {
+    const crew = await publish(site.payload, 'pages', { slug: 'crew', title: 'Crew' })
+    const anna = await publish(site.payload, 'pages', { parent: crew.id, slug: 'anna', title: 'Anna' })
+    await publish(site.payload, 'pages', { parent: anna.id, slug: 'cv', title: 'CV' })
+    await createRedirect(site.payload, { from: '/crew', to: toUrl('/elsewhere') })
+
+    await publishChange(site.payload, 'pages', crew, { slug: 'staff' })
+    await acceptSuggestions(site.payload, ['/crew/anna'])
+
+    expect(await describeRedirects(site, ['/crew', '/crew/anna', '/crew/anna/cv'])).toEqual([
+      { from: '/crew', status: 'on', to: '/elsewhere' },
+      { from: '/crew/anna', status: 'on', to: targetOf('pages', anna) }
+    ])
+    expect(await visit(site, '/crew/anna/cv')).toEqual(foundDocument('/staff/anna/cv'))
+  })
+
   it('replaces a suggestion from the old path with the newer move’s', async () => {
     const firstLobby = await publish(site.payload, 'pages', { slug: 'lobby', title: 'First' })
     await publishChange(site.payload, 'pages', firstLobby, { slug: 'foyer' })
@@ -202,6 +218,27 @@ describeSite('the redirects a move suggests', {}, (site, setup) => {
     })
 
     expect(await describeRedirects(site, ['/swap-a', '/swap-b'])).toEqual([])
+  })
+
+  it('suggests one from the old path of each page right below two documents that swap paths', async () => {
+    const north = await publish(site.payload, 'pages', { slug: 'north', title: 'North' })
+    const northBelow = await publish(site.payload, 'pages', { parent: north.id, slug: 'below', title: 'Below' })
+    const south = await publish(site.payload, 'pages', { slug: 'south', title: 'South' })
+    const req = await createPayloadRequest({ payload: site.payload })
+
+    await suggestRedirects({
+      changedPaths: [
+        { collection: 'pages', from: '/swap-c', id: north.id, to: '/swap-d' },
+        { collection: 'pages', from: '/swap-c/below', id: northBelow.id, to: '/swap-d/below' },
+        { collection: 'pages', from: '/swap-d', id: south.id, to: '/swap-c' }
+      ],
+      payload: site.payload,
+      req
+    })
+
+    expect(await describeRedirects(site, ['/swap-c', '/swap-c/below', '/swap-d'])).toEqual([
+      { from: '/swap-c/below', status: 'suggested', to: targetOf('pages', northBelow) }
+    ])
   })
 
   it('suggests none from an old path another document of the same change moved to', async () => {
