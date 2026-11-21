@@ -3,7 +3,7 @@ import { text } from 'payload/shared'
 
 import { BELOW_ROOT_REFUSAL, FROM_WITHOUT_PATH_REFUSAL, QUERY_STRING_REFUSAL } from '../plugin/messages.js'
 import { cleanFromPath } from '../redirect/path.js'
-import { getRegexRefusal } from '../redirect/regex.js'
+import { buildRegexRefusal } from '../redirect/regex.js'
 import { hasRegexQueryString } from '../redirect/query-string.js'
 import { MATCH_FIELD_NAME, type Match } from './match.js'
 
@@ -27,7 +27,7 @@ export function buildFromField(trackingParameters: readonly string[]): TextField
     const textRefusal = text(value, options)
     if (textRefusal !== true || !value) return textRefusal
     const { match } = options.siblingData as FromSiblings
-    if (match === 'regex') return hasRegexQueryString(value) ? QUERY_STRING_REFUSAL : (getRegexRefusal(value) ?? true)
+    if (match === 'regex') return hasRegexQueryString(value) ? QUERY_STRING_REFUSAL : (buildRegexRefusal(value) ?? true)
     const from = cleanFromPath(value, trackingParameters)
     if (from === null) return FROM_WITHOUT_PATH_REFUSAL
     if (match !== 'below') return true

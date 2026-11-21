@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 
 import { REGEX_TOO_LARGE_REFUSAL } from '../src/plugin/messages.js'
-import { buildRegexPath, getRegexRefusal, matchRegex } from '../src/redirect/regex.js'
+import { buildRegexPath, buildRegexRefusal, matchRegex } from '../src/redirect/regex.js'
 
 it("refuses only a regex RE2 can't run, or one too large to try on every unknown path", () => {
   const unreadable = ['/(a)\\1', '/(?=a)b', '/(?!a)b', '/(?<=a)b', '/(?<!a)b', '/(oops']
@@ -15,16 +15,16 @@ it("refuses only a regex RE2 can't run, or one too large to try on every unknown
     '(?i)/news/(.*)'
   ]
 
-  expect(unreadable.map((regex) => getRegexRefusal(regex)?.startsWith("This isn't a regex the site can read ("))).toEqual(
+  expect(unreadable.map((regex) => buildRegexRefusal(regex)?.startsWith("This isn't a regex the site can read ("))).toEqual(
     unreadable.map(() => true)
   )
-  expect(getRegexRefusal('/(?:a?){1000}b')).toBe(REGEX_TOO_LARGE_REFUSAL)
-  expect(acceptedRegexes.filter((regex) => getRegexRefusal(regex) !== null)).toEqual([])
+  expect(buildRegexRefusal('/(?:a?){1000}b')).toBe(REGEX_TOO_LARGE_REFUSAL)
+  expect(acceptedRegexes.filter((regex) => buildRegexRefusal(regex) !== null)).toEqual([])
 })
 
 it('accepts a regex that lists 100 old slugs', () => {
   const slugs = Array.from({ length: 100 }, (_, index) => `old-slug-${index}`)
-  expect(getRegexRefusal(`/news/(?:${slugs.join('|')})`)).toBeNull()
+  expect(buildRegexRefusal(`/news/(?:${slugs.join('|')})`)).toBeNull()
 })
 
 // re2Input.prefix is not part of re2js's documented API, so an upgrade that changes it fails here.

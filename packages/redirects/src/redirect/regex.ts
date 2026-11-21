@@ -11,7 +11,7 @@ const MOST_REGEX_INSTRUCTIONS = 1_000
  * Why a regex can't be saved, or null when it can: RE2 can't run it, such as a look-ahead, a
  * look-behind or a back-reference, or it is too large to try on every path no document holds.
  */
-export function getRegexRefusal(regex: string) {
+export function buildRegexRefusal(regex: string) {
   try {
     if (RE2JS.compile(regex).programSize() <= MOST_REGEX_INSTRUCTIONS) return null
   } catch (error) {
