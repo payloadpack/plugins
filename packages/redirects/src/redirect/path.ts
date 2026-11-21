@@ -15,9 +15,15 @@ export function buildPathAndPathsAbove(path: string) {
 
 /**
  * A path as a lookup asks for it: without the slash at its end that a site with Next's trailingSlash
- * gives every path, but / for the home page. A From of a path is stored the same way.
+ * gives every path, but / for the home page. A From of a path is stored the same way. Counted from
+ * the end rather than matched, so a run of slashes inside a path costs what any other character does,
+ * before the lookup counts its length.
  */
-export const buildLookedUpPath = (path: string) => path.replace(/\/+$/, '') || '/'
+export function buildLookedUpPath(path: string) {
+  let end = path.length
+  while (path[end - 1] === '/') end--
+  return path.slice(0, end) || '/'
+}
 
 // A run of escapes, such as %C3%A9, decoded where it decodes, so a % that starts no escape stays.
 const ESCAPE_RUN = /(?:%[0-9a-f]{2})+/gi

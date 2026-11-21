@@ -18,6 +18,7 @@ import {
   toUrl,
   updateRedirect
 } from './support/documents.js'
+import { measureFastestRun } from './support/timing.js'
 
 describeSite('findRedirect', {}, (site) => {
   it('answers a permanent redirect as permanent and a temporary one as not', async () => {
@@ -157,6 +158,15 @@ describeSite('findRedirect', {}, (site) => {
 
     expect(await findFoundRedirect({ path: longestPath, payload: site.payload })).not.toBeNull()
     expect(await findFoundRedirect({ path: `${longestPath}b`, payload: site.payload })).toBeNull()
+  })
+
+  // A visitor's encoded slashes reach the lookup decoded, and the slash at its end is dropped before
+  // its length is counted.
+  it('gives no redirect to a path of 60,000 slashes, within 100 ms', async () => {
+    const path = `${'/'.repeat(60_000)}a`
+
+    expect(await findFoundRedirect({ path, payload: site.payload })).toBeNull()
+    expect(await measureFastestRun(() => findFoundRedirect({ path, payload: site.payload }))).toBeLessThan(100)
   })
 
   it('gives no redirect to a path over 32 segments, and finds one at 32', async () => {
