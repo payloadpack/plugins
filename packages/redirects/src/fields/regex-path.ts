@@ -8,10 +8,10 @@ export const REGEX_PATH_FIELD_NAME = 'regexPath'
 
 type RegexSiblings = { [FROM_FIELD_NAME]?: string; [MATCH_FIELD_NAME]?: Match }
 
-// Set on every save, from the stored fields with the sent ones over them, so a save that sends only
-// some fields keeps it.
-const setRegexPath: FieldHook = ({ previousSiblingDoc, siblingData }) => {
-  const { from, match } = { ...previousSiblingDoc, ...siblingData } as RegexSiblings
+// Set on every save, from the stored fields with the sent ones over them, which Payload has merged
+// before any change hook runs, so a save that sends only some fields keeps it.
+const setRegexPath: FieldHook = ({ siblingData }) => {
+  const { from, match } = siblingData as RegexSiblings
   return match === 'regex' && from ? buildRegexPath(from) : null
 }
 
