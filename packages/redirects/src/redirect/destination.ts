@@ -24,7 +24,7 @@ function addSearchParams(destination: URL, searchParams: URLSearchParams | undef
 export function isUrlTarget(target: string) {
   const url = URL.parse(target.replace(CAPTURE_GROUP, ''), SITE_ORIGIN)
   if (!url) return false
-  return target.startsWith('/') ? url.origin === SITE_ORIGIN : /^https?:\/\//.test(target)
+  return target.startsWith('/') ? url.origin === SITE_ORIGIN : /^https?:\/\//i.test(target)
 }
 
 // A backslash or a tab, which a browser can read as a slash.

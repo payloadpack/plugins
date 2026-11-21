@@ -89,6 +89,7 @@ it('takes a path on this site or a whole http(s) URL as a URL target', () => {
     '/kontakt-ö?ref=1#form',
     'https://example.com',
     'http://example.com/a',
+    'HTTPS://shop.example/sale',
     'https://shop.example$1'
   ]
   const refused = [
