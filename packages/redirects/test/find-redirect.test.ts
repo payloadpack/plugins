@@ -296,6 +296,22 @@ describeSite('findRedirect', {}, (site) => {
       )
     })
 
+    it('matches a query string that holds a control character, a NUL too', async () => {
+      await createRedirect(site.payload, { from: '/enquiry?subject=Hello%0AWorld', to: toUrl('/enquiries') })
+      await createRedirect(site.payload, { from: '/blank?id=%00', to: toUrl('/blanks') })
+
+      expect(
+        await findFoundRedirect({
+          path: '/enquiry',
+          payload: site.payload,
+          searchParams: new URLSearchParams('subject=Hello%0AWorld')
+        })
+      ).toEqual(foundUrl('/enquiries', { matchedQueryString: true }))
+      expect(
+        await findFoundRedirect({ path: '/blank', payload: site.payload, searchParams: new URLSearchParams('id=%00') })
+      ).toEqual(foundUrl('/blanks', { matchedQueryString: true }))
+    })
+
     it('falls through a redirect from a query string whose target sends nobody', async () => {
       const draftPage = await createDraft(site.payload, 'pages', { slug: 'draft-offer', title: 'Draft' })
       await createRedirect(site.payload, { from: '/offer?code=x', to: toDocument('pages', draftPage) })

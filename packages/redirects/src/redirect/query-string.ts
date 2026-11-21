@@ -22,8 +22,9 @@ export function buildSearchParams(searchParams: SearchParams | undefined) {
 }
 
 // The characters a parameter can't hold decoded and still read back the same: % starts an escape, &
-// ends a parameter, = ends its name, + reads as a space and # starts a fragment.
-const KEPT_ENCODED = /[%&=+#]/g
+// ends a parameter, = ends its name, + reads as a space, # starts a fragment and a control character
+// is dropped.
+const KEPT_ENCODED = /[%&=+#\u0000-\u001f\u007f]/g
 
 /**
  * Text with what a URL reads as something else encoded, the characters readAsOther finds, and with

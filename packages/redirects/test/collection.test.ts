@@ -30,7 +30,8 @@ describeSite('the redirects collection', {}, (site) => {
   it('keeps a query string as a redirect compares it, and a ? and # encoded in a path, through a save that sends them back', async () => {
     const froms = [
       { from: 'https://example.com/News.aspx?utm_source=mail&ID=123&cat=b&cat=a', storedFrom: '/news.aspx?cat=a&cat=b&id=123' },
-      { from: '/FAQ%3Fold%23top', match: 'below' as const, storedFrom: '/faq%3Fold%23top' }
+      { from: '/FAQ%3Fold%23top', match: 'below' as const, storedFrom: '/faq%3Fold%23top' },
+      { from: '/contact?subject=Hello%0AWorld%01', storedFrom: '/contact?subject=hello%0Aworld%01' }
     ]
 
     for (const { from, match, storedFrom } of froms) {
