@@ -270,8 +270,18 @@ function buildNextPathAsked({ destination }: Step): null | PathAsked {
 // answer with another redirect, as /products does after a redirect from /products?id=5.
 const buildPathAskedKey = ({ path, searchParams }: PathAsked) => JSON.stringify([path, searchParams.toString()])
 
+// A browser that follows a Location without a fragment keeps the one it had, so a step whose
+// destination has none keeps the chain's. Every # a visitor or a document fills in is encoded, so the
+// first one starts the fragment.
+function buildChainDestination(chainDestination: string, nextDestination: string) {
+  const fragmentStart = chainDestination.indexOf('#')
+  if (fragmentStart === -1 || nextDestination.includes('#')) return nextDestination
+  return `${nextDestination}${chainDestination.slice(fragmentStart)}`
+}
+
 const joinSteps = (chain: Step, nextStep: Step): Step => ({
   ...nextStep,
+  destination: buildChainDestination(chain.destination, nextStep.destination),
   matchedQueryString: chain.matchedQueryString,
   permanent: chain.permanent && nextStep.permanent
 })

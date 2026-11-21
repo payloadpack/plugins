@@ -90,6 +90,24 @@ describeSite('findRedirect following a chain', {}, (site) => {
     expect(askedPaths).toEqual(['/leaflets', '/flyers'])
   })
 
+  // As a browser that follows each redirect lands: a Location without a fragment keeps the one before it.
+  it('keeps the fragment of a destination in a chain where no later one has its own', async () => {
+    await createRedirect(site.payload, { from: '/guide-old', to: toUrl('/guide#setup') })
+    await createRedirect(site.payload, { from: '/guide', to: toUrl('/manual') })
+    await createRedirect(site.payload, { from: '/manual', to: toUrl('/handbook') })
+    await createRedirect(site.payload, { from: '/recipes-old', to: toUrl('/recipes#soups') })
+    await createRedirect(site.payload, { from: '/recipes', to: toUrl('/cookbook#starters') })
+    heldPaths.add('/handbook')
+    heldPaths.add('/cookbook')
+
+    expect(await findFoundRedirect({ hasDocument, path: '/guide-old', payload: site.payload })).toEqual(
+      foundUrl('/handbook#setup')
+    )
+    expect(await findFoundRedirect({ hasDocument, path: '/recipes-old', payload: site.payload })).toEqual(
+      foundUrl('/cookbook#starters')
+    )
+  })
+
   it('stops at a destination on another site', async () => {
     await createRedirect(site.payload, { from: '/away', to: toUrl('https://shop.example/two-away') })
     await createRedirect(site.payload, { from: '/two-away', to: toUrl('/never') })

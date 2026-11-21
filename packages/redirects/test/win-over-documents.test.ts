@@ -180,6 +180,16 @@ describeSite("findRedirect with winOverDocuments 'always'", { redirects: { winOv
     )
   })
 
+  it('keeps the fragment of a destination in a chain through documents where no later one has its own', async () => {
+    const lastStop = await publish(site.payload, 'pages', { slug: 'fragment-stop', title: 'Fragment stop' })
+    await createRedirect(site.payload, { from: '/fragment-start', to: toUrl('/fragment-middle#details') })
+    await createRedirect(site.payload, { from: '/fragment-middle', to: toDocument('pages', lastStop) })
+
+    expect(await findFoundRedirect({ hasDocument, path: '/fragment-start', payload: site.payload })).toEqual(
+      foundDocument('/fragment-stop#details')
+    )
+  })
+
   it('answers with a redirect from a query string to the path it was asked for, a document there or not', async () => {
     const page = await publish(site.payload, 'pages', { slug: 'page-by-id', title: 'Page by id' })
     await createRedirect(site.payload, { from: '/page-by-id?id=1', to: toDocument('pages', page) })
