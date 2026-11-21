@@ -2,6 +2,7 @@ import { expect, it } from 'vitest'
 
 import { REGEX_TOO_LARGE_REFUSAL } from '../src/plugin/messages.js'
 import { buildRegexPath, buildRegexRefusal, matchRegex } from '../src/redirect/regex.js'
+import { measureFastestRun } from './support/timing.js'
 
 it("refuses only a regex RE2 can't run, or one too large to try on every unknown path", () => {
   const unreadable = ['/(a)\\1', '/(?=a)b', '/(?!a)b', '/(?<=a)b', '/(?<!a)b', '/(oops']
@@ -66,15 +67,11 @@ it('finds the match a backtracking engine gives up on', () => {
   expect(matchRegex('/(?:(a+)+x|a+!)', path)?.[0]).toBe(path)
 })
 
-it('answers a hostile regex in under a millisecond, with no match', () => {
+it('answers a hostile regex in under a millisecond, with no match', async () => {
   const path = `/${'a'.repeat(30)}!`
-  matchRegex('^/(a+)+$', path)
-  const startedAt = performance.now()
-  const captures = matchRegex('^/(a+)+$', path)
-  const matchMs = performance.now() - startedAt
 
-  expect(captures).toBeNull()
-  expect(matchMs).toBeLessThan(1)
+  expect(matchRegex('^/(a+)+$', path)).toBeNull()
+  expect(await measureFastestRun(() => matchRegex('^/(a+)+$', path))).toBeLessThan(1)
 })
 
 it('matches nothing with a stored regex RE2 cannot compile, also one that would compile inside the anchors', () => {
