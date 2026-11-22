@@ -163,12 +163,12 @@ import { Steps, TabItem, Tabs } from '@astrojs/starlight/components'
    }
    ```
 
-   The route calls `findPage` in two places, about two different paths:
+   The route calls `findPage` in two places, for two different paths:
 
-   - **The path the visitor asked for.** A page there is rendered, with no redirect lookup at all.
-   - **The path a redirect sends the visitor to.** `findRedirect` asks `hasDocument` about it, to stop there or follow the next redirect. It does not ask when that path is the path of the page the redirect targets.
+   - **The path the visitor asked for:** If a page is there, the route renders it without running a redirect lookup.
+   - **The path a redirect sends the visitor to:** `findRedirect` calls `hasDocument` to decide whether to stop there or follow the next redirect. It does not call `hasDocument` when that path is the target page's own path.
 
-   `hasDocument` is optional. Without it, the first redirect is the answer.
+   `hasDocument` is optional. Without it, `findRedirect` stops at the first redirect.
 
    `permanentRedirect` answers 308 and `redirect` answers 307. See [`findRedirect`](/redirects/api/find-redirect/).
 

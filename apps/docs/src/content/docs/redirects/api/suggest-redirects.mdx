@@ -54,10 +54,10 @@ type ChangedPath = {
 - **Skips non-arrivals:** Entries where `to` is `null` or `from === to` are ignored.
 - **Checks stored targets:** Before writing suggestions for moves, it reads which reported documents still exist so a bulk delete never writes a relationship to a deleted row.
 - **Deletes before creating:** At each new path (`to`), it deletes any **Suggested** redirect and any redirect targeting that same document regardless of status. At each old path (`from`), it replaces any earlier suggestion. Deleting first lets two documents swap paths in one change without colliding on unique `from`.
-- **One suggestion per moved branch:** It writes one suggestion from the top document of each moved branch: permanent (308), with status **Suggested** and match **Path and subpaths**, or **Exact path** when `from` is `/`.
-- **Old paths it skips:** It writes none from an old path that an **On** or **Off** redirect holds, or that another document of the same change moved to. Each moved document right below, if it is in `changedPaths`, gets a suggestion of its own instead. An old path longer than 2,048 bytes in UTF-8 gets no suggestion, and neither do the paths below it.
+- **One suggestion per moved branch:** It writes one permanent (308) suggestion with status **Suggested** from the top document of each moved branch. Each suggestion uses **Path and subpaths**, or **Exact path** when `from` is `/`.
+- **Old paths it skips:** It writes no suggestion from an old path that an **On** or **Off** redirect holds, or that another document moved to in the same change. Instead, each moved document right below it, if it is in `changedPaths`, gets its own suggestion. An old path longer than 2,048 bytes in UTF-8 gets no suggestion, and neither do the paths below it.
 - **In the save's transaction:** It reads and writes through `req` with `overrideAccess: true`, and your hooks on the Redirects collection run. With transactions, a failed save rolls the suggestions back.
-- **One call at a time on a request:** Calls that share a `req`, such as those of a bulk update or delete, run one after another, so Payload's `orderable` gives each suggestion its own place in the order. A call from inside a running one, such as from your hook on a suggestion, runs at once.
+- **One call at a time on a request:** Calls sharing a `req`, such as during a bulk update or delete, run one after another so Payload's `orderable` gives each suggestion its own place in the order. A nested call on the same `req`, such as from your hook on a suggestion, runs at once.
 
 See [How move suggestions work](/redirects/moves/) and [Suggest redirects on a move](/redirects/suggest-on-move/#transactions).
 
