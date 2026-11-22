@@ -205,6 +205,8 @@
   anchor-name: --docs-site-title;
   align-items: center;
   gap: 0.125rem;
+  /* Lets the row shrink to the sidebar's width, so a long package name never runs past it. */
+  min-width: 0;
   color: var(--docs-foreground);
   white-space: nowrap;
   font-size: 0.9rem;
@@ -227,6 +229,12 @@
 .site-title svg {
   height: 1.375rem;
   width: 1.375rem;
+  flex-shrink: 0;
+}
+
+/* Only the package switcher gives way when the row is too narrow. */
+.site-title,
+.docs-site-slash {
   flex-shrink: 0;
 }
 
@@ -267,10 +275,52 @@
 }
 
 .docs-package-switcher {
+  /* Its spacing sits in boxes that give way first, down to a floor, so a long name still reads in
+     full; only past that does the name end in an ellipsis. The look is the badge's until then. */
+  --docs-switcher-pad-start: 0.45rem;
+  --docs-switcher-pad-end: 0.425rem;
+  --docs-switcher-gap: 0.35rem;
+  --docs-switcher-floor: 0.2rem;
+  gap: 0;
+  padding-inline: 0;
+  min-width: 0;
   cursor: pointer;
   transition:
     background-color var(--docs-dur-fast) var(--docs-ease-out),
     border-color var(--docs-dur-fast) var(--docs-ease-out);
+}
+
+.docs-package-switcher::before,
+.docs-package-switcher::after {
+  content: '';
+  flex: 0 100000 auto;
+  min-width: var(--docs-switcher-floor);
+}
+
+.docs-package-switcher::before {
+  width: var(--docs-switcher-pad-start);
+}
+
+.docs-package-switcher::after {
+  width: var(--docs-switcher-pad-end);
+}
+
+/* The gap beside each icon is part of its box, which gives way with the padding. */
+.docs-package-switcher > .docs-package-glyph,
+.docs-package-switcher > .docs-package-chevron {
+  flex: 0 100000 auto;
+  width: calc(0.8125rem + var(--docs-switcher-gap));
+  min-width: calc(0.8125rem + var(--docs-switcher-floor));
+}
+
+.docs-package-switcher > .docs-package-chevron {
+  justify-content: flex-end;
+}
+
+.docs-package-switcher > span:not([aria-hidden]) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .docs-package-switcher:hover,
@@ -494,6 +544,14 @@
     gap: 0.25rem;
     padding: 0.15rem 0.35rem 0.15rem 0.4rem;
     font-size: 0.8rem;
+  }
+
+  .docs-package-switcher {
+    --docs-switcher-pad-start: 0.4rem;
+    --docs-switcher-pad-end: 0.35rem;
+    --docs-switcher-gap: 0.25rem;
+    gap: 0;
+    padding-inline: 0;
   }
 
   .sidebar-pane {
