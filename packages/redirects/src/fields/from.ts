@@ -2,7 +2,7 @@ import type { FieldHook, TextField, TextFieldSingleValidation } from 'payload'
 import { text } from 'payload/shared'
 
 import { BELOW_ROOT_REFUSAL, FROM_WITHOUT_PATH_REFUSAL, QUERY_STRING_REFUSAL } from '../plugin/messages.js'
-import { cleanFromPath } from '../redirect/path.js'
+import { cleanFromPath, LONGEST_REDIRECTED_PATH } from '../redirect/path.js'
 import { buildRegexRefusal } from '../redirect/regex.js'
 import { hasRegexQueryString } from '../redirect/query-string.js'
 import { MATCH_FIELD_NAME, type Match } from './match.js'
@@ -39,6 +39,8 @@ export function buildFromField(trackingParameters: readonly string[]): TextField
     name: FROM_FIELD_NAME,
     type: 'text',
     hooks: { beforeValidate: [cleanFrom] },
+    // No lookup answers a longer path, and Postgres can't index a From much longer.
+    maxLength: LONGEST_REDIRECTED_PATH,
     required: true,
     unique: true,
     validate: validateFrom

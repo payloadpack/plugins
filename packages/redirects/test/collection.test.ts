@@ -13,10 +13,23 @@ import {
   catchFieldErrors,
   createEditorRequest,
   createRedirect,
+  findFoundRedirect,
   findRedirectByID,
+  foundUrl,
   toUrl,
   updateRedirect
 } from './support/documents.js'
+
+// A path of letters and digits no stretch of which repeats, which Postgres can't compress to fit an
+// index, as a site's real paths are.
+function buildUnrepeatedPath(length: number) {
+  const characters = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  let seed = length
+  return `/${Array.from({ length: length - 1 }, () => {
+    seed = (seed * 1_103_515_245 + 12_345) % 2 ** 31
+    return characters[seed % characters.length]
+  }).join('')}`
+}
 
 describeSite('the redirects collection', {}, (site) => {
   it('trims a regex and keeps it as written, with its fixed start', async () => {
@@ -116,6 +129,19 @@ describeSite('the redirects collection', {}, (site) => {
     await updateRedirect(site.payload, redirect.id, { _order: `${redirect._order}V` })
 
     expect(await findRedirectByID(site.payload, redirect.id)).toMatchObject({ from: regex, regexPath: '/reports' })
+  })
+
+  // No lookup answers a longer path, and Postgres can't index a from much longer than this.
+  it('refuses a from over 2,048 characters with Payload’s message, and takes one of 2,048 that answers', async () => {
+    const longestFrom = buildUnrepeatedPath(2_048)
+
+    for (const from of [buildUnrepeatedPath(2_049), buildUnrepeatedPath(2_713)]) {
+      expect(await catchFieldErrors(createRedirect(site.payload, { from, to: toUrl('/a') }))).toEqual([
+        expect.objectContaining({ message: 'This value must be shorter than the max length of 2048 characters.', path: 'from' })
+      ])
+    }
+    expect((await createRedirect(site.payload, { from: longestFrom, to: toUrl('/longest') })).from).toBe(longestFrom)
+    expect(await findFoundRedirect({ path: longestFrom, payload: site.payload })).toEqual(foundUrl('/longest'))
   })
 
   it('refuses a from another redirect has, in any case', async () => {

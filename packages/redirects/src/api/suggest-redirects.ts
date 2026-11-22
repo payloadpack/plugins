@@ -6,7 +6,7 @@ import { STATUS_FIELD_NAME, type Status } from '../fields/status.js'
 import { TO_FIELD_NAME, type StoredTarget, type TargetType } from '../fields/to.js'
 import { TYPE_FIELD_NAME, type RedirectType } from '../fields/type.js'
 import { getRedirectsConfig } from '../plugin/options.js'
-import { buildComparedPath, buildPathAndPathsAbove } from '../redirect/path.js'
+import { buildComparedPath, buildPathAndPathsAbove, LONGEST_REDIRECTED_PATH } from '../redirect/path.js'
 
 /** Where a site finds one document, before and now, as onPathsChanged of @payloadpack/path reports it. */
 type ChangedPath = { collection: string; from: null | string; id: number | string; locale?: string; to: null | string }
@@ -57,12 +57,14 @@ function getAncestorMove({ from, locale, to }: Arrival, movesByFrom: Map<string,
 
 // The moves a suggestion may come from, of the collections a redirect can send visitors to, one per
 // path, by the From it is stored as: a collection with one path in every locale reports a move once per
-// locale.
+// locale. A From longer than any path a lookup answers is refused, which would fail the save that
+// moved the document, so such an old path gets none, nor do the paths below it.
 const buildMovesByOldPath = (arrivals: Arrival[], targetCollections: Set<string>) =>
   new Map(
     arrivals
       .filter((arrival): arrival is Move => isMove(arrival) && targetCollections.has(arrival.collection))
-      .map((move) => [buildComparedPath(move.from), move])
+      .map((move) => [buildComparedPath(move.from), move] as const)
+      .filter(([oldPath]) => oldPath.length <= LONGEST_REDIRECTED_PATH)
   )
 
 const buildDocumentKey = (collection: string, id: unknown) => JSON.stringify([collection, String(id)])

@@ -4,6 +4,12 @@ import { buildQueryString, encodeReadAsOther } from './query-string.js'
 // another origin.
 export const SITE_ORIGIN = 'http://site.invalid'
 
+/**
+ * The longest path a lookup answers, and so the longest From: no site or old link has a longer path,
+ * and each character is a step for every regex.
+ */
+export const LONGEST_REDIRECTED_PATH = 2_048
+
 /** The path and each path above it, deepest first: /a/b/c, /a/b and /a for /a/b/c. */
 export function buildPathAndPathsAbove(path: string) {
   const paths = [path]

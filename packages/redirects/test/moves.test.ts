@@ -404,6 +404,15 @@ describeSite('the redirects a move suggests', {}, (site, setup) => {
     ])
   })
 
+  // No lookup answers a path that long, and the refused save of its suggestion would fail the move.
+  it('suggests none from an old path over 2,048 characters, and moves the page', async () => {
+    const longSlug = 'l'.repeat(2_048)
+    const page = await publish(site.payload, 'pages', { slug: longSlug, title: 'Long' })
+
+    expect((await publishChange(site.payload, 'pages', page, { slug: 'long-no-more' })).path).toBe('/long-no-more')
+    expect(await describeRedirects(site, [`/${longSlug}`])).toEqual([])
+  })
+
   it('writes and deletes the suggestions of a path that is not lowercase lowercased, as a from of a path is stored', async () => {
     const page = await publish(site.payload, 'pages', { slug: 'cased', title: 'Cased' })
     const req = await createPayloadRequest({ payload: site.payload })

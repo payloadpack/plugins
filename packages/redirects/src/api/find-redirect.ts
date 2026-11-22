@@ -18,6 +18,7 @@ import {
   buildPathBelow,
   encodePath,
   buildSitePath,
+  LONGEST_REDIRECTED_PATH,
   SITE_ORIGIN
 } from '../redirect/path.js'
 import { matchRegex } from '../redirect/regex.js'
@@ -96,9 +97,6 @@ type Candidate = {
 type Step = FoundRedirect & { landsOnDocument: boolean }
 
 type Try = { candidate: Candidate; matchedQueryString: boolean; parts: DestinationParts }
-
-// No site or old link has a longer path, and each character is a step for every regex.
-const LONGEST_REDIRECTED_PATH = 2_048
 
 // No site has a path this deep, and each segment adds a value to the lookup, so no lookup reads more
 // than 33 paths: these and /.
