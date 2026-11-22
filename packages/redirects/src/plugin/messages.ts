@@ -2,6 +2,9 @@
 
 export const FROM_WITHOUT_PATH_REFUSAL = 'Give the path visitors ask for, such as /old-page, or paste the whole old URL.'
 
+export const FROM_TOO_LONG_REFUSAL =
+  'This is far longer than any path visitors ask for. Give only the path, such as /old-page: a From holds at most 2,048 characters, and a letter outside a to z, such as é or 中, counts as two or more.'
+
 export const BELOW_ROOT_REFUSAL = 'Every path is a subpath of /, so pick Exact path for the home page, or write a regex.'
 
 export const unreadableRegexRefusal = (reason: string) =>

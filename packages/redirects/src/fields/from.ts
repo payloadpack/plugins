@@ -1,13 +1,23 @@
 import type { FieldHook, TextField, TextFieldSingleValidation } from 'payload'
 import { text } from 'payload/shared'
 
-import { BELOW_ROOT_REFUSAL, FROM_WITHOUT_PATH_REFUSAL, QUERY_STRING_REFUSAL } from '../plugin/messages.js'
+import { BELOW_ROOT_REFUSAL, FROM_TOO_LONG_REFUSAL, FROM_WITHOUT_PATH_REFUSAL, QUERY_STRING_REFUSAL } from '../plugin/messages.js'
 import { cleanFromPath, LONGEST_REDIRECTED_PATH } from '../redirect/path.js'
 import { buildRegexRefusal } from '../redirect/regex.js'
 import { hasRegexQueryString } from '../redirect/query-string.js'
 import { MATCH_FIELD_NAME, type Match } from './match.js'
 
 export const FROM_FIELD_NAME = 'from'
+
+/**
+ * The most bytes a stored From holds in UTF-8. Postgres's unique index on from holds at most 2,704
+ * bytes a row, and a From of this many bytes has at most as many characters, so it stays within the
+ * longest path a lookup answers too.
+ */
+const MOST_FROM_BYTES = LONGEST_REDIRECTED_PATH
+
+/** Whether a From, as it is stored, holds more bytes than a From may. */
+export const isFromTooLong = (from: string) => new TextEncoder().encode(from).length > MOST_FROM_BYTES
 
 type FromSiblings = { [MATCH_FIELD_NAME]?: Match }
 
@@ -26,6 +36,7 @@ export function buildFromField(trackingParameters: readonly string[]): TextField
   const validateFrom: TextFieldSingleValidation = (value, options) => {
     const textRefusal = text(value, options)
     if (textRefusal !== true || !value) return textRefusal
+    if (isFromTooLong(value)) return FROM_TOO_LONG_REFUSAL
     const { match } = options.siblingData as FromSiblings
     if (match === 'regex') return hasRegexQueryString(value) ? QUERY_STRING_REFUSAL : (buildRegexRefusal(value) ?? true)
     const from = cleanFromPath(value, trackingParameters)
@@ -39,8 +50,6 @@ export function buildFromField(trackingParameters: readonly string[]): TextField
     name: FROM_FIELD_NAME,
     type: 'text',
     hooks: { beforeValidate: [cleanFrom] },
-    // No lookup answers a longer path, and Postgres can't index a From much longer.
-    maxLength: LONGEST_REDIRECTED_PATH,
     required: true,
     unique: true,
     validate: validateFrom

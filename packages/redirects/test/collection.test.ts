@@ -3,6 +3,7 @@ import { expect, it } from 'vitest'
 
 import {
   BELOW_ROOT_REFUSAL,
+  FROM_TOO_LONG_REFUSAL,
   FROM_WITHOUT_PATH_REFUSAL,
   REGEX_TOO_LARGE_REFUSAL,
   QUERY_STRING_REFUSAL,
@@ -21,16 +22,20 @@ import {
   updateRedirect
 } from './support/documents.js'
 
-// A path of letters and digits no stretch of which repeats, which Postgres can't compress to fit an
-// index, as a site's real paths are.
-function buildUnrepeatedPath(length: number) {
-  const characters = 'abcdefghijklmnopqrstuvwxyz0123456789'
-  let seed = length
-  return `/${Array.from({ length: length - 1 }, () => {
+// A slash and then the count of characters given, drawn from the ones given so that no stretch
+// repeats, which Postgres can't compress to fit an index, as a site's real paths are.
+function buildUnrepeatedPath(characters: string[], count: number) {
+  let seed = count
+  return `/${Array.from({ length: count }, () => {
     seed = (seed * 1_103_515_245 + 12_345) % 2 ** 31
     return characters[seed % characters.length]
   }).join('')}`
 }
+
+const LETTERS_AND_DIGITS = [...'abcdefghijklmnopqrstuvwxyz0123456789']
+
+// Three bytes each in UTF-8.
+const CJK_CHARACTERS = Array.from({ length: 3_000 }, (_, index) => String.fromCodePoint(0x4e00 + index))
 
 describeSite('the redirects collection', {}, (site) => {
   it('trims a regex and keeps it as written, with its fixed start', async () => {
@@ -132,17 +137,20 @@ describeSite('the redirects collection', {}, (site) => {
     expect(await findRedirectByID(site.payload, redirect.id)).toMatchObject({ from: regex, regexPath: '/reports' })
   })
 
-  // No lookup answers a longer path, and Postgres can't index a from much longer than this.
-  it('refuses a from over 2,048 characters with Payload’s message, and takes one of 2,048 that answers', async () => {
-    const longestFrom = buildUnrepeatedPath(2_048)
+  // Postgres's unique index on from holds at most 2,704 bytes a row, and a letter outside a to z
+  // takes two or more.
+  it('refuses a from over 2,048 bytes with a message on the field, and takes one of 2,048 that answers', async () => {
+    const longestFroms = [buildUnrepeatedPath(LETTERS_AND_DIGITS, 2_047), buildUnrepeatedPath(CJK_CHARACTERS, 682)]
 
-    for (const from of [buildUnrepeatedPath(2_049), buildUnrepeatedPath(2_713)]) {
+    for (const from of [buildUnrepeatedPath(LETTERS_AND_DIGITS, 2_048), buildUnrepeatedPath(CJK_CHARACTERS, 683)]) {
       expect(await catchFieldErrors(createRedirect(site.payload, { from, to: toUrl('/a') }))).toEqual([
-        expect.objectContaining({ message: 'This value must be shorter than the max length of 2048 characters.', path: 'from' })
+        expect.objectContaining({ message: FROM_TOO_LONG_REFUSAL, path: 'from' })
       ])
     }
-    expect((await createRedirect(site.payload, { from: longestFrom, to: toUrl('/longest') })).from).toBe(longestFrom)
-    expect(await findFoundRedirect({ path: longestFrom, payload: site.payload })).toEqual(foundUrl('/longest'))
+    for (const from of longestFroms) {
+      expect((await createRedirect(site.payload, { from, to: toUrl('/longest') })).from).toBe(from)
+      expect(await findFoundRedirect({ path: from, payload: site.payload })).toEqual(foundUrl('/longest'))
+    }
   })
 
   it('refuses a from another redirect has, in any case', async () => {
