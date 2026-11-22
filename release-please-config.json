@@ -26,6 +26,11 @@
       "package-name": "@payloadpack/path",
       "changelog-path": "CHANGELOG.md",
       "exclude-paths": ["packages/path/test", "packages/path/bench"]
+    },
+    "packages/redirects": {
+      "package-name": "@payloadpack/redirects",
+      "changelog-path": "CHANGELOG.md",
+      "exclude-paths": ["packages/redirects/test"]
     }
   }
 }
