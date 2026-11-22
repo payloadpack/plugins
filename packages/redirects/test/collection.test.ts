@@ -1,4 +1,4 @@
-import { createPayloadRequest, type PayloadRequest } from 'payload'
+import type { PayloadRequest } from 'payload'
 import { expect, it } from 'vitest'
 
 import {
@@ -12,6 +12,7 @@ import { describeSite } from './support/boot-payload.js'
 import {
   catchFieldErrors,
   createEditorRequest,
+  createMemberRequest,
   createRedirect,
   findFoundRedirect,
   findRedirectByID,
@@ -167,17 +168,36 @@ describeSite('the redirects collection', {}, (site) => {
       return docs.map(({ id }) => id).sort()
     }
 
-    const member = await site.payload.create({
-      collection: 'members',
-      data: { email: 'member@example.com', password: 'member' },
-      overrideAccess: true
-    })
-    const memberRequest = await createPayloadRequest({ payload: site.payload, user: { ...member, collection: 'members' } })
-
     expect(await findReadIds()).toEqual([onRedirect.id])
-    expect(await findReadIds(memberRequest)).toEqual([onRedirect.id])
+    expect(await findReadIds(await createMemberRequest(site.payload))).toEqual([onRedirect.id])
     expect(await findReadIds(await createEditorRequest(site.payload))).toEqual(
       [onRedirect.id, offRedirect.id, suggestion.id].sort()
     )
+  })
+
+  // Who made a redirect is the admin's business, as the redirects that are off are.
+  it('shows who created and last saved a redirect only to a user of the admin', async () => {
+    const editorRequest = await createEditorRequest(site.payload)
+    const redirect = await site.payload.create({
+      collection: 'redirects',
+      data: { from: '/authored', to: toUrl('/a') } as never,
+      overrideAccess: true,
+      req: editorRequest
+    })
+    const findAuthorship = async (req?: PayloadRequest) => {
+      const document = await site.payload.findByID({
+        collection: 'redirects',
+        depth: 0,
+        id: redirect.id,
+        overrideAccess: false,
+        req
+      })
+      return { createdBy: document.createdBy, updatedBy: document.updatedBy }
+    }
+    const editor = { relationTo: 'users', value: editorRequest.user!.id }
+
+    expect(await findAuthorship()).toEqual({ createdBy: undefined, updatedBy: undefined })
+    expect(await findAuthorship(await createMemberRequest(site.payload))).toEqual({ createdBy: undefined, updatedBy: undefined })
+    expect(await findAuthorship(editorRequest)).toEqual({ createdBy: editor, updatedBy: editor })
   })
 })

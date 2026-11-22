@@ -141,6 +141,24 @@ export async function createEditorRequest(payload: Payload, req: Partial<Payload
   return createPayloadRequest({ payload, req, user: await editors.get(payload)! })
 }
 
+// The request of a user of another auth collection than the admin's, such as a shop's customer, who
+// reads what a visitor reads. One per site, as the editor is.
+const members = new WeakMap<Payload, ReturnType<typeof createMember>>()
+
+async function createMember(payload: Payload) {
+  const member = await payload.create({
+    collection: 'members',
+    data: { email: 'member@example.com', password: 'member' },
+    overrideAccess: true
+  })
+  return { ...member, collection: 'members' as const }
+}
+
+export async function createMemberRequest(payload: Payload) {
+  if (!members.has(payload)) members.set(payload, createMember(payload))
+  return createPayloadRequest({ payload, user: await members.get(payload)! })
+}
+
 export const buildSuggestionsRequest = (collection: string, { id }: Document, locale?: string): Partial<PayloadRequest> => ({
   locale,
   routeParams: { documentCollection: collection, documentId: String(id) }

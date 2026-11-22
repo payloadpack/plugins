@@ -86,7 +86,7 @@ It adds a column, so on Postgres and SQLite [create a migration](/redirects/inst
 | Anyone              | The redirects that are on |
 | A user of the admin | Every redirect            |
 
-Anyone can list the redirects that are on through the REST API, at `/api/redirects`, as anyone can follow them. Creating, changing and deleting them takes a user of the admin, as for any collection in Payload 4. A user who signs in to your site but not to the admin, such as a customer, reads what visitors read.
+Anyone can list the redirects that are on through the REST API, at `/api/redirects`, as anyone can follow them, but only a user of the admin reads who created and last saved each one. Creating, changing and deleting them takes a user of the admin, as for any collection in Payload 4. A user who signs in to your site but not to the admin, such as a customer, reads what visitors read.
 
 `findRedirect` reads as a visitor. If you change the collection's read access with `overrides`, keep the redirects that are on readable to visitors, or no lookup finds one. Only a user of the admin reads a suggestion, so only an editor sees the notice on a moved document.
 

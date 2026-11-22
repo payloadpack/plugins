@@ -1,4 +1,11 @@
-import type { Access, CollectionConfig } from 'payload'
+import {
+  createCreatedByField,
+  createUpdatedByField,
+  type Access,
+  type CollectionConfig,
+  type FieldAccess,
+  type PayloadRequest
+} from 'payload'
 
 import { buildFromField, FROM_FIELD_NAME } from '../fields/from.js'
 import { buildMatchField, MATCH_FIELD_NAME } from '../fields/match.js'
@@ -15,10 +22,15 @@ export const REDIRECTS_SLUG = 'redirects'
 // The field Payload's orderable keeps a redirect's place in the editors' order in.
 export const ORDER_FIELD_NAME = '_order'
 
+const isAdminUser = ({ payload, user }: PayloadRequest) => user?.collection === payload.config.admin.user
+
 // A redirect that is off or suggested answers like none, so visitors read only the ones on, and so does
 // a user of any collection but the admin's, as in Payload's own default access.
-const readOnOrAdminUser: Access = ({ req: { payload, user } }) =>
-  user?.collection === payload.config.admin.user || { [STATUS_FIELD_NAME]: { equals: 'on' satisfies Status } }
+const readOnOrAdminUser: Access = ({ req }) => isAdminUser(req) || { [STATUS_FIELD_NAME]: { equals: 'on' satisfies Status } }
+
+// Who created or last saved a redirect is the admin's business too. Payload's own fields keep their
+// stamping hooks, and a lookup, which selects neither, never runs this.
+const readAdminUser: FieldAccess = ({ req }) => isAdminUser(req)
 
 export function buildRedirectsCollection({
   collections,
@@ -40,7 +52,9 @@ export function buildRedirectsCollection({
       buildToField(collections),
       buildStatusField(),
       buildTypeField(),
-      ...(winOverDocuments === 'perRedirect' ? [buildWinsOverDocumentField()] : [])
+      ...(winOverDocuments === 'perRedirect' ? [buildWinsOverDocumentField()] : []),
+      createCreatedByField({ overrides: { access: { read: readAdminUser } } }),
+      createUpdatedByField({ overrides: { access: { read: readAdminUser } } })
     ],
     // Editors drag the regexes into the order they are tried in, the first match winning.
     orderable: true,
