@@ -13,6 +13,7 @@ import { suggestRedirects } from '../src/index.js'
 import { describeSite, type Site } from './support/boot-payload.js'
 import {
   acceptSuggestions,
+  createDraft,
   createRedirect,
   findFoundRedirect,
   foundDocument,
@@ -337,6 +338,70 @@ describeSite('the redirects a move suggests', {}, (site, setup) => {
     await acceptSuggestions(site.payload, ['/p/c/g', '/c/g'])
 
     expect(await visit(site, '/p/c/g')).toEqual(foundDocument('/g'))
+  })
+
+  // A page a site doesn't show reports no delete of its own, only the pages it lifts, which the same
+  // bulk delete may take away too.
+  it('deletes a parent a site does not show with its published child in one bulk delete, suggesting no redirect to either', async () => {
+    const draftParent = await createDraft(site.payload, 'pages', { slug: 'draft-shelf', title: 'Draft shelf' })
+    const unpublishedParent = await publish(site.payload, 'pages', { slug: 'unpublished-shelf', title: 'Unpublished shelf' })
+    const trashedParent = await publish(site.payload, 'pages', { slug: 'trashed-shelf', title: 'Trashed shelf' })
+    const families = []
+    for (const parent of [draftParent, unpublishedParent, trashedParent]) {
+      families.push({ child: await publish(site.payload, 'pages', { parent: parent.id, slug: 'book', title: 'Book' }), parent })
+    }
+    await site.payload.update({ collection: 'pages', data: { _status: 'draft' }, id: unpublishedParent.id, overrideAccess: true })
+    await site.payload.update({
+      collection: 'pages',
+      data: { deletedAt: new Date().toISOString() },
+      id: trashedParent.id,
+      overrideAccess: true
+    })
+
+    for (const { child, parent } of families) {
+      const { docs, errors } = await site.payload.delete({
+        collection: 'pages',
+        overrideAccess: true,
+        trash: true,
+        where: { id: { in: [parent.id, child.id] } }
+      })
+
+      expect({ deleted: docs.length, errors }).toEqual({ deleted: 2, errors: [] })
+    }
+    const { docs: storedPages } = await site.payload.find({
+      collection: 'pages',
+      overrideAccess: true,
+      trash: true,
+      where: { id: { in: families.flatMap(({ child, parent }) => [parent.id, child.id]) } }
+    })
+    expect(storedPages).toEqual([])
+    expect(
+      await describeRedirects(site, ['/draft-shelf/book', '/unpublished-shelf/book', '/trashed-shelf/book', '/book'])
+    ).toEqual([])
+  })
+
+  it('deletes every page of a bulk delete that also holds a parent a site does not show, and suggests a redirect to each page it lifts that stays', async () => {
+    const landing = await publish(site.payload, 'pages', { slug: 'campaign', title: 'Campaign' })
+    const offer = await publish(site.payload, 'pages', { parent: landing.id, slug: 'offer', title: 'Offer' })
+    await site.payload.update({ collection: 'pages', data: { _status: 'draft' }, id: landing.id, overrideAccess: true })
+    const firstSection = await publish(site.payload, 'pages', { slug: 'section-0', title: 'Section 0' })
+    const secondSection = await publish(site.payload, 'pages', { slug: 'section-1', title: 'Section 1' })
+    const firstKept = await publish(site.payload, 'pages', { parent: firstSection.id, slug: 'kept-0', title: 'Kept 0' })
+    const secondKept = await publish(site.payload, 'pages', { parent: secondSection.id, slug: 'kept-1', title: 'Kept 1' })
+
+    const { docs, errors } = await site.payload.delete({
+      collection: 'pages',
+      overrideAccess: true,
+      where: { id: { in: [landing.id, offer.id, firstSection.id, secondSection.id] } }
+    })
+
+    expect({ deleted: docs.length, errors }).toEqual({ deleted: 4, errors: [] })
+    expect(await visit(site, '/kept-0')).toBe('document')
+    expect(await visit(site, '/kept-1')).toBe('document')
+    expect(await describeRedirects(site, ['/campaign/offer', '/section-0/kept-0', '/section-1/kept-1', '/offer'])).toEqual([
+      { from: '/section-0/kept-0', status: 'suggested', to: targetOf('pages', firstKept) },
+      { from: '/section-1/kept-1', status: 'suggested', to: targetOf('pages', secondKept) }
+    ])
   })
 
   it('writes and deletes the suggestions of a path that is not lowercase lowercased, as a from of a path is stored', async () => {

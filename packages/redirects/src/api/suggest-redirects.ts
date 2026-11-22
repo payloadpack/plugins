@@ -70,7 +70,8 @@ const buildDocumentKey = (collection: string, id: unknown) => JSON.stringify([co
 // Payload deletes every document of a bulk delete before any of them reports, so a delete can report
 // a document lifted out of the page it deleted that the same delete took away too. It holds no path,
 // and a redirect can't send visitors to it: Postgres and SQLite refuse a relationship to a row that is
-// gone.
+// gone. A page a site doesn't show, such as a draft, reports no delete of its own, only the documents
+// it lifts, so every report of a move is read.
 async function findStoredArrivals(payload: Payload, req: PayloadRequest, arrivals: Arrival[]) {
   const storedDocumentKeys = new Set<string>()
   for (const collection of new Set(arrivals.map((arrival) => arrival.collection))) {
@@ -129,8 +130,7 @@ export async function suggestRedirects({ changedPaths, payload, req }: SuggestRe
   const { collections, slug } = getRedirectsConfig(payload)
   const targetCollections = new Set<string>(collections)
   const reportedArrivals = changedPaths.filter(isArrival)
-  const reportsDelete = changedPaths.some(({ from, to }) => from !== null && to === null)
-  const arrivals = reportsDelete ? await findStoredArrivals(payload, req, reportedArrivals) : reportedArrivals
+  const arrivals = reportedArrivals.some(isMove) ? await findStoredArrivals(payload, req, reportedArrivals) : reportedArrivals
   const movesByFrom = new Map(arrivals.filter(isMove).map((move) => [buildLocalePathKey(move.locale, move.from), move]))
   // The documents that moved with another, by that one's old path as a From stores it, and under null
   // the documents published or at the top of a moved branch.
