@@ -839,8 +839,8 @@ describeSite(
   }
 )
 
-// The installation docs' own hook and pages collection, word for word: a site without
-// @payloadpack/path that reports a page's move itself.
+// The own hook and pages collection of the docs' page on suggesting redirects when pages move, word
+// for word: a site without @payloadpack/path that reports a page's move itself.
 const buildPath = (page: { slug: string }) => `/${page.slug}`
 
 const suggestRedirectOnMove: CollectionAfterChangeHook = async ({ doc, operation, previousDoc, req }) => {

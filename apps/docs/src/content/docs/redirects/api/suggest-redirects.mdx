@@ -1,0 +1,97 @@
+---
+title: suggestRedirects
+description: Reference for suggestRedirects(), SuggestRedirectsArgs, ChangedPath, transaction behavior, and runtime errors.
+---
+
+Writes **Suggested** redirects from the old paths of moved documents and deletes outdated suggestions and self-targeting redirects at their new paths.
+
+```ts
+import { suggestRedirects, type ChangedPath, type SuggestRedirectsArgs } from '@payloadpack/redirects'
+
+function suggestRedirects(args: SuggestRedirectsArgs): Promise<void>
+```
+
+## Arguments
+
+```ts
+type SuggestRedirectsArgs = {
+  changedPaths: ChangedPath[]
+  payload: Payload
+  req: PayloadRequest
+}
+```
+
+| Argument       | Type             | Default  | Meaning                                                                                                                                                                          |
+| -------------- | ---------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `changedPaths` | `ChangedPath[]`  | Required | Documents whose published paths changed (one entry per document and locale). Matches the shape passed to [`onPathsChanged`](/path/api/on-paths-changed/) in `@payloadpack/path`. |
+| `payload`      | `Payload`        | Required | Your Payload instance.                                                                                                                                                           |
+| `req`          | `PayloadRequest` | Required | The save's request so reads and writes run in the save's transaction.                                                                                                            |
+
+## `ChangedPath`
+
+```ts
+type ChangedPath = {
+  collection: string
+  from: null | string
+  id: number | string
+  locale?: string
+  to: null | string
+}
+```
+
+| Field        | Type               | Default  | Meaning                                                                                                                                                                |
+| ------------ | ------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `collection` | `string`           | Required | Collection slug. Only collections listed in `collections` of [`redirectsPlugin()`](/redirects/configuration/) get suggestions; others still clear suggestions at `to`. |
+| `id`         | `number \| string` | Required | The document's ID.                                                                                                                                                     |
+| `from`       | `null \| string`   | Required | Path visitors could reach the document at before the save, or `null` if there was none.                                                                                |
+| `to`         | `null \| string`   | Required | Path visitors reach the document at now, or `null` if there is none (such as on unpublish or delete).                                                                  |
+| `locale`     | `string`           | Omitted  | With localization, the locale both paths belong to.                                                                                                                    |
+
+## Behavior
+
+`suggestRedirects` resolves to `void`.
+
+- **Skips non-arrivals:** Entries where `to` is `null` or `from === to` are ignored.
+- **Checks stored targets:** Before writing suggestions for moves, it reads which reported documents still exist so a bulk delete never writes a relationship to a deleted row.
+- **Deletes before creating:** At each new path (`to`), it deletes any **Suggested** redirect and any redirect targeting that same document regardless of status. At each old path (`from`), it replaces any earlier suggestion. Deleting first lets two documents swap paths in one change without colliding on unique `from`.
+- **One suggestion per moved branch:** Writes one permanent (308) suggestion with status **Suggested** and match **Path and subpaths** (or **Exact path** when `from` is `/`) from the top document of each moved branch. Skips old paths held by an **On** or **Off** redirect or occupied by another document in the same change, and gives direct moved children in `changedPaths` their own suggestions instead. An old path longer than 2,048 bytes in UTF-8 gets no suggestion, and neither do the paths below it.
+- **Transactional and serialized:** Reads and writes through `req` with `overrideAccess: true`, reading and deleting 1,000 values at a time, running your Redirects collection hooks and rolling back on failure when transactions are used. Concurrent calls sharing the same `req` (such as in a bulk update or delete) run sequentially so Payload's `orderable` assigns each suggestion its own `_order`; a nested call triggered from inside a hook runs immediately.
+
+See [How move suggestions work](/redirects/moves/) and [Suggest redirects when pages move](/redirects/suggest-on-move/#transactions).
+
+## Errors
+
+| When                                                             | Error                                                                                                                 | Fix                                                                             |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `redirectsPlugin()` is not in `payload.config.ts`                | `@payloadpack/redirects: add redirectsPlugin() to the Payload config before calling findRedirect or suggestRedirects` | Add `redirectsPlugin(...)` to `plugins` in `payload.config.ts`.                 |
+| A Redirects collection hook refuses deletion during move cleanup | Payload `APIError` (HTTP status `400`, with the hook's message and `isPublic` flag)                                   | Allow the cleanup delete in your hook, or handle the refusal on the moved save. |
+
+See [Refusals and errors](/redirects/refusals/).
+
+## Example
+
+This example covers a collection without drafts, where every saved document has a public path before and after an update. See [Suggest redirects when pages move](/redirects/suggest-on-move/) for wiring it with `@payloadpack/path`.
+
+```ts title="collections/pages.ts"
+import type { CollectionAfterChangeHook, CollectionConfig } from 'payload'
+import { suggestRedirects } from '@payloadpack/redirects'
+
+// Your site's own way of building a page's path.
+const buildPath = (page: { slug: string }) => `/${page.slug}`
+
+const suggestRedirectOnMove: CollectionAfterChangeHook = async ({ doc, operation, previousDoc, req }) => {
+  if (operation !== 'update') return doc
+  await suggestRedirects({
+    changedPaths: [{ collection: 'pages', id: doc.id, from: buildPath(previousDoc), to: buildPath(doc) }],
+    payload: req.payload,
+    req
+  })
+  return doc
+}
+
+export const Pages: CollectionConfig = {
+  slug: 'pages',
+  hooks: { afterChange: [suggestRedirectOnMove] },
+  fields: [{ name: 'slug', type: 'text', required: true }]
+}
+```

@@ -1,0 +1,144 @@
+---
+title: Let redirects win over pages
+description: Configure winOverDocuments and a Next.js proxy so selected or all redirects answer even where a page holds the path.
+---
+
+import { Steps, TabItem, Tabs } from '@astrojs/starlight/components'
+
+**Prerequisites:** Complete [Installation](/redirects/installation/) on a Next.js 16 site using `proxy.ts`.
+
+By default, a page at a path wins over every redirect at that path except one that matched the visitor's query string. Set `winOverDocuments` and answer redirects in `proxy.ts` to let selected redirects or every redirect that is **On** win over pages.
+
+<Steps>
+
+1. **Set `winOverDocuments` in `payload.config.ts`.**
+
+   ```ts title="payload.config.ts"
+   redirectsPlugin({
+     collections: ['pages', 'posts'],
+     buildDocumentPath: ({ document }) => document.path,
+     documentSelect: { path: true },
+     winOverDocuments: 'perRedirect'
+   })
+   ```
+
+   - **`'perRedirect'`** adds a **Wins over a page** (`winsOverDocument`) box to each redirect, unchecked by default and on every suggestion an editor says yes to. Editors check the box on redirects that should win over a page.
+   - **`'always'`** lets every redirect that is **On** win over a page and adds no box.
+
+   A redirect that matched the visitor's query string wins over a page under both settings. Setting `'perRedirect'` adds a `winsOverDocument` column, so run `bunx payload migrate:create` on Postgres and SQLite.
+
+2. **Answer every redirect in `proxy.ts`.**
+
+   Because a redirect can now cover a path where a page exists, the proxy checks every request, with or without a query string. The same proxy works for both `'perRedirect'` and `'always'`.
+
+   <Tabs>
+
+   <TabItem label="Without @payloadpack/path">
+
+   Create a page lookup helper that checks whether a page exists at a path as a visitor reads it, returning the page or `null`. Adjust the `where` clause to match how your site stores a page's path.
+
+   ```ts title="find-page.ts"
+   import type { Payload } from 'payload'
+
+   export async function findPage({ path, payload }: { path: string; payload: Payload }) {
+     const { docs } = await payload.find({
+       collection: 'pages',
+       depth: 0,
+       limit: 1,
+       overrideAccess: false,
+       pagination: false,
+       select: {},
+       where: { path: { equals: path } }
+     })
+     return docs[0] ?? null
+   }
+   ```
+
+   Then add `proxy.ts` next to `find-page.ts`:
+
+   ```ts title="proxy.ts"
+   import payloadConfig from '@payload-config'
+   import { findRedirect } from '@payloadpack/redirects'
+   import { NextResponse, type NextRequest } from 'next/server'
+   import { getPayload } from 'payload'
+
+   import { findPage } from './find-page.ts'
+
+   // Answers every redirect, since one can win over the page at its path. findRedirect decides by
+   // winOverDocuments whether a page wins, and asks hasDocument only when it needs to.
+   export async function proxy(request: NextRequest) {
+     let path: string
+     try {
+       path = decodeURIComponent(request.nextUrl.pathname)
+     } catch {
+       return NextResponse.next()
+     }
+     const payload = await getPayload({ config: payloadConfig })
+     const hasDocument = async (pathAsked: string) => (await findPage({ path: pathAsked, payload })) !== null
+
+     const { foundRedirect } = await findRedirect({ hasDocument, path, payload, searchParams: request.nextUrl.searchParams })
+     if (!foundRedirect) return NextResponse.next()
+     // A path on this site goes below its basePath, which Next adds to a page route's redirect() itself.
+     const { destination, permanent } = foundRedirect
+     const url = destination.startsWith('/') ? `${request.nextUrl.basePath}${destination}` : destination
+     return NextResponse.redirect(new URL(url, request.url), permanent ? 308 : 307)
+   }
+
+   // Skips the admin, the API and Next's own files, whole segments only, so a path such as /apiary passes.
+   export const config = { matcher: ['/((?!(?:admin|api|_next)(?:/|$)).*)'] }
+   ```
+
+   </TabItem>
+
+   <TabItem label="With @payloadpack/path">
+
+   ```ts title="proxy.ts"
+   import payloadConfig from '@payload-config'
+   import { findByPath } from '@payloadpack/path'
+   import { findRedirect } from '@payloadpack/redirects'
+   import { NextResponse, type NextRequest } from 'next/server'
+   import { getPayload } from 'payload'
+
+   // Answers every redirect, since one can win over the page at its path. findRedirect decides by
+   // winOverDocuments whether a page wins, and asks hasDocument only when it needs to.
+   export async function proxy(request: NextRequest) {
+     let path: string
+     try {
+       path = decodeURIComponent(request.nextUrl.pathname)
+     } catch {
+       return NextResponse.next()
+     }
+     const payload = await getPayload({ config: payloadConfig })
+     const hasDocument = async (pathAsked: string) => (await findByPath({ path: pathAsked, payload })) !== null
+
+     const { foundRedirect } = await findRedirect({ hasDocument, path, payload, searchParams: request.nextUrl.searchParams })
+     if (!foundRedirect) return NextResponse.next()
+     // A path on this site goes below its basePath, which Next adds to a page route's redirect() itself.
+     const { destination, permanent } = foundRedirect
+     const url = destination.startsWith('/') ? `${request.nextUrl.basePath}${destination}` : destination
+     return NextResponse.redirect(new URL(url, request.url), permanent ? 308 : 307)
+   }
+
+   // Skips the admin, the API and Next's own files, whole segments only, so a path such as /apiary passes.
+   export const config = { matcher: ['/((?!(?:admin|api|_next)(?:/|$)).*)'] }
+   ```
+
+   </TabItem>
+
+   </Tabs>
+
+3. **Remove the redirect check from your page route.**
+
+   The proxy now answers every redirect before the page route runs, so your page route only renders the page or calls `notFound()`.
+
+</Steps>
+
+## Performance, `hasDocument`, and CDN caching
+
+- **Every page view pays a lookup:** Each request runs one database query. A redirect to a document costs two more queries: one to read the document's path and one lookup at that path, because another redirect can win over that page too. Each step of a chain costs one lookup. See [Speed](/redirects/speed/#with-redirects-that-win-over-pages).
+- **Files in `public/`:** Requests for static files such as `/favicon.ico` pass the default matcher and run a lookup. Exclude static files your site serves in `config.matcher`.
+- **`hasDocument` with `'perRedirect'`:** [`findRedirect`](/redirects/api/find-redirect/) asks `hasDocument` only when the best candidate cannot win over a page by itself. With `'always'`, `findRedirect` never calls `hasDocument` and follows chains without it. Calling `findRedirect` without `hasDocument` when `winOverDocuments` is `'perRedirect'` throws:
+
+  > @payloadpack/redirects: give findRedirect hasDocument, which says whether a document holds a path, because with winOverDocuments 'perRedirect' a document at the path wins over every redirect but the ones an editor picked and one that matched the query string
+
+- **CDN caching:** A CDN in front of the proxy serves pages it cached before the proxy runs, so a redirect saved later reaches visitors only after that path is purged at the CDN. Next's [CDN caching guide](https://nextjs.org/docs/app/guides/cdn-caching) recommends running the proxy before the CDN cache or skipping CDN caching for routes that depend on it.

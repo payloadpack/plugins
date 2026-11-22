@@ -1,7 +1,21 @@
 ---
 title: Configuration
-description: The collections a redirect can send visitors to, how your site builds the paths of their documents, the tracking parameters no redirect compares, whether redirects win over pages, and how to change the Redirects collection.
+description: Reference for redirectsPlugin(), its options, buildDocumentPath, default tracking parameters, winOverDocuments, overrides, and startup errors.
 ---
+
+`redirectsPlugin(options)` adds the **Redirects** collection. To each collection a redirect can send visitors to, it adds the `redirectSuggestions` notice field as the first field and an `afterDelete` hook, after your own, that deletes the suggestions to a deleted document. On MongoDB, it adds an index on `_order` and `createdAt`.
+
+```ts
+import {
+  redirectsPlugin,
+  type BuildDocumentPath,
+  type BuildDocumentPathArgs,
+  type RedirectsPluginOptions,
+  type WinOverDocuments
+} from '@payloadpack/redirects'
+
+function redirectsPlugin(options: RedirectsPluginOptions): Plugin
+```
 
 ```ts title="payload.config.ts"
 redirectsPlugin({
@@ -13,30 +27,45 @@ redirectsPlugin({
 })
 ```
 
-| Option               | Purpose                                                                                                                                                                                                                                                                                             | Default                                                                     |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `collections`        | The collections a redirect can send visitors to a document of                                                                                                                                                                                                                                       | Required                                                                    |
-| `buildDocumentPath`  | Builds the path of a document a redirect sends visitors to from the document, such as `/blog/hello` for a post                                                                                                                                                                                      | Required                                                                    |
-| `documentSelect`     | The fields `buildDocumentPath` reads, such as `{ path: true }`, so a lookup reads only those of the document a redirect sends visitors to                                                                                                                                                           | The whole document                                                          |
-| `trackingParameters` | Query string parameters no redirect compares, such as your newsletter's own, beside `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`, `gclid` and `fbclid`, which none ever does. A destination keeps them                                                                     | None                                                                        |
-| `winOverDocuments`   | Lets redirects win over a page at their path: `'perRedirect'` gives each redirect a **Wins over a page** box for editors to pick the ones that do, and `'always'` lets every redirect that is on. See [Letting redirects win over pages](/redirects/installation/#letting-redirects-win-over-pages) | None: a page wins over every redirect but one that matched the query string |
-| `overrides`          | A function that takes the Redirects collection and returns it changed, such as with your hook                                                                                                                                                                                                       | None                                                                        |
+## Options
 
-With `collections: []`, Payload stops with:
+`RedirectsPluginOptions` accepts the following keys:
 
-> @payloadpack/redirects: collections is empty, so name at least one collection a redirect can send visitors to
+| Option               | Type                                                 | Default                                                                      | Meaning                                                                                                                             |
+| -------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `collections`        | `CollectionSlug[]`                                   | Required                                                                     | Collections a redirect can send visitors to a document of. Must contain at least one slug.                                          |
+| `buildDocumentPath`  | `BuildDocumentPath`                                  | Required                                                                     | Builds the path of a document a redirect sends visitors to from the document.                                                       |
+| `documentSelect`     | `SelectType`                                         | Whole document                                                               | Fields `buildDocumentPath` reads, such as `{ path: true }`, so a lookup reads only those fields of the document.                    |
+| `trackingParameters` | `string[]`                                           | Built-in defaults only                                                       | Extra query string parameters no redirect compares, merged case-insensitively with the built-in defaults. Destinations keep them.   |
+| `winOverDocuments`   | `WinOverDocuments`                                   | Omitted (a page wins over every redirect except one matching a query string) | Set to `'perRedirect'` to add a **Wins over a page** box per redirect, or `'always'` so every redirect that is On wins over a page. |
+| `overrides`          | `(collection: CollectionConfig) => CollectionConfig` | None                                                                         | Receives the Redirects collection the plugin builds and returns the collection Payload uses.                                        |
 
-With a `winOverDocuments` other than `'perRedirect'` or `'always'`, it stops with:
+## `buildDocumentPath`
 
-> @payloadpack/redirects: winOverDocuments is 'perRedirect', so an editor picks the redirects that win over a document, or 'always', so every redirect does, or left out, so a document wins over every redirect but one that matched the query string
+When a lookup finds a redirect to a document, the plugin reads the document and calls `buildDocumentPath` to get its path now.
 
-Calling `findRedirect` or `suggestRedirects` before the plugin is in your Payload config throws:
+```ts
+type BuildDocumentPath = (args: BuildDocumentPathArgs) => null | Promise<null | string | undefined> | string | undefined
+```
 
-> @payloadpack/redirects: add redirectsPlugin() to the Payload config before calling findRedirect or suggestRedirects
+### `BuildDocumentPathArgs`
 
-## Building a document's path
+| Field        | Type                       | Meaning                                                                                                                    |
+| ------------ | -------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `collection` | `CollectionSlug`           | The collection the document belongs to, one of `collections`.                                                              |
+| `document`   | `JsonObject & TypeWithID`  | The document at depth 0, with the fields named in `documentSelect` (or all fields without it).                             |
+| `locale`     | `string`, optional         | The locale the document was read in: the `locale` passed to `findRedirect`, or the editor's locale when building a notice. |
+| `payload`    | `Payload`                  | Your Payload instance, if building the path requires another read.                                                         |
+| `req`        | `PayloadRequest`, optional | The `req` passed to `findRedirect`, or the editor's request when building a notice.                                        |
 
-A redirect to a document sends visitors to wherever the document is now. When a lookup finds one, the plugin reads the document and asks your site for its path with `buildDocumentPath`. With `@payloadpack/path`, return the path it keeps, `({ document }) => document.path`, with `documentSelect: { path: true }`. To build your paths your own way:
+### Behavior
+
+- **Read access:** A lookup reads `document` as the request's user (a visitor by default), so an unpublished or unreadable document never reaches `buildDocumentPath` and the redirect sends nobody. A [notice](/redirects/moves/) reads it as the signed-in editor, drafts included.
+- **Select only what you need:** Name the fields `buildDocumentPath` reads in `documentSelect`. Reading only `{ slug: true }` or `{ path: true }` avoids loading blocks and rich text on every redirect to a document.
+- **With `@payloadpack/path`:** Return the stored path with `buildDocumentPath: ({ document }) => document.path` and `documentSelect: { path: true }`.
+- **Return format:** Return the decoded path as visitors read it, such as `/blog/café`, starting with `/` and without a query string. The plugin percent-encodes it and appends any subpath and visitor query string.
+- **Sending nobody:** Return `null` or `undefined` so the redirect sends nobody and the next redirect that covers the path answers. Any string that does not start with `/`, such as `https://example.com`, also sends nobody.
+- **Async reads:** `buildDocumentPath` may be async and use `payload` and `req`, but every extra database read adds a query to every redirect to a document.
 
 ```ts title="payload.config.ts"
 redirectsPlugin({
@@ -49,50 +78,50 @@ redirectsPlugin({
 })
 ```
 
-- **It gets the document** at depth 0, with the fields in `documentSelect`, or all of them without it. A lookup reads it as the visitor does, in the locale you passed to `findRedirect`, so a document visitors can't read, such as an unpublished page, never reaches it, and the redirect sends nobody. A [notice](/redirects/moves/) reads it as the editor does, drafts included, in the editor's locale.
-- **Name the fields it reads in `documentSelect`,** so a lookup reads only those. A page with blocks and rich text is much more to read than its slug.
-- **Return the path as visitors read it,** such as `/blog/café`, without a query string. The plugin encodes it and adds the rest of the path below and the visitor's query string.
-- **Return `null`** to send nobody, so the next redirect that covers the path answers. So does anything that isn't a path on your site, such as `https://example.com`.
-- **Build it from the document.** It may be async and gets `payload` and `req` for a read of its own, but such a read adds a query to every redirect to a document.
+See [Use with localization](/redirects/localization/) for localized lookups and move reports.
 
-## The Redirects collection
+## `trackingParameters`
 
-The plugin adds a collection with the slug `redirects`, which editors sort by dragging in its list. It keeps no versions: a redirect is a line in a list, and a move writes only the redirect it suggests.
+No redirect compares the following seven built-in tracking parameters:
 
-| Field         | What an editor sets                                                                                                                                                                                                                    | Default          |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `from`        | The path visitors ask for, such as `/old-page` or `/news.aspx?id=123`, or a regex, such as `/news/(.*)`. A pasted URL is saved as its path and query string, lowercased                                                                | Required, unique |
-| `match`       | **Exact path** or **Regex**, and **Path and subpaths** on a suggestion                                                                                                                                                                 | Exact path       |
-| `to.type`     | **A document on this site** or **A URL**                                                                                                                                                                                               | A document       |
-| `to.document` | A document of the `collections` above, wherever it is                                                                                                                                                                                  | None             |
-| `to.url`      | A path on this site, such as `/contact`, or a whole URL, such as `https://example.com`, which can hold a regex's groups as `$1`…                                                                                                       | None             |
-| `type`        | **Permanent (308)** or **Temporary (307)**                                                                                                                                                                                             | Permanent        |
-| `status`      | **On**, **Off**, or **Suggested**. Off, the path answers as if the redirect weren't there. Suggested is what a page move leaves, and answers nobody until someone says yes; the admin offers it only on a redirect that already is one | On               |
+- `utm_source`
+- `utm_medium`
+- `utm_campaign`
+- `utm_term`
+- `utm_content`
+- `gclid`
+- `fbclid`
 
-With `winOverDocuments: 'perRedirect'`, the collection has one more field:
+Parameters you list in `trackingParameters` are merged with these defaults case-insensitively. Every destination keeps both built-in and site tracking parameters from the visitor's URL.
 
-| Field              | What an editor sets                                                                                                                                          | Default   |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
-| `winsOverDocument` | **Wins over a page**. Checked, the redirect sends visitors on even when a page is at the path they ask for. A suggestion someone says yes to stays unchecked | Unchecked |
+## `winOverDocuments`
 
-It adds a column, so on Postgres and SQLite [create a migration](/redirects/installation/) when you set it.
+```ts
+type WinOverDocuments = 'always' | 'perRedirect'
+```
 
-[How redirects match](/redirects/matching/) covers which one answers a path and where it sends visitors.
+| Value           | Behavior                                                                                                                                       |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Omitted         | A page wins over every redirect at its path except a redirect that matched the visitor's query string.                                         |
+| `'perRedirect'` | Adds the **Wins over a page** (`winsOverDocument`) checkbox to the Redirects collection, unchecked by default and on a suggestion said yes to. |
+| `'always'`      | Every redirect with status **On** wins over a page at its path. Adds no field to the collection.                                               |
 
-## Who reads redirects
+```ts title="payload.config.ts"
+redirectsPlugin({
+  collections: ['pages', 'posts'],
+  buildDocumentPath: ({ document }) => document.path,
+  documentSelect: { path: true },
+  winOverDocuments: 'perRedirect'
+})
+```
 
-| Who                 | Reads                     |
-| ------------------- | ------------------------- |
-| Anyone              | The redirects that are on |
-| A user of the admin | Every redirect            |
+- Setting `'perRedirect'` adds the `winsOverDocument` column to the Redirects collection. On Postgres and SQLite, create a migration after setting it.
+- With `'perRedirect'`, [`findRedirect`](/redirects/api/find-redirect/) requires `hasDocument` and throws without it.
+- See [Let redirects win over pages](/redirects/win-over-pages/) for the proxy setup and [How redirects match](/redirects/matching/) for chain behavior.
 
-Anyone can list the redirects that are on through the REST API, at `/api/redirects`, as anyone can follow them, but only a user of the admin reads who created and last saved each one. Creating, changing and deleting them takes a user of the admin, as for any collection in Payload 4. A user who signs in to your site but not to the admin, such as a customer, reads what visitors read.
+## `overrides`
 
-`findRedirect` reads as a visitor. If you change the collection's read access with `overrides`, keep the redirects that are on readable to visitors, or no lookup finds one. Only a user of the admin reads a suggestion, so only an editor sees the notice on a moved document.
-
-## Changing the collection
-
-`overrides` gets the collection the plugin built and returns the one Payload gets, so you can add hooks, fields or an admin group. Keep the fields the plugin adds.
+`overrides` receives the Redirects `CollectionConfig` built by the plugin and returns the config Payload registers. Use it to add hooks, set `admin.group`, add fields, or change the collection `slug`.
 
 ```ts title="payload.config.ts"
 redirectsPlugin({
@@ -110,10 +139,19 @@ redirectsPlugin({
 })
 ```
 
-## With localization
+- Keep all fields the plugin adds.
+- Keep redirects with `status: 'on'` readable to visitors if you change `access.read`, or `findRedirect` will find no redirects.
+- If you change `collection.slug`, lookups, notices, and the MongoDB `_order` index automatically use the new slug.
+- See [Change the Redirects collection](/redirects/customize-collection/) and [The Redirects collection](/redirects/collection/).
 
-A redirect has one `from` for every locale. A redirect to a document sends visitors to the document's path in the locale you pass to `findRedirect`:
+## Errors
 
-```ts
-const { foundRedirect } = await findRedirect({ locale: 'sv', path: '/om-oss', payload })
-```
+`redirectsPlugin()` throws the following errors while building the Payload config when options are wrong. Calling `findRedirect` or `suggestRedirects` without the plugin in the config throws at runtime.
+
+| When                                                            | Message                                                                                                                                                                                                                                                | Fix                                                                            |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `collections` is `[]`                                           | `@payloadpack/redirects: collections is empty, so name at least one collection a redirect can send visitors to`                                                                                                                                        | List at least one collection slug in `collections`.                            |
+| `winOverDocuments` is not `'perRedirect'`, `'always'`, or unset | `@payloadpack/redirects: winOverDocuments is 'perRedirect', so an editor picks the redirects that win over a document, or 'always', so every redirect does, or left out, so a document wins over every redirect but one that matched the query string` | Set `winOverDocuments` to `'perRedirect'` or `'always'`, or remove the option. |
+| `findRedirect` or `suggestRedirects` runs without the plugin    | `@payloadpack/redirects: add redirectsPlugin() to the Payload config before calling findRedirect or suggestRedirects`                                                                                                                                  | Add `redirectsPlugin(...)` to `plugins` in `payload.config.ts`.                |
+
+See [Refusals and errors](/redirects/refusals/) for every validation refusal and runtime error.

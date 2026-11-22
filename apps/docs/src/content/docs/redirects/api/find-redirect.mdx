@@ -1,0 +1,135 @@
+---
+title: findRedirect
+description: Reference for findRedirect(), FindRedirectArgs, FindRedirectResult, FoundRedirect, SearchParams, and runtime errors.
+---
+
+Looks up the redirect that answers a path (and optional query string) through the `lookupPath` index. With `hasDocument` or `winOverDocuments`, it follows a chain to its end in one hop.
+
+```ts
+import {
+  findRedirect,
+  type FindRedirectArgs,
+  type FindRedirectResult,
+  type FoundRedirect,
+  type SearchParams
+} from '@payloadpack/redirects'
+
+async function findRedirect(args: FindRedirectArgs): Promise<FindRedirectResult>
+```
+
+## Arguments
+
+```ts
+type SearchParams = Record<string, string | string[] | undefined> | URLSearchParams
+
+type FindRedirectArgs = {
+  path: string
+  payload: Payload
+  searchParams?: SearchParams
+  hasDocument?: (path: string) => boolean | Promise<boolean>
+  locale?: string
+  req?: PayloadRequest
+  context?: RequestContext
+}
+```
+
+| Argument       | Type                                            | Default  | Meaning                                                                                                                                                                  |
+| -------------- | ----------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `path`         | `string`                                        | Required | Decoded path visitors asked for, starting with `/`. Trailing slashes are dropped (keeping `/` for the home page). Paths over 2,048 characters or 32 segments get `null`. |
+| `payload`      | `Payload`                                       | Required | Your Payload instance.                                                                                                                                                   |
+| `searchParams` | `SearchParams`                                  | Omitted  | Visitor's query string (`request.nextUrl.searchParams` in a proxy, or a page's awaited `searchParams`). Enables query-string matching and keeps visitor parameters.      |
+| `hasDocument`  | `(path: string) => boolean \| Promise<boolean>` | Omitted  | Says whether a document holds a path. Optional by default (enables chain following). Required with `winOverDocuments: 'perRedirect'`. Never called with `'always'`.      |
+| `locale`       | `string`                                        | Omitted  | Locale passed when reading a document target and calling [`buildDocumentPath`](/redirects/configuration/#builddocumentpath).                                             |
+| `req`          | `PayloadRequest`                                | Omitted  | Passed to every read and to `buildDocumentPath`. Reads run with `overrideAccess: false` as `req.user`, so pass a visitor's request.                                      |
+| `context`      | `RequestContext`                                | Omitted  | Passed to every database read so your hooks see it.                                                                                                                      |
+
+## Result
+
+`findRedirect` resolves to an object (`FindRedirectResult`) so future fields can be added without breaking callers.
+
+```ts
+type FindRedirectResult = { foundRedirect: FoundRedirect | null }
+
+type FoundRedirect = {
+  destination: string
+  matchedQueryString: boolean
+  permanent: boolean
+  to: { type: TargetType }
+}
+```
+
+| Field                | Type         | Meaning                                                                                                                   |
+| -------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `destination`        | `string`     | Encoded URL for the `Location` header, including the visitor's query string minus any parameters the redirect matched.    |
+| `permanent`          | `boolean`    | `true` for 308 (**Permanent**), `false` for 307 (**Temporary**). In a chain, `true` only if every step was permanent.     |
+| `matchedQueryString` | `boolean`    | `true` when the redirect matched the visitor's query string (so it wins over a page at the path), `false` otherwise.      |
+| `to.type`            | `TargetType` | `'document'` when the destination came from a document target's path, or `'url'` when it came from a URL an editor wrote. |
+
+`foundRedirect` is `null` when no redirect covers the path, every covering redirect sends nobody, a chain forms a circle or runs past 10 paths, or, with `winOverDocuments: 'perRedirect'`, a page holds the path and no redirect there wins over it. See [How redirects match](/redirects/matching/) for matching order, chains, and [`winOverDocuments`](/redirects/configuration/#winoverdocuments).
+
+## Errors
+
+| When                                                               | Message                                                                                                                                                                                                                                                              | Fix                                                                 |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `redirectsPlugin()` is not in `payload.config.ts`                  | `@payloadpack/redirects: add redirectsPlugin() to the Payload config before calling findRedirect or suggestRedirects`                                                                                                                                                | Add `redirectsPlugin(...)` to `plugins` in `payload.config.ts`.     |
+| `winOverDocuments` is `'perRedirect'` and `hasDocument` is omitted | `@payloadpack/redirects: give findRedirect hasDocument, which says whether a document holds a path, because with winOverDocuments 'perRedirect' a document at the path wins over every redirect but the ones an editor picked and one that matched the query string` | Pass `hasDocument` to `findRedirect`, or change `winOverDocuments`. |
+
+See [Refusals and errors](/redirects/refusals/).
+
+## Example
+
+This example uses a site's own `findPage` helper in a Next.js [query-string proxy](/redirects/query-strings/). See [Let redirects win over pages](/redirects/win-over-pages/) for the `winOverDocuments` proxy.
+
+```ts title="find-page.ts"
+import type { Payload } from 'payload'
+
+export async function findPage({ path, payload }: { path: string; payload: Payload }) {
+  const { docs } = await payload.find({
+    collection: 'pages',
+    depth: 0,
+    limit: 1,
+    overrideAccess: false,
+    pagination: false,
+    select: {},
+    where: { path: { equals: path } }
+  })
+  return docs[0] ?? null
+}
+```
+
+```ts title="proxy.ts"
+import payloadConfig from '@payload-config'
+import { findRedirect } from '@payloadpack/redirects'
+import { NextResponse, type NextRequest } from 'next/server'
+import { getPayload } from 'payload'
+
+import { findPage } from './find-page.ts'
+
+// Answers the redirects that match a query string, which the page route never sees when its page is
+// cached per path. A URL without one goes on to the page route, which checks for a redirect itself.
+export async function proxy(request: NextRequest) {
+  if (request.nextUrl.search === '') return NextResponse.next()
+
+  let path: string
+  try {
+    // A page's path has no slash at its end, which a site with trailingSlash adds.
+    path = decodeURIComponent(request.nextUrl.pathname).replace(/\/$/, '') || '/'
+  } catch {
+    return NextResponse.next()
+  }
+  const payload = await getPayload({ config: payloadConfig })
+  const hasDocument = async (pathAsked: string) => (await findPage({ path: pathAsked, payload })) !== null
+
+  const { foundRedirect } = await findRedirect({ hasDocument, path, payload, searchParams: request.nextUrl.searchParams })
+  if (!foundRedirect) return NextResponse.next()
+  // A page always wins over a redirect from its path, but not over one that matched the query string.
+  if (!foundRedirect.matchedQueryString && (await hasDocument(path))) return NextResponse.next()
+  // A path on this site goes below its basePath, which Next adds to a page route's redirect() itself.
+  const { destination, permanent } = foundRedirect
+  const url = destination.startsWith('/') ? `${request.nextUrl.basePath}${destination}` : destination
+  return NextResponse.redirect(new URL(url, request.url), permanent ? 308 : 307)
+}
+
+// Skips the admin, the API and Next's own files, whole segments only, so a path such as /apiary passes.
+export const config = { matcher: ['/((?!(?:admin|api|_next)(?:/|$)).*)'] }
+```

@@ -1,0 +1,48 @@
+---
+title: Use with localization
+description: Build localized document paths, pass locales to findRedirect and suggestRedirects, and understand how From and notices work across locales.
+---
+
+**Prerequisites:** Configure Payload localization and complete [Installation](/redirects/installation/).
+
+A redirect stores one **From** across all locales, while a document target sends visitors to the document's path in the locale you ask for.
+
+## Build localized document paths
+
+Use the `locale` argument in [`buildDocumentPath`](/redirects/configuration/#builddocumentpath) to build the document's path for that locale:
+
+```ts title="payload.config.ts"
+redirectsPlugin({
+  collections: ['pages', 'posts'],
+  buildDocumentPath: ({ collection, document, locale }) => {
+    const path = collection === 'posts' ? `/blog/${document.slug}` : `/${document.slug}`
+    return locale === 'sv' ? `/sv${path}` : path
+  },
+  documentSelect: { slug: true }
+})
+```
+
+With `@payloadpack/path` and `localized: true`, `document.path` already holds the path for `locale`. Add a leading locale segment only if your site's URLs include one.
+
+## Look up redirects for a locale
+
+Import `findRedirect` from `@payloadpack/redirects` and pass `locale`. The lookup reads a winning document target in that locale and passes `locale` to `buildDocumentPath`:
+
+```ts
+const { foundRedirect } = await findRedirect({ locale: 'sv', path: '/om-oss', payload })
+```
+
+Check `foundRedirect.to.type` (`'document'` or `'url'`) if your site needs to tell whether the destination came from a document target or from a URL an editor wrote. See [`findRedirect`](/redirects/api/find-redirect/).
+
+## Report localized moves
+
+Include `locale` on each entry in `changedPaths` passed to [`suggestRedirects`](/redirects/api/suggest-redirects/).
+
+- A move in a locale is compared with other moves in that same locale and suggests a redirect from that locale's old path to the document.
+- When a collection keeps one path across all locales and reports the same move once per locale, `suggestRedirects` writes one suggestion.
+- With `@payloadpack/path`, [`onPathsChanged`](/path/api/on-paths-changed/) already sets `locale` on each entry in `changedPaths`.
+
+## How From and notices behave across locales
+
+- **One shared From:** A redirect has one `from` for every locale, so `/om-oss` and `/about-us` are separate redirects in the Redirects collection.
+- **Notices in the editor's locale:** The notice on a moved document reads that document in the editor's current locale, drafts included, and passes that locale to `buildDocumentPath`. See [How move suggestions work](/redirects/moves/).

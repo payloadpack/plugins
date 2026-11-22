@@ -1,5 +1,5 @@
-// The proxy the installation docs give for redirects from a query string, but for its page lookup,
-// findPage. A page view no redirect covers never asks it.
+// The proxy the docs give for redirects from a query string, with a site's own page lookup, findPage,
+// as their page on query strings shows it. A page view no redirect covers never asks it.
 import payloadConfig from '@payload-config'
 import { findRedirect } from '@payloadpack/redirects'
 import { NextResponse, type NextRequest } from 'next/server'

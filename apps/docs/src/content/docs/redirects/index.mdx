@@ -1,12 +1,13 @@
 ---
 title: Introduction
-description: Redirects editors manage in Payload 4, found through database indexes at the same cost for 100,000 as for 1,000. Every page move your site reports, from its own hook or through @payloadpack/path, suggests a redirect from its old path.
+description: Redirects editors manage in Payload 4, found through database indexes at the same cost for 100,000 as for 1,000, with optional move suggestions.
 ---
 
-`@payloadpack/redirects` adds a **Redirects** collection to the admin. Editors send an exact path or every path a regex matches to a page or a URL, and your site asks for a redirect whenever no document holds a path. Every move of a page your site reports, from its own hook or through [`@payloadpack/path`](/path/), suggests a redirect from its old path and its subpaths, which an editor turns on with a yes on the moved page.
+`@payloadpack/redirects` adds a **Redirects** collection to Payload 4. Editors send visitors from an exact path or a regex to a document on your site or to a URL, and your site asks for a redirect only when no page holds a path. When your site reports a page move, the plugin suggests a redirect from the old path that an editor turns on with a yes.
 
 ```ts title="payload.config.ts"
 import { redirectsPlugin } from '@payloadpack/redirects'
+import { buildConfig } from 'payload'
 
 export default buildConfig({
   plugins: [
@@ -28,20 +29,32 @@ const { foundRedirect } = await findRedirect({ path: '/about-us/team', payload }
 
 ## What you get
 
-- **An exact path or a regex:** a path matches in any case, and a regex's groups go into a URL as `$1`, `$2` and so on. See [How redirects match](/redirects/matching/).
-- **Old URLs with a query string:** a redirect from `/news.aspx?id=123` matches whatever order and case the visitor's parameters come in, ignoring tracking parameters such as `utm_source`, which every destination keeps.
-- **A page target follows the page:** a redirect to a document sends visitors wherever the document is now, even after it moves.
-- **A suggested redirect from every old path:** a moved page your site reports, from its own hook or through `@payloadpack/path`, suggests one redirect for its whole branch, however many pages sit below it, and the editor says yes or no right on the page. No redirect goes live until someone says yes. See [Moves and deletes](/redirects/moves/).
-- **One indexed query per lookup:** it finds only the redirects and regexes that can cover the path, so 100,000 of them cost what 1,000 do. When a redirect it finds sends visitors to a document, Payload reads the document's path with one more. See [Speed](/redirects/speed/).
-- **Regexes that can't hang your site:** they run on RE2, which never backtracks, and a regex too large to try on every path is refused when it's saved.
-- **Targets that stay on your site:** a path on your site never sends a visitor to another host, whatever a regex's groups fill in.
+- **Exact paths and regexes:** Exact paths match in any case, and regex groups fill into a URL as `$1` to `$9`. See [How redirects match](/redirects/matching/).
+- **Old URLs with a query string:** A redirect from `/news.aspx?id=123` matches parameters in any order and case. Tracking parameters such as `utm_source` are not compared and stay on the destination. See [Match query strings in a proxy](/redirects/query-strings/).
+- **Document targets follow moves:** A redirect to a document sends visitors to wherever the document is now, even after later moves.
+- **Move suggestions:** When your site reports a moved page from its own hook or through [`@payloadpack/path`](/path/), one suggestion covers the whole moved branch. An editor answers yes, edit, or no right on the moved page, and no redirect answers until someone says yes. See [How move suggestions work](/redirects/moves/).
+- **Constant lookup cost:** One indexed database query reads only the redirects and regexes that can cover a path, so 100,000 redirects cost the same as 1,000. Reading a winning document target adds one query. See [Speed](/redirects/speed/).
+- **Safe regexes on RE2:** Regexes run on RE2, which never backtracks. A regex too large to try on unknown paths is refused on save.
+- **Host-locked destinations:** A target starting with `/` never leaves your site, and a URL target never leaves its host, whatever a regex group fills in.
+- **Optional redirects that win over pages:** By default, a page wins over every redirect at its path except one that matched the visitor's query string. Set `winOverDocuments` to let selected redirects or every redirect that is On win over pages. See [Let redirects win over pages](/redirects/win-over-pages/).
 
 ## Requirements
 
-| Package or database | Version or setup              |
-| ------------------- | ----------------------------- |
-| `payload`           | 4.0.0-beta.11 or later        |
-| MongoDB             | `@payloadcms/db-mongodb`      |
-| Postgres            | `@payloadcms/db-postgres`     |
-| SQLite              | `@payloadcms/db-sqlite`       |
-| `@payloadpack/path` | 0.3.1 or later, if you use it |
+| Package or database | Version or setup          |
+| ------------------- | ------------------------- |
+| `payload`           | 4.0.0-beta.11 or later    |
+| MongoDB             | `@payloadcms/db-mongodb`  |
+| Postgres            | `@payloadcms/db-postgres` |
+| SQLite              | `@payloadcms/db-sqlite`   |
+| `@payloadpack/path` | 0.3.1 or later (optional) |
+
+Works with and without database transactions on MongoDB, Postgres, and SQLite. The package does not depend on `@payloadpack/path`.
+
+## Next steps
+
+- [Installation](/redirects/installation/) — install the package, add the plugin, and answer redirects in your page route.
+- [Configuration](/redirects/configuration/) — full reference for `redirectsPlugin()`.
+- [Suggest redirects when pages move](/redirects/suggest-on-move/) — call `suggestRedirects` from your own hook or `@payloadpack/path`.
+- [Match query strings in a proxy](/redirects/query-strings/) — match old URLs with query strings before cached pages.
+- [Let redirects win over pages](/redirects/win-over-pages/) — let selected or all redirects answer even where a page exists.
+- [`findRedirect`](/redirects/api/find-redirect/) and [`suggestRedirects`](/redirects/api/suggest-redirects/) — API reference.

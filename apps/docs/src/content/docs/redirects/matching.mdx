@@ -1,121 +1,93 @@
 ---
 title: How redirects match
-description: Which redirect answers a path, how case and query strings match, where it sends visitors, how to write a regex, and what an editor is refused.
+description: Which redirect answers a path, how case and query strings match, where a redirect sends visitors, how to write a regex, and how chains work.
 ---
 
-## Which one answers
+## Which redirect answers
 
-Your site asks for a redirect only when no document holds the path, so a redirect never hides a page. The one exception is a redirect that matched the visitor's query string, which a [proxy](/redirects/installation/#query-strings-in-a-proxy) takes over the page at its path. With [`winOverDocuments`](/redirects/installation/#letting-redirects-win-over-pages), redirects can win over pages too, the ones editors pick or every one. Where several redirects cover a path, the first of these answers:
+By default, your site asks for a redirect only when no page holds the path, so a redirect never hides a page. The one exception is a redirect that matched the visitor's query string, which a [proxy](/redirects/query-strings/) answers over the page at its path. With [`winOverDocuments`](/redirects/win-over-pages/), redirects can win over pages too.
 
-1. **A redirect from the path and the visitor's query string,** such as `/news.aspx?id=123`. See [Query strings](#query-strings).
-2. **A redirect from the path itself or a path above it.** **Exact path** answers its own path only. **Path and subpaths**, which a [page move](/redirects/moves/) suggests, answers its path and every path below it, and the deepest one wins: for `/shop/old/cart`, a redirect from `/shop/old` answers, not one from `/shop`.
-3. **The first regex in the list** that matches the whole path. Editors drag the redirects in the list to change the order.
+When several redirects cover a path, the first of these answers:
 
-A redirect whose target sends nobody is skipped, and the next one answers: a document that isn't published, is in the trash, was deleted, or that visitors can't read. A redirect that is **Off** answers as if it weren't there, and so does one a move suggested that nobody has said yes to. A path longer than 2,048 characters gets no redirect, and neither does one deeper than 32 segments, which no site has.
+1. **A redirect from the path and the visitor's query string** (**Exact path**), such as `/news.aspx?id=123`. See [Query strings](#query-strings).
+2. **A redirect from the path itself or a path above it.** **Exact path** covers its own path only. **Path and subpaths**, which a [move suggestion](/redirects/moves/) writes, covers its path and every path below it, and the deepest one wins: for `/shop/old/cart`, a redirect from `/shop/old` answers rather than `/shop`.
+3. **The first regex in the editors' order** that matches the whole path. Editors drag redirects in the list to change their order.
+
+Other matching details:
+
+- **Skipped targets:** A redirect whose target sends nobody is skipped, and the next covering redirect answers. That includes a document that is unpublished, in the trash, deleted, unreadable to visitors, or given no path on this site by `buildDocumentPath`.
+- **Status:** Only redirects with status **On** answer. Redirects that are **Off** or **Suggested** are skipped, even on a signed-in user's request.
+- **Trailing slashes:** A trailing slash on the requested path is dropped before matching (while `/` stays `/`), so `/about-us/` matches `/about-us`.
+- **Path limits:** A path longer than 2,048 characters or deeper than 32 segments gets no redirect.
 
 ## Case
 
-**Exact path** and **Path and subpaths** match in any case: **From** is saved lowercased, so `/About-Us` saves as `/about-us` and answers `/ABOUT-US` too. The rest of a path below goes to a document in lowercase, as a page's path is, and to a URL as the visitor typed it.
+**Exact path** and **Path and subpaths** match in any case. **From** is saved lowercased, so `/About-Us` saves as `/about-us` and answers `/ABOUT-US`.
 
-A regex matches as written. Start it with `(?i)` to ignore case, such as `(?i)/news/(.*)`. Such a regex has no fixed start, so it is tried on every path no other redirect covers: see [Writing a regex](#writing-a-regex).
+For **Path and subpaths**, the rest of the path below goes to a document target in lowercase (as page paths are) and to a URL target as the visitor typed it.
+
+A regex matches as written. Start it with `(?i)` to ignore case, such as `(?i)/news/(.*)`. A regex starting with `(?i)` has no fixed start, so it is tried on every path no other redirect covers. See [Writing a regex](#writing-a-regex).
 
 ## Query strings
 
-**Exact path** can hold a query string, such as `/news.aspx?id=123`, for the old URLs of a site that told its pages apart by one. It matches the visitor's query string whatever order or case its parameters come in, and saves as `/news.aspx?id=123` for `/News.aspx?ID=123`.
+**Exact path** can hold a query string, such as `/news.aspx?id=123`, for old URLs that tell pages apart by parameters. It matches the visitor's query string in any parameter order and any case, saving `/News.aspx?ID=123` as `/news.aspx?id=123`.
 
-**Tracking parameters** are never compared: `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`, `gclid` and `fbclid`, and any you add with [`trackingParameters`](/redirects/configuration/). So `/news.aspx?id=123&utm_source=newsletter` matches `/news.aspx?id=123`, and a **From** that holds only tracking parameters saves without them.
+**Tracking parameters** are never compared: `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`, `gclid`, and `fbclid`, plus any you add with [`trackingParameters`](/redirects/configuration/#trackingparameters). `/news.aspx?id=123&utm_source=newsletter` matches `/news.aspx?id=123`, and a **From** holding only tracking parameters saves without them.
 
-Every destination keeps the visitor's query string, but for the parameters a redirect matched: `/news.aspx?id=123&utm_source=newsletter` goes to `/news/opening-hours?utm_source=newsletter`. Where the target URL has a parameter of the same name, the target's value wins.
+Every destination keeps the visitor's query string except the parameters a redirect matched. `/news.aspx?id=123&utm_source=newsletter` goes to `/news/opening-hours?utm_source=newsletter`. When the target URL has a parameter of the same name, the target's value wins.
 
-Your site passes the query string to `findRedirect` as `searchParams`, which a [proxy](/redirects/installation/#query-strings-in-a-proxy) has for every request.
+Pass the visitor's query string to [`findRedirect`](/redirects/api/find-redirect/) as `searchParams`. See [Match query strings in a proxy](/redirects/query-strings/).
 
-## Where it sends visitors
+## Where a redirect sends visitors
 
-| Redirect                                                     | For                   | Sends visitors to                                                   |
-| ------------------------------------------------------------ | --------------------- | ------------------------------------------------------------------- |
-| From `/about-us` and its subpaths                            | `/about-us/team`      | The rest of the path below the target: `/company/team`              |
-| To a document                                                | Its old path          | The document's path now, even after it moved                        |
-| From `/blog/(\d{4})/(.*)`, to `/news/$2`                     | `/blog/2019/spring`   | The groups filled in: `/news/spring`                                |
-| From `/old-shop` and its subpaths, to `https://shop.example` | `/old-shop/cart/42`   | `https://shop.example/cart/42`                                      |
-| From `/kontakt`, to `/contact?ref=old`                       | `/kontakt?ref=ad&x=1` | The visitor's parameters after the target's: `/contact?ref=old&x=1` |
+| Redirect                                                            | Visitor asks for      | Destination                                     |
+| ------------------------------------------------------------------- | --------------------- | ----------------------------------------------- |
+| From `/about-us` (**Path and subpaths**), to `/company`             | `/about-us/team`      | `/company/team`                                 |
+| To a document                                                       | Its old path          | The document's path now, even after later moves |
+| From `/blog/(\d{4})/(.*)`, to `/news/$2`                            | `/blog/2019/spring`   | `/news/spring`                                  |
+| From `/old-shop` (**Path and subpaths**), to `https://shop.example` | `/old-shop/cart/42`   | `https://shop.example/cart/42`                  |
+| From `/kontakt`, to `/contact?ref=old`                              | `/kontakt?ref=ad&x=1` | `/contact?ref=old&x=1`                          |
 
-Every part that comes from the visitor or a document is encoded in the destination, so `/мир` goes out as `/%D0%BC%D0%B8%D1%80`, and a `%3F` in the path a visitor asked for stays in the path. A `?` or `#` an editor typed in a URL target stays a query or a fragment.
+Every part that comes from the visitor or from a document is percent-encoded in the destination. `/мир` goes out as `/%D0%BC%D0%B8%D1%80`, and `%3F` in the path a visitor asked for stays in the path. A `?` or `#` an editor typed in a URL target stays a query string or fragment.
 
-A target that starts with `/` never leaves your site, and a URL target never leaves its host, whatever a visitor's path fills in: `/$1` filled with `/other.example` sends nobody, and so does a redirect a visitor's path fills with a backslash or a tab, which a browser can read as a slash.
+A target starting with `/` never leaves your site, and a URL target never leaves its host, whatever a visitor's path fills in. `/$1` filled with `/other.example` sends nobody, and any part filled by the visitor containing a backslash or a tab (which a browser can read as a slash) sends nobody too.
 
 ## Writing a regex
 
-A regex must match the whole path, without the slash at its end: `/news/(.*)` matches `/news/spring` and `/news/spring/` alike, not `/old/news/spring`, so `^` and `$` change nothing. Its groups go into a URL target as `$1` to `$9`.
+A regex must match the whole path without its trailing slash. `/news/(.*)` matches `/news/spring` and `/news/spring/`, not `/old/news/spring`, so `^` and `$` change nothing. Capture groups go into a URL target as `$1` to `$9`.
 
-- **Start it with a fixed path,** such as `/news/(.*)` rather than `(.*)/news`. A regex is tried only on paths at or below its fixed start, so one without a fixed start is tried on every path no other redirect covers.
-- **To move a whole section, move its page** instead of writing a regex. The move suggests one redirect for the page and its subpaths, which is found faster and needs no groups.
-- **Regexes run on RE2,** which can't look ahead or behind, or refer back to a group. A backslash before a character such as `(` or `.` matches it as it is.
-- **RE2 never backtracks,** so even `^/(a+)+$` answers within a millisecond, and finds the match a backtracking engine gives up on.
+- **Start with a fixed path:** Write `/news/(.*)` rather than `(.*)/news`. A lookup finds regexes through their fixed start in `lookupPath`, so a regex without a fixed start is stored at `/` and tried on every path no other redirect covers.
+- **Move sections instead of writing a regex:** To move a whole section, move its parent page so [move suggestions](/redirects/moves/) write one **Path and subpaths** redirect. It is found faster and needs no groups.
+- **RE2 syntax:** Regexes run on RE2, which cannot look ahead or behind or refer back to a group. Put a backslash before characters such as `(` or `.` to match them literally.
+- **No backtracking:** RE2 runs in linear time and never backtracks, so even `^/(a+)+$` answers within a millisecond and finds matches a backtracking engine gives up on.
+- **Save refusals:** Regexes RE2 cannot compile, regexes over 1,000 RE2 instructions, and regexes written to match a query string are refused on save. See [Refusals and errors](/redirects/refusals/).
 
-## What an editor is refused
+## When a page is at the same path
 
-The messages below show on the field, word for word.
-
-| When                                                                                   | Message                                                                                                                                                                                               |
-| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **From** holds no path, such as `//`, `https://` or a `mailto:` link                   | Give the path visitors ask for, such as /old-page, or paste the whole old URL.                                                                                                                        |
-| **From** over 2,048 characters, or fewer where it holds letters outside a to z         | This is far longer than any path visitors ask for. Give only the path, such as /old-page: a From holds at most 2,048 characters, and a letter outside a to z, such as é or 中, counts as two or more. |
-| **Path and subpaths** from `/`                                                         | Every path is a subpath of /, so pick Exact path for the home page, or write a regex.                                                                                                                 |
-| A regex RE2 can't read, such as `/(?=x)a`                                              | This isn't a regex the site can read (RE2's reason). A regex can't look ahead or behind or refer back to a group, and a backslash before a character such as ( or . matches it as it is.              |
-| A regex too large, such as `/a{1000}`                                                  | This regex is too large to try on every unknown path, usually because of a repeat such as \{1000\}. Split it into simpler regexes, or repeat a part fewer times.                                      |
-| A URL that is neither a path nor a whole http(s) URL                                   | Start with / for a path on this site, or with https:// for another site.                                                                                                                              |
-| A query string on **Path and subpaths** or on a regex, such as `/news\.aspx\?id=(\d+)` | Only Exact path matches a query string, such as ?id=123, so pick Exact path or leave the query string out.                                                                                            |
-
-**From** takes a path the way visitors ask for it, and saves it so: a pasted URL becomes its path and query string, a missing first slash is added, a doubled one and the last one go, encoded characters are decoded, so `/q%26a` saves as `/q&a`, and the whole is lowercased. A `?`, `#`, `%` or backslash in a path stays encoded, so `/faq%3Fold` saves as it is, because in a URL each of them means something else. So does a space at the end of a path or a parameter, such as in `/old-page%20`, which a URL would drop. A query string saves with its parameters sorted and its tracking parameters left out. A regex containing `\?`, or a `?` followed by a name and `=`, counts as one with a query string.
-
-## `findRedirect`
-
-```ts
-const { foundRedirect } = await findRedirect({ hasDocument, path, payload, searchParams })
-// foundRedirect: { destination: '/company/team', matchedQueryString: false, permanent: true, to: { type: 'document' } }, or null
-```
-
-| Argument       | What it is                                                                                                                                                                                                |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `path`         | The path a visitor asked for, decoded, with a slash first. A slash at its end is dropped, as **From** drops it                                                                                            |
-| `payload`      | Your Payload instance                                                                                                                                                                                     |
-| `searchParams` | Optional. The visitor's query string: `request.nextUrl.searchParams` in a proxy, or a page's `searchParams`                                                                                               |
-| `hasDocument`  | Whether a document holds a path. Optional by default, where it lets a visitor take one hop through a chain of redirects. Required with `winOverDocuments: 'perRedirect'`, and never asked with `'always'` |
-| `locale`       | Optional. The locale whose path a document target sends visitors to                                                                                                                                       |
-| `req`          | Optional. Passed to every read, which reads as its user, so pass a visitor's request                                                                                                                      |
-| `context`      | Optional. Passed to every read, so your hooks see it                                                                                                                                                      |
-
-It resolves to an object, `{ foundRedirect }`, so a field can join it later without breaking your site. `foundRedirect` is the redirect that answers, or `null`:
-
-| `foundRedirect`      | What it is                                                                                                                                    |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `destination`        | The URL for the `Location` header, with the visitor's query string but for the parameters the redirect matched                                |
-| `permanent`          | `true` for a 308, `false` for a 307                                                                                                           |
-| `matchedQueryString` | Whether the redirect matched the visitor's query string, so it wins over a page at the path                                                   |
-| `to.type`            | `document` when the destination is a document's path, `url` when it is a URL an editor wrote, such as to know which to give a language prefix |
-
-### Which one wins over a page
-
-The best redirect for a path is the one the order above picks. What happens when a page is at the path depends on [`winOverDocuments`](/redirects/configuration/):
+What happens when a document holds the path asked for depends on [`winOverDocuments`](/redirects/configuration/#winoverdocuments):
 
 | `winOverDocuments` | At the path asked for                                                                                                                                                                                                                                                                       |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Left out           | The best redirect answers. `findRedirect` never asks `hasDocument` about the path you asked for, so a route that already looked for a page there pays nothing more, and a proxy lets the page win unless `matchedQueryString`                                                               |
-| `'perRedirect'`    | The best redirect answers if it matched the query string or has **Wins over a page** checked. Otherwise `findRedirect` asks `hasDocument`. If a page is at the path, the best redirect that matched the query string or is checked answers, or none does. If not, the best redirect answers |
-| `'always'`         | The best redirect answers, page or not, and `hasDocument` is never asked                                                                                                                                                                                                                    |
+| Omitted            | The best covering redirect answers. `findRedirect` never asks `hasDocument` about the requested path, so a page route pays nothing more and a query-string proxy lets the page win unless `matchedQueryString` is `true`.                                                                   |
+| `'perRedirect'`    | The best redirect answers if it matched the query string or has **Wins over a page** checked. Otherwise `findRedirect` asks `hasDocument` once. If a page is there, the best redirect that matched the query string or is checked answers, or none does. If not, the best redirect answers. |
+| `'always'`         | The best redirect with status **On** answers whether or not a page holds the path. `hasDocument` is never asked.                                                                                                                                                                            |
 
-With `'perRedirect'`, `findRedirect` needs `hasDocument` and throws without it:
+With `'perRedirect'`, `findRedirect` requires `hasDocument` and throws without it. See [`findRedirect`](/redirects/api/find-redirect/) and [Let redirects win over pages](/redirects/win-over-pages/).
 
-> @payloadpack/redirects: give findRedirect hasDocument, which says whether a document holds a path, because with winOverDocuments 'perRedirect' a document at the path wins over every redirect but the ones an editor picked and one that matched the query string
+## Redirect chains
 
-### Chains
+When a redirect sends visitors to a path another redirect covers, `findRedirect` follows the chain and sends the visitor to the end in one hop.
 
-A visitor goes straight to the end of a chain of redirects. The answer is permanent only if every step was. A chain that comes back to a path it met with the same query string, or runs past 10 paths, answers `null`, so your site answers 404. A redirect from `/products?id=5` to `/products` comes back to the path without its query string, so a redirect from `/products` sends the visitor on, and without one the chain ends there.
+- **Status code:** The result is permanent (308) only if every step in the chain is permanent; if any step is temporary, the result is temporary (307).
+- **Circles and length limit:** A chain that returns to a path it already met with the same query string, or passes 10 paths, answers `null` so your site answers 404.
+- **Query string removed:** A redirect from `/products?id=5` to `/products` lands on `/products` without its matched query string. If another redirect covers `/products`, the chain follows it; otherwise it ends at `/products`.
+- **Fragments:** A step whose destination has no `#` fragment keeps the fragment from an earlier step in the chain.
+- **Other sites:** A chain stops as soon as a destination points to another site.
 
-| `winOverDocuments` | How a chain is followed                                                                                                                                                                                                                       |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Left out           | Only with `hasDocument`: a redirect that lands on a path no document holds is looked up again. A redirect to a page ends there. Without `hasDocument`, the first redirect is the answer                                                       |
-| `'perRedirect'`    | Every destination on your site is looked up again, and the rule above picks there. A redirect to a page lands where that page is, so there only a redirect that matched the query string or is checked answers, and `hasDocument` isn't asked |
-| `'always'`         | Every destination on your site is looked up again, pages included, without `hasDocument`, until no redirect covers one                                                                                                                        |
+| `winOverDocuments` | How a chain is followed                                                                                                                                                                                                                                                                         |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Omitted            | Followed only when `hasDocument` is passed. A destination on your site that no document holds is looked up again; a redirect to a document target's own path ends there without asking `hasDocument`. Without `hasDocument`, the first redirect is the result.                                  |
+| `'perRedirect'`    | Every destination on your site is looked up again under the `'perRedirect'` setting. For a redirect to a document target's own path, `findRedirect` knows a document holds it without asking `hasDocument`, so only a redirect that matched the query string or is checked continues the chain. |
+| `'always'`         | Every destination on your site is looked up again, pages included, without asking `hasDocument`, until no redirect covers it.                                                                                                                                                                   |
 
-A redirect that wins over pages and covers its own destination sends visitors on from there too. So with `'always'`, a redirect from `/news` and its subpaths to a page at `/news/latest` answers `null`, as a chain that never ends.
+A redirect that wins over pages and covers its own destination sends visitors on from there too. With `'always'`, a redirect from `/news` (**Path and subpaths**) to a page at `/news/latest` exceeds the chain limit and answers `null`.

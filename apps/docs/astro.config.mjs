@@ -105,7 +105,21 @@ export default defineConfig({
               { slug: 'redirects/installation', attrs: { 'data-icon': 'download' } },
               { slug: 'redirects/configuration', attrs: { 'data-icon': 'settings-2' } },
               { slug: 'redirects/speed', attrs: { 'data-icon': 'gauge' } },
-              { label: 'How it works', items: ['redirects/matching', 'redirects/moves'] }
+              {
+                label: 'Guides',
+                items: [
+                  'redirects/suggest-on-move',
+                  'redirects/query-strings',
+                  'redirects/win-over-pages',
+                  'redirects/customize-collection',
+                  'redirects/localization'
+                ]
+              },
+              {
+                label: 'How it works',
+                items: ['redirects/matching', 'redirects/moves', 'redirects/collection', 'redirects/refusals']
+              },
+              { label: 'API', items: ['redirects/api/find-redirect', 'redirects/api/suggest-redirects'] }
             ]
           }
         ])

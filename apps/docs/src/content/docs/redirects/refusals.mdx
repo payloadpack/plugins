@@ -1,0 +1,42 @@
+---
+title: Refusals and errors
+description: Every field validation refusal, configuration error, runtime error, and hook or notice error in @payloadpack/redirects, word for word, with what to do about each.
+---
+
+Every message below appears word for word from `@payloadpack/redirects`. Editor refusals appear on the field in the admin before anything is written; configuration and runtime errors throw an `Error` in your server code.
+
+## Editor validation refusals
+
+| Field    | Trigger                                                                                 | Message                                                                                                                                                                                               | What to do                                                                                    |
+| -------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `from`   | **From** holds no path on this site, such as `//`, `https://`, or a `mailto:` link      | Give the path visitors ask for, such as /old-page, or paste the whole old URL.                                                                                                                        | Enter a path starting with `/` or paste a full `http(s)` URL with a path.                     |
+| `from`   | Stored **From** exceeds 2,048 bytes in UTF-8 (non-ASCII characters count as 2–4 bytes)  | This is far longer than any path visitors ask for. Give only the path, such as /old-page: a From holds at most 2,048 characters, and a letter outside a to z, such as é or 中, counts as two or more. | Shorten the path or regex so its stored UTF-8 length is 2,048 bytes or fewer.                 |
+| `from`   | **Match** is **Path and subpaths** and **From** cleans to `/`                           | Every path is a subpath of /, so pick Exact path for the home page, or write a regex.                                                                                                                 | Change **Match** to **Exact path** for the home page alone, or pick **Regex**.                |
+| `from`   | **Match** is **Regex** and RE2 cannot compile it (such as `/(?=x)a` or a backreference) | This isn't a regex the site can read (RE2's reason). A regex can't look ahead or behind or refer back to a group, and a backslash before a character such as ( or . matches it as it is.              | Rewrite without lookarounds or backreferences, and escape literal `(` or `.` with `\`.        |
+| `from`   | **Match** is **Regex** and compiled RE2 program size exceeds 1,000 (such as `/a{1000}`) | This regex is too large to try on every unknown path, usually because of a repeat such as \{1000\}. Split it into simpler regexes, or repeat a part fewer times.                                      | Split into simpler redirects or reduce large repeat counts.                                   |
+| `from`   | Query string on **Path and subpaths**, or a regex holding `\?` or `?name=`              | Only Exact path matches a query string, such as ?id=123, so pick Exact path or leave the query string out.                                                                                            | Change **Match** to **Exact path**, or remove the query string from **From**.                 |
+| `to.url` | **URL** is neither a path on this site starting with `/` nor a full `http(s)://` URL    | Start with / for a path on this site, or with https:// for another site.                                                                                                                              | Start an internal path with `/` (not `//`) or an external URL with `https://` (or `http://`). |
+
+Saving a duplicate **From** (in any case, after [cleaning](/redirects/collection/#how-from-is-cleaned)) is also refused by Payload's unique constraint on `from`.
+
+## Configuration and runtime errors
+
+| Where thrown                            | Trigger                                                            | Message                                                                                                                                                                                                                                                              | What to do                                                           |
+| --------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `redirectsPlugin()`                     | `collections` is `[]`                                              | `@payloadpack/redirects: collections is empty, so name at least one collection a redirect can send visitors to`                                                                                                                                                      | Pass at least one collection slug in `collections`.                  |
+| `redirectsPlugin()`                     | `winOverDocuments` is not `'perRedirect'`, `'always'`, or unset    | `@payloadpack/redirects: winOverDocuments is 'perRedirect', so an editor picks the redirects that win over a document, or 'always', so every redirect does, or left out, so a document wins over every redirect but one that matched the query string`               | Set `winOverDocuments` to `'perRedirect'` or `'always'`, or omit it. |
+| `findRedirect()` / `suggestRedirects()` | `redirectsPlugin()` is not in `payload.config.ts`                  | `@payloadpack/redirects: add redirectsPlugin() to the Payload config before calling findRedirect or suggestRedirects`                                                                                                                                                | Add `redirectsPlugin(...)` to `plugins` in `payload.config.ts`.      |
+| `findRedirect()`                        | `winOverDocuments` is `'perRedirect'` and `hasDocument` is omitted | `@payloadpack/redirects: give findRedirect hasDocument, which says whether a document holds a path, because with winOverDocuments 'perRedirect' a document at the path wins over every redirect but the ones an editor picked and one that matched the query string` | Pass `hasDocument` to `findRedirect`, or change `winOverDocuments`.  |
+
+## Hook and notice errors
+
+- **`APIError` (400) during `suggestRedirects`:** Before writing new suggestions, [`suggestRedirects`](/redirects/api/suggest-redirects/) deletes conflicting suggestions and self-targeting redirects at the new paths, and an earlier suggestion at an old path. If a collection hook refuses a deletion during that cleanup, `suggestRedirects` throws a Payload `APIError` (status 400, carrying the hook's message and `isPublic` flag) so the save that moved the document fails rather than leaving stale redirects behind.
+- **Notice answer errors in the admin:** Clicking **Yes, redirect them** or **No** on a move notice sends a `PATCH` or `DELETE` request to the Redirects collection's REST API as the signed-in editor. If access control or a hook rejects that request, the admin shows a toast with the first returned error message (or the HTTP status text) and leaves the notice in place.
+
+## Notices
+
+A notice is not a refusal, but it is the other text the plugin shows editors. Above the fields of a moved document, for each suggestion to it:
+
+> This page moved from /about-us to /company. Should visitors who ask for /about-us be sent here?
+
+The notice names the document by its collection's singular label, lowercased, or page when that label isn't a plain string, and leaves out "to /company" when no path can be built. Its buttons read **Yes, redirect them**, **Edit** and **No**. See [How move suggestions work](/redirects/moves/).

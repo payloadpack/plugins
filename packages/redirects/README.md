@@ -24,12 +24,12 @@
 
 ## What you get
 
-- ↪️ **Redirects editors manage**: from an exact path or a regex, to a page or a URL
-- 📄 **A page target that follows the page** wherever it moves later
-- 🧭 **A suggested redirect from every old path** your site reports, from its own hook or through [`@payloadpack/path`](https://docs.payloadpack.com/path/): one per moved branch, however large, which the editor says yes or no to right on the moved page
-- 🔎 **Old URLs with a query string**, such as `/news.aspx?id=123`, matched in any order and case, without tracking parameters such as `utm_source`, which every destination keeps
-- ⚡ **One indexed query per lookup** that reads only the redirects and regexes able to cover the path, so 100,000 cost what 1,000 do, plus one when the redirect it finds sends visitors to a page
-- 🛡️ **Regexes on RE2**, so no regex can hang a lookup, and a target that never leaves your site
+- ↪️ **Exact paths and regexes:** editors send visitors from an exact path or a regex to a document on your site or a URL
+- 📄 **Document targets follow moves:** a redirect to a document sends visitors wherever the document is now, even after later moves
+- 🧭 **Move suggestions:** report page moves from your own hook or [`@payloadpack/path`](https://docs.payloadpack.com/path/) to create one suggestion per moved branch, which an editor answers right on the moved page
+- 🔎 **Old URLs with a query string:** matches `/news.aspx?id=123` in any order and case, without comparing tracking parameters such as `utm_source`, which every destination keeps
+- ⚡ **Constant lookup cost:** one indexed query reads only the redirects and regexes that can cover a path, so 100,000 cost the same as 1,000, plus one query when the winner targets a document
+- 🛡️ **RE2 regexes and host-locked destinations:** regexes never backtrack, and destinations never leave their host whatever a visitor's path fills in
 
 ## Install
 
@@ -37,10 +37,11 @@
 bun add @payloadpack/redirects
 ```
 
-Name the collections a redirect can send visitors to, and how your site builds the path of one of their documents, such as from its slug, and `documentSelect` has a lookup read only that field:
+Add `redirectsPlugin` to `payload.config.ts` with the collections a redirect can send visitors to, `buildDocumentPath`, and `documentSelect`:
 
 ```ts
 import { redirectsPlugin } from '@payloadpack/redirects'
+import { buildConfig } from 'payload'
 
 export default buildConfig({
   plugins: [
@@ -53,9 +54,24 @@ export default buildConfig({
 })
 ```
 
-With `@payloadpack/path`, that is the path it keeps: `buildDocumentPath: ({ document }) => document.path`, with `documentSelect: { path: true }`.
+With `@payloadpack/path`, return the path it stores: `buildDocumentPath: ({ document }) => document.path` with `documentSelect: { path: true }`.
 
-If you want a move to suggest a redirect from the old path, call `suggestRedirects` with where the page was and where it is now, such as from the page's own hook. Leave it out and moves suggest nothing:
+Look up a redirect in your page route when no document holds the path:
+
+```ts
+import { findRedirect } from '@payloadpack/redirects'
+
+const { foundRedirect } = await findRedirect({ path: '/old-page', payload })
+// { destination: '/new-page', matchedQueryString: false, permanent: true, to: { type: 'document' } } or null
+```
+
+`permanent` is `true` for 308 and `false` for 307. Pass `hasDocument` to follow chains in one hop, and give visitors read access to published documents in the collections listed in `collections`.
+
+See the [Installation guide](https://docs.payloadpack.com/redirects/installation/), [Match query strings in a proxy](https://docs.payloadpack.com/redirects/query-strings/), and [Let redirects win over pages](https://docs.payloadpack.com/redirects/win-over-pages/).
+
+## Suggest redirects on page moves
+
+To suggest a redirect when a page moves, call [`suggestRedirects`](https://docs.payloadpack.com/redirects/api/suggest-redirects/) with each document's old and new path. This example covers a collection without drafts:
 
 ```ts
 import type { CollectionAfterChangeHook, CollectionConfig } from 'payload'
@@ -81,35 +97,24 @@ export const Pages: CollectionConfig = {
 }
 ```
 
-With `@payloadpack/path`, call `suggestRedirects(args)` in your `onPathsChanged`, which reports the same changed paths for whole branches, publishes, deletes and locales, or pass it straight in: `onPathsChanged: suggestRedirects`. The [docs](https://docs.payloadpack.com/redirects/installation/#suggesting-a-redirect-when-a-page-moves) show both.
-
-Then your site's page route, the catch-all route that renders its pages, asks for a redirect when no document holds the path:
-
-```ts
-import { findRedirect } from '@payloadpack/redirects'
-
-const { foundRedirect } = await findRedirect({ path: '/old-page', payload })
-// foundRedirect: { destination: '/new-page', matchedQueryString: false, permanent: true, to: { type: 'document' } }, or null
-```
-
-`permanent` is a 308 and the rest a 307. Pass `hasDocument` to follow a chain of redirects in one hop. A lookup reads as a visitor, so give the collections it sends visitors to read access to their published documents. For redirects from a query string, a Next.js proxy passes `searchParams` too; the [docs](https://docs.payloadpack.com/redirects/installation/#query-strings-in-a-proxy) have it. To let redirects win over pages, set `winOverDocuments`, and the proxy answers every redirect instead, as the [docs](https://docs.payloadpack.com/redirects/installation/#letting-redirects-win-over-pages) show.
+With `@payloadpack/path`, pass `onPathsChanged: suggestRedirects` or call `await suggestRedirects(args)` inside your existing `onPathsChanged`. See [Suggest redirects when pages move](https://docs.payloadpack.com/redirects/suggest-on-move/).
 
 ## Configure
 
-| Key                  | What it sets                                                                                                             | Default              |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------- |
-| `collections`        | The collections a redirect can send visitors to a document of                                                            | Required             |
-| `buildDocumentPath`  | Builds the path of a document a redirect sends visitors to from the document                                             | Required             |
-| `documentSelect`     | The fields `buildDocumentPath` reads, so a lookup reads only those                                                       | The whole document   |
-| `trackingParameters` | Query string parameters no redirect compares, beside `utm_source` and the other defaults                                 | none                 |
-| `winOverDocuments`   | Lets redirects win over a page at their path: the ones editors pick, with `'perRedirect'`, or every one, with `'always'` | none, so a page wins |
-| `overrides`          | A function that changes the redirects collection, such as to add hooks of your own                                       | none                 |
+| Option               | Purpose                                                                                                                      | Default             |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `collections`        | Collections a redirect can send visitors to a document of                                                                    | Required            |
+| `buildDocumentPath`  | Builds the path of a document a redirect sends visitors to from the document                                                 | Required            |
+| `documentSelect`     | Fields `buildDocumentPath` reads, so a lookup reads only those                                                               | Whole document      |
+| `trackingParameters` | Extra query string parameters no redirect compares, beside `utm_source` and the other defaults                               | Built-in defaults   |
+| `winOverDocuments`   | Lets redirects win over a page at their path: selected redirects (`'perRedirect'`) or every redirect that is On (`'always'`) | Omitted (page wins) |
+| `overrides`          | Function that takes the Redirects collection and returns it changed                                                          | None                |
 
-Every option, every message an editor can meet and how to write a regex are in the [docs](https://docs.payloadpack.com/redirects/).
+See [Configuration](https://docs.payloadpack.com/redirects/configuration/), [`findRedirect`](https://docs.payloadpack.com/redirects/api/find-redirect/), and [Refusals and errors](https://docs.payloadpack.com/redirects/refusals/).
 
 ## Speed
 
-Your page route asks for a redirect only when no page holds the path, so a page view pays nothing for it. If you add the Next.js proxy for old URLs with a query string, this is what it adds to each page view at 100,000 redirects, median (p95). The [docs](https://docs.payloadpack.com/redirects/speed/) have how it was measured and how to run it yourself.
+Without a proxy, your page route asks for a redirect only when no page holds the path, so normal page views pay nothing. With the [query-string proxy](https://docs.payloadpack.com/redirects/query-strings/), this is what it adds to each page view at 100,000 redirects, median (p95). See [Speed](https://docs.payloadpack.com/redirects/speed/) for how it is measured and how to run it yourself.
 
 <!-- speed-table:start -->
 
@@ -121,7 +126,7 @@ Your page route asks for a redirect only when no page holds the path, so a page 
 
 <!-- speed-table:end -->
 
-With `winOverDocuments`, the proxy checks every page view instead, and adds this to each one:
+With [`winOverDocuments`](https://docs.payloadpack.com/redirects/win-over-pages/), the proxy checks every page view instead and adds:
 
 <!-- speed-table-win-over-documents:start -->
 
@@ -135,7 +140,7 @@ With `winOverDocuments`, the proxy checks every page view instead, and adds this
 
 ## Requirements
 
-Payload 4.0.0-beta.11 or later, with MongoDB, Postgres or SQLite. `@payloadpack/path` 0.3.1 or later, if you use it.
+Payload 4.0.0-beta.11 or later, with MongoDB, Postgres, or SQLite. `@payloadpack/path` 0.3.1 or later, if you use it.
 
 ## License
 

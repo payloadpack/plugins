@@ -1,6 +1,6 @@
-// The proxy the installation docs give for redirects that win over pages, but for its page lookup, as
-// in src/proxy.ts. Next takes it as the proxy only in the build whose page extensions next.config.mjs
-// sets to find it.
+// The proxy the docs give for redirects that win over pages, with a site's own page lookup, as in
+// src/proxy.ts and as their page on redirects that win over pages shows it. Next takes it as the
+// proxy only in the build whose page extensions next.config.mjs sets to find it.
 import payloadConfig from '@payload-config'
 import { findRedirect } from '@payloadpack/redirects'
 import { NextResponse, type NextRequest } from 'next/server'

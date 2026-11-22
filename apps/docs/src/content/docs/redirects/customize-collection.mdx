@@ -1,0 +1,50 @@
+---
+title: Change the Redirects collection
+description: Use overrides in redirectsPlugin() to add hooks, change admin grouping, or rename the Redirects collection without breaking lookups.
+---
+
+**Prerequisites:** Complete [Installation](/redirects/installation/).
+
+Use `overrides` in [`redirectsPlugin()`](/redirects/configuration/#overrides) to change the **Redirects** collection before Payload registers it. `overrides` receives the plugin's `CollectionConfig` and returns the collection Payload uses.
+
+## Add hooks to the Redirects collection
+
+Append your own hooks after the collection's existing hooks so they run on every save and delete, such as to purge a redirect cache:
+
+```ts title="payload.config.ts"
+redirectsPlugin({
+  collections: ['pages', 'posts'],
+  buildDocumentPath: ({ document }) => document.path,
+  overrides: (collection) => ({
+    ...collection,
+    hooks: {
+      ...collection.hooks,
+      // purgeRedirectCache is yours. It goes after the hooks the collection has, on every save and delete.
+      afterChange: [...(collection.hooks?.afterChange ?? []), purgeRedirectCache],
+      afterDelete: [...(collection.hooks?.afterDelete ?? []), purgeRedirectCache]
+    }
+  })
+})
+```
+
+## Change admin settings or the slug
+
+Spread `collection.admin` to place the Redirects collection in an admin group or adjust other admin settings:
+
+```ts title="payload.config.ts"
+redirectsPlugin({
+  collections: ['pages', 'posts'],
+  buildDocumentPath: ({ collection, document }) => (collection === 'posts' ? `/blog/${document.slug}` : `/${document.slug}`),
+  documentSelect: { slug: true },
+  trackingParameters: ['ref_src'],
+  overrides: (collection) => ({ ...collection, admin: { ...collection.admin, group: 'Site' } })
+})
+```
+
+You can also change `collection.slug` in `overrides`. Lookups, `suggestRedirects`, the notice endpoint, the `redirectSuggestions` UI field, and the MongoDB `_order` index all use the new slug automatically.
+
+## What to preserve
+
+- **Keep every plugin field:** Removing or renaming plugin fields (`from`, `match`, `lookupPath`, `to`, `targetDocumentKey`, `status`, `type`, or `winsOverDocument`) breaks lookups, suggestions, or notices. See [The Redirects collection](/redirects/collection/).
+- **Keep visitor read access on `status: 'on'`:** [`findRedirect`](/redirects/api/find-redirect/) reads redirects as a visitor (`overrideAccess: false`). If you replace `access.read`, keep redirects with `status: 'on'` readable to visitors or lookups will find nothing.
+- **Keep admin-only access on suggestions and authorship:** By default, only users of the admin collection read redirects that are **Off** or **Suggested** (so only editors see move notices) and read `createdBy` and `updatedBy`.
