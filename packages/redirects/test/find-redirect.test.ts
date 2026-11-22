@@ -211,6 +211,17 @@ describeSite('findRedirect', {}, (site) => {
     expect(await findFoundRedirect({ path: '/faq', payload: site.payload, searchParams: new URLSearchParams('old') })).toBeNull()
   })
 
+  // A request for /guide%253Fold reaches the lookup decoded, as the text /guide%3Fold, which is how the
+  // From of the path /guide?old is stored.
+  it('answers a path that holds a ? from Path and subpaths, and never the path whose text is how that From is stored', async () => {
+    await createRedirect(site.payload, { from: '/guide%3Fold', match: 'below', to: toUrl('/guide-new') })
+
+    expect(await findFoundRedirect({ path: '/guide?old', payload: site.payload })).toEqual(foundUrl('/guide-new'))
+    expect(await findFoundRedirect({ path: '/guide?old/setup', payload: site.payload })).toEqual(foundUrl('/guide-new/setup'))
+    expect(await findFoundRedirect({ path: '/guide%3Fold', payload: site.payload })).toBeNull()
+    expect(await findFoundRedirect({ path: '/guide%3Fold/setup', payload: site.payload })).toBeNull()
+  })
+
   // As a site with Next's trailingSlash asks for every path.
   it('drops the slash at the end of a path asked for, as a From drops it', async () => {
     await createRedirect(site.payload, { from: '/brochures', to: toUrl('/leaflets') })

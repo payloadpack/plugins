@@ -9,7 +9,7 @@ import {
 
 import { buildFromField, FROM_FIELD_NAME } from '../fields/from.js'
 import { buildMatchField, MATCH_FIELD_NAME } from '../fields/match.js'
-import { buildRegexPathField } from '../fields/regex-path.js'
+import { buildLookupPathField } from '../fields/lookup-path.js'
 import { buildStatusField, STATUS_FIELD_NAME, type Status } from '../fields/status.js'
 import { buildTargetDocumentKeyField } from '../fields/target-document-key.js'
 import { buildToField } from '../fields/to.js'
@@ -49,7 +49,7 @@ export function buildRedirectsCollection({
     fields: [
       buildFromField(trackingParameters),
       buildMatchField(),
-      buildRegexPathField(),
+      buildLookupPathField(),
       buildToField(collections),
       buildTargetDocumentKeyField(),
       buildStatusField(),

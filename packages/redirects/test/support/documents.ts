@@ -21,7 +21,7 @@ type RedirectData = {
   winsOverDocument?: boolean
 }
 
-type StoredRedirect = Document & RedirectData & { _order: string; regexPath?: null | string }
+type StoredRedirect = Document & RedirectData & { _order: string; lookupPath?: null | string }
 
 export const toDocument = (collection: string, { id }: Document): RedirectData['to'] => ({
   document: { relationTo: collection, value: id },

@@ -227,7 +227,7 @@ export interface Redirect {
   _order?: string | null;
   from: string;
   match: 'exact' | 'below' | 'regex';
-  regexPath?: string | null;
+  lookupPath?: string | null;
   to: {
     type: 'document' | 'url';
     document?:
@@ -427,7 +427,7 @@ export interface RedirectsSelect<T extends boolean = true> {
   _order?: T;
   from?: T;
   match?: T;
-  regexPath?: T;
+  lookupPath?: T;
   to?:
     | T
     | {

@@ -47,8 +47,11 @@ describeSite('the redirects collection', {}, (site) => {
     const redirect = await createRedirect(site.payload, { from: '  ^/archive/(\\d+)/$  ', match: 'regex', to: toUrl('/a/$1') })
     const mixedCase = await createRedirect(site.payload, { from: '/Archiv/(.*)', match: 'regex', to: toUrl('/a/$1') })
 
-    expect(await findRedirectByID(site.payload, redirect.id)).toMatchObject({ from: '^/archive/(\\d+)/$', regexPath: '/archive' })
-    expect(await findRedirectByID(site.payload, mixedCase.id)).toMatchObject({ from: '/Archiv/(.*)', regexPath: '/Archiv' })
+    expect(await findRedirectByID(site.payload, redirect.id)).toMatchObject({
+      from: '^/archive/(\\d+)/$',
+      lookupPath: '/archive'
+    })
+    expect(await findRedirectByID(site.payload, mixedCase.id)).toMatchObject({ from: '/Archiv/(.*)', lookupPath: '/Archiv' })
   })
 
   it('keeps a query string as a redirect compares it, and a ? and # encoded in a path, through a save that sends them back', async () => {
@@ -122,13 +125,41 @@ describeSite('the redirects collection', {}, (site) => {
     }
   })
 
-  it('sets the fixed start on every save, and none for a redirect from a path', async () => {
+  // A lookup finds a redirect at it, so it follows every save that changes the from or the match.
+  it('stores the lookup path through every save: the fixed start of a regex, and the From of any other', async () => {
     const redirect = await createRedirect(site.payload, { from: '/journal/(.*)', match: 'regex', to: toUrl('/j/$1') })
-    expect(redirect.regexPath).toBe('/journal')
+    expect(redirect.lookupPath).toBe('/journal')
 
-    const exactRedirect = await updateRedirect(site.payload, redirect.id, { from: '/journal', match: 'exact' })
+    expect(await updateRedirect(site.payload, redirect.id, { from: '/Journal', match: 'exact' })).toMatchObject({
+      from: '/journal',
+      lookupPath: '/journal'
+    })
+    expect(await updateRedirect(site.payload, redirect.id, { match: 'below' })).toMatchObject({ lookupPath: '/journal' })
+    expect(await updateRedirect(site.payload, redirect.id, { from: '/diary/(.*)', match: 'regex' })).toMatchObject({
+      lookupPath: '/diary'
+    })
+    expect(await updateRedirect(site.payload, redirect.id, { from: '/Diary?Page=2', match: 'exact' })).toMatchObject({
+      lookupPath: '/diary?page=2'
+    })
 
-    expect(exactRedirect).toMatchObject({ from: '/journal', regexPath: null })
+    // As the admin saves the whole form back, a status changed alone, a reorder and a bulk update.
+    const { from, match, status, to, type } = await findRedirectByID(site.payload, redirect.id)
+    await updateRedirect(site.payload, redirect.id, { from, match, status, to, type })
+    await updateRedirect(site.payload, redirect.id, { status: 'off' })
+    await updateRedirect(site.payload, redirect.id, { _order: `${redirect._order}V` })
+    await site.payload.update({
+      collection: 'redirects',
+      data: { status: 'on' } as never,
+      overrideAccess: true,
+      where: { id: { equals: redirect.id } }
+    })
+    expect(await findRedirectByID(site.payload, redirect.id)).toMatchObject({ lookupPath: '/diary?page=2' })
+
+    const gazette = await publish(site.payload, 'pages', { slug: 'gazette', title: 'Gazette' })
+    await publishChange(site.payload, 'pages', gazette, { slug: 'bulletin' })
+    expect((await findRedirects(site.payload)).find(({ from: suggestedFrom }) => suggestedFrom === '/gazette')).toMatchObject({
+      lookupPath: '/gazette'
+    })
   })
 
   // A reorder and a status changed over REST or MCP send only the field they change.
@@ -139,7 +170,7 @@ describeSite('the redirects collection', {}, (site) => {
     await updateRedirect(site.payload, redirect.id, { status: 'off' })
     await updateRedirect(site.payload, redirect.id, { _order: `${redirect._order}V` })
 
-    expect(await findRedirectByID(site.payload, redirect.id)).toMatchObject({ from: regex, regexPath: '/reports' })
+    expect(await findRedirectByID(site.payload, redirect.id)).toMatchObject({ from: regex, lookupPath: '/reports' })
   })
 
   // Postgres's unique index on from holds at most 2,704 bytes a row, and a letter outside a to z

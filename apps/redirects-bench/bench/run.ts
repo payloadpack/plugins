@@ -198,12 +198,12 @@ async function measureRoundTrip(database: Database, payload: Payload) {
   return summarize(durations).median
 }
 
-// A lookup reads the from and regexPath indexes, which MongoDB builds after Payload connects.
+// A lookup reads the lookupPath index, which MongoDB builds after Payload connects.
 async function waitForMongodbIndexes(payload: Payload) {
   const adapter = payload.db as unknown as MongooseAdapter
   await Promise.all([...Object.values(adapter.collections), ...Object.values(adapter.versions)].map((model) => model.init()))
   const indexes = (await adapter.collections.redirects!.collection.indexes()).map(({ name }) => name)
-  for (const index of ['from_1', 'regexPath_1']) {
+  for (const index of ['lookupPath_1']) {
     if (!indexes.includes(index)) throw new Error(`MongoDB has no ${index} index on the redirects, only ${indexes.join(', ')}`)
   }
 }

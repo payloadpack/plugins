@@ -17,9 +17,9 @@ type SeededRedirect = {
   url?: string
 }
 
-type SeededRegex = { from: string; regexPath: string; url: string }
+type SeededRegex = { fixedStart: string; from: string; url: string }
 
-type StoredRedirect = TypeWithID & { _order: string; regexPath: null | string; targetDocumentKey: null | string }
+type StoredRedirect = TypeWithID & { _order: string; lookupPath: null | string; targetDocumentKey: null | string }
 
 const buildPagePath = (page: number) => `/page-${page}`
 
@@ -40,8 +40,8 @@ function buildSeededRedirect(index: number, previous: SeededRedirect | undefined
 function buildSeededRegex(index: number): SeededRegex {
   const section = Math.floor(index / 2)
   return index % 2 === 0
-    ? { from: `^/legacy-${section}/(\\d{4})/(.+)$`, regexPath: `/legacy-${section}`, url: `/archive-${section}/$1/$2` }
-    : { from: `^/legacy-${section}/(.+)/feed$`, regexPath: `/legacy-${section}`, url: `/archive-${section}/$1` }
+    ? { fixedStart: `/legacy-${section}`, from: `^/legacy-${section}/(\\d{4})/(.+)$`, url: `/archive-${section}/$1/$2` }
+    : { fixedStart: `/legacy-${section}`, from: `^/legacy-${section}/(.+)/feed$`, url: `/archive-${section}/$1` }
 }
 
 /**
@@ -72,12 +72,13 @@ export const REGEXES_WITHOUT_FIXED_START = [
 ]
 
 // The document key a redirect to a page keeps on its own row, as the package builds it, which
-// proveTargetDocumentKey checks against one Payload saves.
+// proveStoredFields checks against one Payload saves.
 const buildTargetDocumentKey = (pageId: number | string) => JSON.stringify(['pages', String(pageId)])
 
-// Through Payload, whose hook sets the document key, on a redirect the seed then deletes, so the
-// redirects written straight to the database carry the key a save would store.
-async function proveTargetDocumentKey(payload: Payload, pageId: number | string) {
+// Through Payload, whose hooks set the document key and the lookup path, the From of a redirect from a
+// path, on a redirect the seed then deletes, so the redirects written straight to the database carry
+// what a save would store.
+async function proveStoredFields(payload: Payload, pageId: number | string) {
   const savedRedirect = await payload.create({
     collection: REDIRECTS_SLUG,
     data: { from: '/document-key-proof', to: { document: { relationTo: 'pages', value: pageId }, type: 'document' } },
@@ -88,6 +89,9 @@ async function proveTargetDocumentKey(payload: Payload, pageId: number | string)
     where: { id: { equals: savedRedirect.id } }
   })
   await payload.delete({ collection: REDIRECTS_SLUG, id: savedRedirect.id, overrideAccess: true })
+  if (storedRedirect?.lookupPath !== '/document-key-proof') {
+    throw new Error(`Payload stored /document-key-proof at the lookup path ${String(storedRedirect?.lookupPath)}`)
+  }
   if (storedRedirect?.targetDocumentKey !== buildTargetDocumentKey(pageId)) {
     throw new Error(
       `Payload stored the document key ${String(storedRedirect?.targetDocumentKey)}, not ${buildTargetDocumentKey(pageId)}`
@@ -98,8 +102,8 @@ async function proveTargetDocumentKey(payload: Payload, pageId: number | string)
 // The fields every redirect has, which payload.db.create, running no hooks, doesn't fill in.
 const buildRedirectDefaults = (date: string) => ({ createdAt: date, status: 'on', type: 'permanent', updatedAt: date })
 
-// Through Payload, whose hooks compute the fixed start and the order.
-async function saveRegex(payload: Payload, { from, regexPath, url }: SeededRegex) {
+// Through Payload, whose hooks compute the lookup path, a regex's fixed start, and the order.
+async function saveRegex(payload: Payload, { fixedStart, from, url }: SeededRegex) {
   const savedRegex = await payload.create({
     collection: REDIRECTS_SLUG,
     data: { from, match: 'regex', to: { type: 'url', url } },
@@ -109,8 +113,10 @@ async function saveRegex(payload: Payload, { from, regexPath, url }: SeededRegex
     collection: REDIRECTS_SLUG,
     where: { id: { equals: savedRegex.id } }
   })
-  if (storedRegex?.regexPath !== regexPath) {
-    throw new Error(`Payload stored ${from} with the fixed start ${String(storedRegex?.regexPath)}, not ${regexPath}`)
+  if (storedRegex?.lookupPath !== fixedStart) {
+    throw new Error(
+      `Payload stored ${from} at the lookup path ${String(storedRegex?.lookupPath)}, not its fixed start ${fixedStart}`
+    )
   }
   return storedRegex
 }
@@ -139,7 +145,7 @@ export async function createSeeder(payload: Payload) {
     }
   )
 
-  await proveTargetDocumentKey(payload, pageIds[0]!)
+  await proveStoredFields(payload, pageIds[0]!)
   // Regex 0 is saved through Payload, so the rows written straight to the database continue its
   // order, and its fixed start proves theirs.
   let lastOrder = (await saveRegex(payload, buildSeededRegex(0)))._order
@@ -170,7 +176,7 @@ export async function createSeeder(payload: Payload) {
         newRedirects.map(({ from, match, page, url }) => ({
           from,
           match,
-          regexPath: null,
+          lookupPath: from,
           targetDocumentKey: page === undefined ? null : buildTargetDocumentKey(pageIds[page]!),
           to:
             page === undefined
@@ -181,10 +187,10 @@ export async function createSeeder(payload: Payload) {
       redirects.push(...newRedirects)
       const newRegexes = Array.from({ length: count - regexCount }, (_, offset) => buildSeededRegex(regexCount + offset))
       await writeRedirects(
-        newRegexes.map(({ from, regexPath, url }) => ({
+        newRegexes.map(({ fixedStart, from, url }) => ({
           from,
+          lookupPath: fixedStart,
           match: 'regex',
-          regexPath,
           targetDocumentKey: null,
           to: { type: 'url', url }
         }))
@@ -197,6 +203,6 @@ export async function createSeeder(payload: Payload) {
 
 export async function addRegexesWithoutFixedStart(payload: Payload) {
   for (const [index, from] of REGEXES_WITHOUT_FIXED_START.entries()) {
-    await saveRegex(payload, { from, regexPath: '/', url: `/moved-${index}` })
+    await saveRegex(payload, { fixedStart: '/', from, url: `/moved-${index}` })
   }
 }

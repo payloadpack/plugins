@@ -1,8 +1,8 @@
 import type { CollectionSlug, Payload, PayloadRequest, RequestContext, Where } from 'payload'
 
 import { FROM_FIELD_NAME } from '../fields/from.js'
+import { LOOKUP_PATH_FIELD_NAME } from '../fields/lookup-path.js'
 import { MATCH_FIELD_NAME, type Match } from '../fields/match.js'
-import { REGEX_PATH_FIELD_NAME } from '../fields/regex-path.js'
 import { STATUS_FIELD_NAME, type Status } from '../fields/status.js'
 import { TO_FIELD_NAME, type StoredTarget, type TargetType } from '../fields/to.js'
 import { TYPE_FIELD_NAME, type RedirectType } from '../fields/type.js'
@@ -139,7 +139,7 @@ const winsOverDocument = ({ candidate, matchedQueryString }: Try) =>
   matchedQueryString || candidate[WINS_OVER_DOCUMENT_FIELD_NAME] === true
 
 /**
- * One query on two indexes finds the redirects from the path and query string, from the path or a
+ * One query on one index finds the redirects from the path and query string, from the path or a
  * path above it, and the regexes whose fixed start is one of those paths. A redirect from the path
  * and query string comes first, then the deepest redirect from a path, then the regexes in the order
  * editors sorted them. Each try is built when the one before it sent nobody, so a regex runs only
@@ -158,21 +158,21 @@ async function* findTries(
   const comparedPaths = paths.map(buildComparedPath)
   const queryString = buildQueryString(searchParams, trackingParameters)
   const queryFrom = queryString ? `${comparedPaths[0]}?${queryString}` : null
+  // A redirect from a path is found at its From, as compared, and a regex at its fixed start, as written.
   // Postgres refuses a NUL in a value, so no fixed start it stores holds one, and a path that holds one
   // asks for no regex by it. The regexes found through the other paths still match the whole path.
-  const regexPaths = [...new Set([...paths.filter((regexPath) => !regexPath.includes('\u0000')), '/'])]
+  const lookupPaths = [
+    ...new Set([
+      ...(queryFrom ? [queryFrom] : []),
+      ...comparedPaths,
+      ...paths.filter((typedPath) => !typedPath.includes('\u0000')),
+      '/'
+    ])
+  ]
   // The lookup asks for redirects that are on itself, so a signed-in user's request, which may read
   // every redirect, never follows one that is off or suggested.
   const where: Where = {
-    and: [
-      {
-        or: [
-          { [FROM_FIELD_NAME]: { in: queryFrom ? [queryFrom, ...comparedPaths] : comparedPaths } },
-          { [REGEX_PATH_FIELD_NAME]: { in: regexPaths } }
-        ]
-      },
-      { [STATUS_FIELD_NAME]: { equals: 'on' satisfies Status } }
-    ]
+    and: [{ [LOOKUP_PATH_FIELD_NAME]: { in: lookupPaths } }, { [STATUS_FIELD_NAME]: { equals: 'on' satisfies Status } }]
   }
   const { docs } = await options.payload.find({
     collection: slug,
@@ -202,8 +202,12 @@ async function* findTries(
       parts: { searchParams: buildTrackingSearchParams(searchParams, trackingParameters) }
     }
   }
+  // A redirect from a path covers it only from a compared path: one found at the path as the visitor
+  // typed it, such as /a%3Fb for a request for /a%253Fb, is from another path, /a?b.
   const coveringRedirects = candidates
-    .filter(({ from, match }) => match === 'below' || (match === 'exact' && from === comparedPaths[0]))
+    .filter(
+      ({ from, match }) => (match === 'below' && comparedPaths.includes(from)) || (match === 'exact' && from === comparedPaths[0])
+    )
     .sort((first, second) => countSegments(second.from) - countSegments(first.from))
   for (const candidate of coveringRedirects) {
     const pathBelow = buildPathBelow(path, candidate.from)

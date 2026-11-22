@@ -34,8 +34,12 @@ A regular expression the whole path is matched against, run on RE2. Its groups g
 _Avoid_: pattern, regular expression, wildcard, glob
 
 **Fixed start**:
-What every path a regex matches starts with, cut at its last slash: `/news` for `/news/(.*)`, and `/` for a regex without one. Stored, indexed and hidden as `regexPath`, so a lookup reads only the regexes at or above a path.
+What every path a regex matches starts with, cut at its last slash: `/news` for `/news/(.*)`, and `/` for a regex without one. A regex's lookup path, so a lookup reads only the regexes at or above a path.
 _Avoid_: prefix, anchor, base path, which is path's
+
+**Lookup path**:
+The path a lookup finds a redirect at, which every redirect has, stored, indexed and hidden as `lookupPath`: the From of Exact path and Path and subpaths, as stored, and the fixed start of a regex. A lookup asks for the path and every path above it, as compared and as the visitor typed them, the From of the path and the visitor's query string, and `/`, so no value is one most redirects share.
+_Avoid_: lookup key, index key, regex path
 
 **Document key**:
 A document of any collection as one value, its collection and its id, such as `["pages","12"]`, the same for an id stored as a number, a string or a MongoDB ObjectId. A redirect to a document stores the document key of its target, hidden and indexed, as `targetDocumentKey`, null for a URL target, so a document's notices and its delete find the suggestions to it on the redirect's own row. Code builds it with `buildDocumentKey`.

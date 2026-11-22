@@ -36,7 +36,7 @@ async function seedRedirects(payload: Payload) {
     status: 'on',
     from,
     match,
-    regexPath: match === 'regex' ? buildRegexPath(from) : null,
+    lookupPath: match === 'regex' ? buildRegexPath(from) : from,
     targetDocumentKey: null,
     to: { type: 'url', url },
     type: 'permanent',
@@ -76,11 +76,15 @@ const MOVE_WRITES = {
   sqlite: ['insert redirects', 'insert redirects_rels']
 }
 
+// What a lookup's plan on SQLite reads of the redirects: a search of one index for each value asked.
+const LOOKUP_SEARCHES = ['SEARCH redirects USING INDEX redirects_lookup_path_idx (lookup_path=?)']
+
 // The index of a redirect's document target, which holds every redirect to a document, whatever its
 // status.
 const MONGODB_TARGET_INDEX = 'targetDocumentKey_1'
 
-// The longest path a lookup takes asks for 32 paths in from and 33 in regexPath.
+// The longest path a lookup takes asks for its 32 paths and / in lookupPath, and for each path again as
+// the visitor typed it where that differs.
 const LONGEST_LOOKUP_MS = 5
 
 describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
@@ -97,13 +101,14 @@ describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
   const LOOKED_UP_PATHS = ['/seeded-7/old/deeper/still', '/section-7/2024/spring', '/nothing/at/all/here/x']
 
   if (database === 'mongodb') {
-    it('finds the candidates with index scans of from and regexPath alone', async () => {
+    it('finds the candidates with an index scan of lookupPath alone', async () => {
       for (const path of LOOKED_UP_PATHS) {
         const plan = await findMongodbPlan(site.payload, await recordLookup(path))
 
         expect(plan.stages).not.toContain('COLLSCAN')
-        expect(plan.indexes).toEqual(['from_1', 'regexPath_1'])
-        expect(plan.keysExamined).toBeLessThanOrEqual(2 * depthOf(path) + 2)
+        expect(plan.indexes).toEqual(['lookupPath_1'])
+        // One key for each value asked, its paths and /, and one more for each redirect found.
+        expect(plan.keysExamined).toBeLessThanOrEqual(depthOf(path) + 1 + plan.returned)
         expect(plan.documentsExamined).toBeLessThanOrEqual(plan.returned)
       }
     })
@@ -125,7 +130,7 @@ describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
       const req = await createEditorRequest(site.payload)
 
       expect(await findMongodbPlan(site.payload, await recordLookup('/seeded-8/old/x', req))).toMatchObject({
-        indexes: ['from_1', 'regexPath_1'],
+        indexes: ['lookupPath_1'],
         returned: 1
       })
     })
@@ -147,20 +152,14 @@ describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
     })
   }
 
-  // SQLite keeps no statistics, so the plan depends on the statement alone: one search of each index
-  // per path asked for, and none of the whole table.
+  // SQLite keeps no statistics until a site runs ANALYZE, so the plan depends on the statement alone:
+  // one search of the index for the values asked for, and none of the whole table.
   if (database === 'sqlite') {
-    const LOOKUP_INDEXES = [
-      'SEARCH redirects USING INDEX redirects_from_idx (from=?)',
-      'SEARCH redirects USING INDEX redirects_regex_path_idx (regex_path=?)'
-    ]
-
-    it('finds the candidates with searches of the indexes on from and regexPath alone', async () => {
+    it('finds the candidates with a search of the index on lookupPath alone', async () => {
       for (const path of LOOKED_UP_PATHS) {
         const plan = await findSqlitePlan(site.payload, await recordLookup(path))
 
-        expect(plan).toEqual(expect.arrayContaining(['MULTI-INDEX OR', ...LOOKUP_INDEXES]))
-        expect(plan.filter((line) => /^(SCAN|SEARCH) redirects\b/.test(line))).toEqual(LOOKUP_INDEXES)
+        expect(plan.filter((line) => /^(SCAN|SEARCH) redirects\b/.test(line))).toEqual(LOOKUP_SEARCHES)
       }
     })
 
@@ -180,21 +179,16 @@ describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
       const req = await createEditorRequest(site.payload)
       const plan = await findSqlitePlan(site.payload, await recordLookup('/seeded-8/old/x', req))
 
-      expect(plan.filter((line) => /^(SCAN|SEARCH) redirects\b/.test(line))).toEqual(LOOKUP_INDEXES)
+      expect(plan.filter((line) => /^(SCAN|SEARCH) redirects\b/.test(line))).toEqual(LOOKUP_SEARCHES)
     })
   }
 
   // Postgres picks a plan by its cost, and on a table this small reads the whole table whatever its
   // indexes, so the test holds that the indexes a lookup and a save read are there.
   if (database === 'postgres') {
-    it('keeps the indexes a lookup reads, on from and regexPath, the one a save reads, on _order, and the one of document targets', async () => {
+    it('keeps the index a lookup reads, on lookupPath, the one a save reads, on _order, and the one of document targets', async () => {
       expect(await findPostgresIndexes(site.payload, 'redirects')).toEqual(
-        expect.arrayContaining([
-          'redirects(from)',
-          'redirects(regex_path)',
-          'redirects(_order)',
-          'redirects(target_document_key)'
-        ])
+        expect.arrayContaining(['redirects(lookup_path)', 'redirects(_order)', 'redirects(target_document_key)'])
       )
     })
   }
@@ -296,6 +290,55 @@ describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
     )
     expect(await measureFastestRun(() => findRedirect({ path: longest, payload: site.payload }))).toBeLessThan(LONGEST_LOOKUP_MS)
   })
+})
+
+// With statistics, SQLite estimates an equality on an indexed column from how many redirects share each
+// value, so a value most redirects share, such as the null of a column only regexes fill, would have it
+// read every redirect rather than search.
+describeSite('the cost of a lookup on SQLite, also with statistics', {}, (site, { database }) => {
+  it.runIf(database === 'sqlite')(
+    'searches the indexes for mostly redirects from paths, for half regexes and for only regexes, never scanning',
+    async () => {
+      const shapes = { mostlyPaths: 3, halfRegexes: 1_500, onlyRegexes: 3_000 }
+      for (const [shape, regexCount] of Object.entries(shapes)) {
+        await site.payload.db.deleteMany({ collection: 'redirects', where: { id: { exists: true } } })
+        const now = new Date().toISOString()
+        await storeInBatches(
+          site.payload,
+          'redirects',
+          generateNKeysBetween(null, null, 3_000).map((order, index) => {
+            const regex = index < regexCount
+            const from = regex ? `/${shape}-legacy-${index}/(.*)` : `/${shape}-area-${index % 50}/old-${index}`
+            return {
+              _order: order,
+              createdAt: now,
+              from,
+              match: regex ? 'regex' : 'below',
+              lookupPath: regex ? buildRegexPath(from) : from,
+              status: 'on',
+              targetDocumentKey: null,
+              to: toUrl(regex ? '/archive/$1' : `/new-${index}`),
+              type: 'permanent',
+              updatedAt: now
+            }
+          })
+        )
+        const findPlans = async () => {
+          const plans: string[][] = []
+          for (const path of [`/${shape}-area-49/old-2999/x`, `/${shape}-legacy-0/x`, '/nothing/at/all']) {
+            const queries = await site.listQueries(() => findRedirect({ path, payload: site.payload }))
+            const plan = await findSqlitePlan(site.payload, queries.find(isRedirects)!)
+            plans.push(plan.filter((line) => /^(SCAN|SEARCH) redirects\b/.test(line)))
+          }
+          return plans
+        }
+
+        expect({ shape, plans: await findPlans() }).toEqual({ shape, plans: [LOOKUP_SEARCHES, LOOKUP_SEARCHES, LOOKUP_SEARCHES] })
+        await (site.payload.db as unknown as SQLiteAdapter).client.execute('ANALYZE')
+        expect({ shape, plans: await findPlans() }).toEqual({ shape, plans: [LOOKUP_SEARCHES, LOOKUP_SEARCHES, LOOKUP_SEARCHES] })
+      }
+    }
+  )
 })
 
 // A site that runs ANALYZE, or PRAGMA optimize, gives SQLite statistics, which count every redirect
