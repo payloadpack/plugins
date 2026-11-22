@@ -3,7 +3,8 @@ import { APIError, type CollectionSlug, type Payload, type PayloadRequest } from
 import { FROM_FIELD_NAME, isFromTooLong } from '../fields/from.js'
 import { MATCH_FIELD_NAME, SUGGESTED_MATCH, type Match } from '../fields/match.js'
 import { STATUS_FIELD_NAME, type Status } from '../fields/status.js'
-import { TO_FIELD_NAME, type StoredTarget, type TargetType } from '../fields/to.js'
+import { buildDocumentKey, TARGET_DOCUMENT_KEY_FIELD_NAME } from '../fields/target-document-key.js'
+import { TO_FIELD_NAME, type TargetType } from '../fields/to.js'
 import { TYPE_FIELD_NAME, type RedirectType } from '../fields/type.js'
 import { getRedirectsConfig } from '../plugin/options.js'
 import { buildComparedPath, buildPathAndPathsAbove } from '../redirect/path.js'
@@ -22,7 +23,7 @@ type Move = Arrival & { from: string }
 type StoredRedirect = {
   [FROM_FIELD_NAME]: string
   [STATUS_FIELD_NAME]: Status
-  [TO_FIELD_NAME]?: StoredTarget
+  [TARGET_DOCUMENT_KEY_FIELD_NAME]?: null | string
   id: number | string
 }
 
@@ -67,8 +68,6 @@ const buildMovesByOldPath = (arrivals: Arrival[], targetCollections: Set<string>
       .filter(([oldPath]) => !isFromTooLong(oldPath))
   )
 
-const buildDocumentKey = (collection: string, id: unknown) => JSON.stringify([collection, String(id)])
-
 // Payload deletes every document of a bulk delete before any of them reports, so a delete can report
 // a document lifted out of the page it deleted that the same delete took away too. It holds no path,
 // and a redirect can't send visitors to it: Postgres and SQLite refuse a relationship to a row that is
@@ -105,7 +104,7 @@ async function findRedirectsFrom(payload: Payload, req: PayloadRequest, slug: Co
       overrideAccess: true,
       pagination: false,
       req,
-      select: { [FROM_FIELD_NAME]: true, [STATUS_FIELD_NAME]: true, [TO_FIELD_NAME]: true },
+      select: { [FROM_FIELD_NAME]: true, [STATUS_FIELD_NAME]: true, [TARGET_DOCUMENT_KEY_FIELD_NAME]: true },
       where: { [FROM_FIELD_NAME]: { in: chunk } }
     })
     redirects.push(...(docs as unknown as StoredRedirect[]))
@@ -113,10 +112,8 @@ async function findRedirectsFrom(payload: Payload, req: PayloadRequest, slug: Co
   return redirects
 }
 
-const sendsToDocument = ({ to }: StoredRedirect, { collection, id }: Arrival) =>
-  to?.type === 'document' &&
-  to.document?.relationTo !== undefined &&
-  buildDocumentKey(to.document.relationTo, to.document.value) === buildDocumentKey(collection, id)
+const sendsToDocument = ({ targetDocumentKey }: StoredRedirect, { collection, id }: Arrival) =>
+  targetDocumentKey === buildDocumentKey(collection, id)
 
 /**
  * For onPathsChanged of @payloadpack/path: each moved branch gets a suggestion, a redirect from the

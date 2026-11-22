@@ -19,7 +19,7 @@ type SeededRedirect = {
 
 type SeededRegex = { from: string; regexPath: string; url: string }
 
-type StoredRedirect = TypeWithID & { _order: string; regexPath: null | string }
+type StoredRedirect = TypeWithID & { _order: string; regexPath: null | string; targetDocumentKey: null | string }
 
 const buildPagePath = (page: number) => `/page-${page}`
 
@@ -71,6 +71,30 @@ export const REGEXES_WITHOUT_FIXED_START = [
   '(.*)/print-version'
 ]
 
+// The document key a redirect to a page keeps on its own row, as the package builds it, which
+// proveTargetDocumentKey checks against one Payload saves.
+const buildTargetDocumentKey = (pageId: number | string) => JSON.stringify(['pages', String(pageId)])
+
+// Through Payload, whose hook sets the document key, on a redirect the seed then deletes, so the
+// redirects written straight to the database carry the key a save would store.
+async function proveTargetDocumentKey(payload: Payload, pageId: number | string) {
+  const savedRedirect = await payload.create({
+    collection: REDIRECTS_SLUG,
+    data: { from: '/document-key-proof', to: { document: { relationTo: 'pages', value: pageId }, type: 'document' } },
+    overrideAccess: true
+  })
+  const storedRedirect = await payload.db.findOne<StoredRedirect>({
+    collection: REDIRECTS_SLUG,
+    where: { id: { equals: savedRedirect.id } }
+  })
+  await payload.delete({ collection: REDIRECTS_SLUG, id: savedRedirect.id, overrideAccess: true })
+  if (storedRedirect?.targetDocumentKey !== buildTargetDocumentKey(pageId)) {
+    throw new Error(
+      `Payload stored the document key ${String(storedRedirect?.targetDocumentKey)}, not ${buildTargetDocumentKey(pageId)}`
+    )
+  }
+}
+
 // The fields every redirect has, which payload.db.create, running no hooks, doesn't fill in.
 const buildRedirectDefaults = (date: string) => ({ createdAt: date, status: 'on', type: 'permanent', updatedAt: date })
 
@@ -115,6 +139,7 @@ export async function createSeeder(payload: Payload) {
     }
   )
 
+  await proveTargetDocumentKey(payload, pageIds[0]!)
   // Regex 0 is saved through Payload, so the rows written straight to the database continue its
   // order, and its fixed start proves theirs.
   let lastOrder = (await saveRegex(payload, buildSeededRegex(0)))._order
@@ -146,6 +171,7 @@ export async function createSeeder(payload: Payload) {
           from,
           match,
           regexPath: null,
+          targetDocumentKey: page === undefined ? null : buildTargetDocumentKey(pageIds[page]!),
           to:
             page === undefined
               ? { type: 'url', url }
@@ -155,7 +181,13 @@ export async function createSeeder(payload: Payload) {
       redirects.push(...newRedirects)
       const newRegexes = Array.from({ length: count - regexCount }, (_, offset) => buildSeededRegex(regexCount + offset))
       await writeRedirects(
-        newRegexes.map(({ from, regexPath, url }) => ({ from, match: 'regex', regexPath, to: { type: 'url', url } }))
+        newRegexes.map(({ from, regexPath, url }) => ({
+          from,
+          match: 'regex',
+          regexPath,
+          targetDocumentKey: null,
+          to: { type: 'url', url }
+        }))
       )
       regexCount = count
     },

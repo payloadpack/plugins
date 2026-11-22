@@ -11,6 +11,7 @@ import { buildFromField, FROM_FIELD_NAME } from '../fields/from.js'
 import { buildMatchField, MATCH_FIELD_NAME } from '../fields/match.js'
 import { buildRegexPathField } from '../fields/regex-path.js'
 import { buildStatusField, STATUS_FIELD_NAME, type Status } from '../fields/status.js'
+import { buildTargetDocumentKeyField } from '../fields/target-document-key.js'
 import { buildToField } from '../fields/to.js'
 import { buildTypeField, TYPE_FIELD_NAME } from '../fields/type.js'
 import { buildWinsOverDocumentField } from '../fields/wins-over-document.js'
@@ -50,6 +51,7 @@ export function buildRedirectsCollection({
       buildMatchField(),
       buildRegexPathField(),
       buildToField(collections),
+      buildTargetDocumentKeyField(),
       buildStatusField(),
       buildTypeField(),
       ...(winOverDocuments === 'perRedirect' ? [buildWinsOverDocumentField()] : []),

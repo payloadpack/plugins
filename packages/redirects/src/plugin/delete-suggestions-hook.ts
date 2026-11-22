@@ -1,7 +1,7 @@
 import { APIError, type CollectionBeforeDeleteHook } from 'payload'
 
 import { STATUS_FIELD_NAME, type Status } from '../fields/status.js'
-import { TO_FIELD_NAME, type TargetType } from '../fields/to.js'
+import { buildDocumentKey, TARGET_DOCUMENT_KEY_FIELD_NAME } from '../fields/target-document-key.js'
 import { getRedirectsConfig } from './options.js'
 
 /**
@@ -14,8 +14,8 @@ import { getRedirectsConfig } from './options.js'
 export const deleteSuggestionsToDocument: CollectionBeforeDeleteHook = async ({ collection, id, req }) => {
   const { payload } = req
   const { slug } = getRedirectsConfig(payload)
-  // Read first, on the index of suggestions, so a document without one costs this query alone: a
-  // delete of nothing still clears the preferences of what it deleted.
+  // Read first, on the index of document targets, so a document without a suggestion costs this query
+  // alone: a delete of nothing still clears the preferences of what it deleted.
   const { docs } = await payload.find({
     collection: slug,
     depth: 0,
@@ -25,10 +25,8 @@ export const deleteSuggestionsToDocument: CollectionBeforeDeleteHook = async ({ 
     select: {},
     where: {
       and: [
-        { [STATUS_FIELD_NAME]: { equals: 'suggested' satisfies Status } },
-        { [`${TO_FIELD_NAME}.type`]: { equals: 'document' satisfies TargetType } },
-        { [`${TO_FIELD_NAME}.document.relationTo`]: { equals: collection.slug } },
-        { [`${TO_FIELD_NAME}.document.value`]: { equals: id } }
+        { [TARGET_DOCUMENT_KEY_FIELD_NAME]: { equals: buildDocumentKey(collection.slug, id) } },
+        { [STATUS_FIELD_NAME]: { equals: 'suggested' satisfies Status } }
       ]
     }
   })

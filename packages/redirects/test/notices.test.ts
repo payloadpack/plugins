@@ -86,6 +86,13 @@ describeSite('the notices of the redirects a move suggests', {}, (site) => {
     expect(await findNotices(site, 'pages', 'null', { signedIn: false })).toEqual([])
   })
 
+  // The endpoint compares the id as part of one string, so no database is asked to read it as an id.
+  it('shows none to an editor who asks with an id that is no id, without an error', async () => {
+    const ids = ['null', 'abc', '1.5', '99999999999999999999', 'Infinity', 'a\u0000b']
+
+    for (const id of ids) expect(await findNotices(site, 'pages', id)).toEqual([])
+  })
+
   it('shows the path of the document as the editor reads it, drafts included', async () => {
     const pond = await publish(site.payload, 'pages', { slug: 'pond', title: 'Pond' })
     await publishChange(site.payload, 'pages', pond, { slug: 'lake' })

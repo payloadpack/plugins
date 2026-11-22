@@ -1,6 +1,7 @@
 import type { PayloadRequest } from 'payload'
 import { expect, it } from 'vitest'
 
+import { buildDocumentKey } from '../src/fields/target-document-key.js'
 import {
   BELOW_ROOT_REFUSAL,
   FROM_TOO_LONG_REFUSAL,
@@ -17,7 +18,11 @@ import {
   createRedirect,
   findFoundRedirect,
   findRedirectByID,
+  findRedirects,
   foundUrl,
+  publish,
+  publishChange,
+  toDocument,
   toUrl,
   updateRedirect
 } from './support/documents.js'
@@ -151,6 +156,46 @@ describeSite('the redirects collection', {}, (site) => {
       expect((await createRedirect(site.payload, { from, to: toUrl('/longest') })).from).toBe(from)
       expect(await findFoundRedirect({ path: from, payload: site.payload })).toEqual(foundUrl('/longest'))
     }
+  })
+
+  // Read by the notices and by a delete, which find a document's suggestions by it.
+  it('stores the document key of a document target through every save, and none for a URL target', async () => {
+    const shelf = await publish(site.payload, 'pages', { slug: 'shelf', title: 'Shelf' })
+    const rack = await publish(site.payload, 'pages', { slug: 'rack', title: 'Rack' })
+    const readKeys = async (...ids: (number | string)[]) =>
+      Promise.all(ids.map(async (id) => (await findRedirectByID(site.payload, id)).targetDocumentKey))
+    const redirect = await createRedirect(site.payload, { from: '/to-shelf', to: toDocument('pages', shelf) })
+    const urlRedirect = await createRedirect(site.payload, { from: '/to-url', to: toUrl('/a') })
+    expect(await readKeys(redirect.id, urlRedirect.id)).toEqual([buildDocumentKey('pages', shelf.id), null])
+
+    // As the admin saves the whole form back.
+    const { from, match, status, to, type } = await findRedirectByID(site.payload, redirect.id)
+    await updateRedirect(site.payload, redirect.id, { from, match, status, to, type })
+    expect(await readKeys(redirect.id)).toEqual([buildDocumentKey('pages', shelf.id)])
+
+    await updateRedirect(site.payload, redirect.id, { status: 'off' })
+    await updateRedirect(site.payload, redirect.id, { _order: `${redirect._order}V` })
+    await site.payload.update({
+      collection: 'redirects',
+      data: { status: 'on' } as never,
+      overrideAccess: true,
+      where: { id: { in: [redirect.id, urlRedirect.id] } }
+    })
+    expect(await readKeys(redirect.id, urlRedirect.id)).toEqual([buildDocumentKey('pages', shelf.id), null])
+
+    await updateRedirect(site.payload, redirect.id, { to: toDocument('pages', rack) })
+    await updateRedirect(site.payload, urlRedirect.id, { to: toDocument('pages', shelf) })
+    expect(await readKeys(redirect.id, urlRedirect.id)).toEqual([
+      buildDocumentKey('pages', rack.id),
+      buildDocumentKey('pages', shelf.id)
+    ])
+
+    await updateRedirect(site.payload, redirect.id, { to: toUrl('/b') })
+    expect(await readKeys(redirect.id)).toEqual([null])
+
+    await publishChange(site.payload, 'pages', rack, { slug: 'stand' })
+    const [suggestion] = (await findRedirects(site.payload)).filter(({ from: suggestedFrom }) => suggestedFrom === '/rack')
+    expect(suggestion?.targetDocumentKey).toBe(buildDocumentKey('pages', rack.id))
   })
 
   it('refuses a from another redirect has, in any case', async () => {

@@ -37,6 +37,10 @@ _Avoid_: pattern, regular expression, wildcard, glob
 What every path a regex matches starts with, cut at its last slash: `/news` for `/news/(.*)`, and `/` for a regex without one. Stored, indexed and hidden as `regexPath`, so a lookup reads only the regexes at or above a path.
 _Avoid_: prefix, anchor, base path, which is path's
 
+**Document key**:
+A document of any collection as one value, its collection and its id, such as `["pages","12"]`, the same for an id stored as a number, a string or a MongoDB ObjectId. A redirect to a document stores the document key of its target, hidden and indexed, as `targetDocumentKey`, null for a URL target, so a document's notices and its delete find the suggestions to it on the redirect's own row. Code builds it with `buildDocumentKey`.
+_Avoid_: target id, reference, document id, for the value
+
 **Query string**:
 What follows `?` in a URL. A From of Exact path can hold one, such as `/news.aspx?id=123`, stored lowercased and decoded, its parameters sorted by name and then value, without tracking parameters, and a visitor's is compared the same way. A site passes the visitor's to `findRedirect` as `searchParams`, typed `SearchParams`. A found redirect that matched one says `matchedQueryString`.
 _Avoid_: query, for the lookup; params, search for the string

@@ -2,7 +2,7 @@ import type { CollectionSlug, Endpoint, PayloadRequest } from 'payload'
 
 import { FROM_FIELD_NAME } from '../fields/from.js'
 import { STATUS_FIELD_NAME, type Status } from '../fields/status.js'
-import { TO_FIELD_NAME, type TargetType } from '../fields/to.js'
+import { buildDocumentKey, TARGET_DOCUMENT_KEY_FIELD_NAME } from '../fields/target-document-key.js'
 import { suggestionNotice } from './messages.js'
 import { findTargetDocument, getRedirectsConfig } from './options.js'
 
@@ -28,14 +28,13 @@ async function findSuggestionNotices(req: PayloadRequest): Promise<SuggestionNot
     pagination: false,
     req,
     select: { [FROM_FIELD_NAME]: true },
-    sort: FROM_FIELD_NAME,
+    // In Payload's own order, which no index gives, so SQLite searches the index of document targets
+    // even when its statistics count every redirect without one as one value. A sort on from would
+    // have it read every redirect in the order of from's index instead.
     where: {
       and: [
-        { [STATUS_FIELD_NAME]: { equals: 'suggested' satisfies Status } },
-        // A target an editor changed to a URL keeps the document it had, which Yes would not send to.
-        { [`${TO_FIELD_NAME}.type`]: { equals: 'document' satisfies TargetType } },
-        { [`${TO_FIELD_NAME}.document.relationTo`]: { equals: collection } },
-        { [`${TO_FIELD_NAME}.document.value`]: { equals: id } }
+        { [TARGET_DOCUMENT_KEY_FIELD_NAME]: { equals: buildDocumentKey(collection, id) } },
+        { [STATUS_FIELD_NAME]: { equals: 'suggested' satisfies Status } }
       ]
     }
   })
@@ -46,7 +45,10 @@ async function findSuggestionNotices(req: PayloadRequest): Promise<SuggestionNot
   const to = await config.buildDocumentPath({ collection, document, locale, payload, req })
   const { singular } = payload.collections[collection].config.labels
   const label = typeof singular === 'string' ? singular.toLowerCase() : undefined
-  return docs.map(({ from, id: redirectId }) => ({ id: redirectId, text: suggestionNotice(label, String(from), to) }))
+  // Each From is unique, and a document has a few suggestions at most.
+  const suggestions = docs.map(({ from, id: redirectId }) => ({ from: String(from), id: redirectId }))
+  suggestions.sort((first, second) => (first.from < second.from ? -1 : 1))
+  return suggestions.map(({ from, id: redirectId }) => ({ id: redirectId, text: suggestionNotice(label, from, to) }))
 }
 
 export const SUGGESTIONS_ENDPOINT_PATH = '/suggestions'

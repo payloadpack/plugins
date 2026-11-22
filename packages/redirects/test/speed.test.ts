@@ -1,7 +1,9 @@
+import type { SQLiteAdapter } from '@payloadcms/db-sqlite'
 import type { CollectionSlug, Payload } from 'payload'
 import { generateNKeysBetween } from 'payload/shared'
 import { beforeAll, expect, it } from 'vitest'
 
+import { buildDocumentKey } from '../src/fields/target-document-key.js'
 import { findRedirect } from '../src/index.js'
 import { suggestionsEndpoint } from '../src/plugin/suggestions-endpoint.js'
 import { buildRegexPath } from '../src/redirect/regex.js'
@@ -35,6 +37,7 @@ async function seedRedirects(payload: Payload) {
     from,
     match,
     regexPath: match === 'regex' ? buildRegexPath(from) : null,
+    targetDocumentKey: null,
     to: { type: 'url', url },
     type: 'permanent',
     updatedAt: now
@@ -72,6 +75,10 @@ const MOVE_WRITES = {
   postgres: ['insert redirects', 'insert redirects_rels'],
   sqlite: ['insert redirects', 'insert redirects_rels']
 }
+
+// The index of a redirect's document target, which holds every redirect to a document, whatever its
+// status.
+const MONGODB_TARGET_INDEX = 'targetDocumentKey_1'
 
 // The longest path a lookup takes asks for 32 paths in from and 33 in regexPath.
 const LONGEST_LOOKUP_MS = 5
@@ -123,18 +130,18 @@ describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
       })
     })
 
-    it("finds a document's suggestions on an index that holds only suggestions", async () => {
+    it("finds a document's suggestions on the index of document targets alone, reading only the redirects to it", async () => {
       const harbour = await publish(site.payload, 'pages', { slug: 'harbour', title: 'Harbour' })
       await publishChange(site.payload, 'pages', harbour, { slug: 'quay' })
-      // A redirect to the same page that is on, which only an index of every redirect would hold.
+      // A redirect to the same page that is on, which the index holds too and the status leaves out.
       await createRedirect(site.payload, { from: '/to-quay', to: toDocument('pages', harbour) })
       const req = await createEditorRequest(site.payload, buildSuggestionsRequest('pages', harbour))
       const queries = await site.listQueries(async () => suggestionsEndpoint.handler(req))
       const findSuggestions = queries.find(({ collection, operation }) => collection === 'redirects' && operation === 'find')!
 
       expect(await findMongodbPlan(site.payload, findSuggestions)).toMatchObject({
-        documentsExamined: 1,
-        indexes: ['to.document.value_1'],
+        documentsExamined: 2,
+        indexes: [MONGODB_TARGET_INDEX],
         returned: 1
       })
     })
@@ -180,9 +187,14 @@ describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
   // Postgres picks a plan by its cost, and on a table this small reads the whole table whatever its
   // indexes, so the test holds that the indexes a lookup and a save read are there.
   if (database === 'postgres') {
-    it('keeps the indexes a lookup reads, on from and regexPath, and the one a save reads, on _order', async () => {
+    it('keeps the indexes a lookup reads, on from and regexPath, the one a save reads, on _order, and the one of document targets', async () => {
       expect(await findPostgresIndexes(site.payload, 'redirects')).toEqual(
-        expect.arrayContaining(['redirects(from)', 'redirects(regex_path)', 'redirects(_order)'])
+        expect.arrayContaining([
+          'redirects(from)',
+          'redirects(regex_path)',
+          'redirects(_order)',
+          'redirects(target_document_key)'
+        ])
       )
     })
   }
@@ -235,15 +247,21 @@ describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
     )
   })
 
-  // Every page deleted asks for its suggestions, on the index of suggestions alone.
+  // Every page deleted asks for its suggestions, on the index of document targets alone.
   it('asks once for the suggestions of a deleted page, and reads none more when it has none', async () => {
     const shed = await publish(site.payload, 'pages', { slug: 'shed', title: 'Shed' })
+    // An editor's redirect to the page, which is no suggestion and stays.
+    await createRedirect(site.payload, { from: '/to-shed', to: toDocument('pages', shed) })
 
     const queries = (await site.listQueries(() => remove(site.payload, 'pages', shed))).filter(isRedirects)
 
     expect(queries.map(describeQuery)).toEqual([`${readOperation} redirects`])
     if (database === 'mongodb') {
-      expect(await findMongodbPlan(site.payload, queries[0]!)).toMatchObject({ indexes: ['to.document.value_1'] })
+      expect(await findMongodbPlan(site.payload, queries[0]!)).toMatchObject({
+        documentsExamined: 1,
+        indexes: [MONGODB_TARGET_INDEX],
+        keysExamined: 1
+      })
     }
   })
 
@@ -278,6 +296,78 @@ describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
     )
     expect(await measureFastestRun(() => findRedirect({ path: longest, payload: site.payload }))).toBeLessThan(LONGEST_LOOKUP_MS)
   })
+})
+
+// A site that runs ANALYZE, or PRAGMA optimize, gives SQLite statistics, which count every redirect
+// without a document target, such as one to a URL, as one value of the index, so the more of those, the
+// more redirects SQLite expects a document's suggestions to read. Without STAT4, which libsql leaves
+// out, nothing tells it that a document's value holds a few.
+describeSite("the cost of a document's suggestions on SQLite, also with statistics", {}, (site, { database }) => {
+  it.runIf(database === 'sqlite')(
+    'searches the index of document targets for the notices and a delete, whatever share of redirects sends visitors to a document',
+    async () => {
+      // One at a time: SQLite with transactions refuses a save that starts while another is open.
+      const pages: { id: number | string }[] = []
+      for (let index = 0; index < 20; index++) {
+        pages.push(await publish(site.payload, 'pages', { slug: `shelf-${index}`, title: 'Shelf' }))
+      }
+      const SEARCH_TARGETS = ['SEARCH redirects USING INDEX redirects_target_document_key_idx (target_document_key=?)']
+      const findTablePlan = async (query: Query) =>
+        (await findSqlitePlan(site.payload, query)).filter((line) => /^(SCAN|SEARCH) /.test(line))
+      // None, one in a hundred and every second of 2,000 redirects to a page, the rest to a URL.
+      for (const share of [0, 0.01, 0.5]) {
+        await site.payload.db.deleteMany({ collection: 'redirects', where: { id: { exists: true } } })
+        const now = new Date().toISOString()
+        await storeInBatches(
+          site.payload,
+          'redirects',
+          generateNKeysBetween(null, null, 2_000).map((order, index) => {
+            const page = share > 0 && index % Math.round(1 / share) === 0 ? pages[index % pages.length]! : undefined
+            return {
+              _order: order,
+              createdAt: now,
+              from: `/stored-${share}-${index}`,
+              match: 'exact',
+              status: 'on',
+              targetDocumentKey: page ? buildDocumentKey('pages', page.id) : null,
+              to: page ? toDocument('pages', page) : toUrl('/elsewhere'),
+              type: 'permanent',
+              updatedAt: now
+            }
+          })
+        )
+        const moved = await publish(site.payload, 'pages', { slug: `atlas-${share}`, title: 'Atlas' })
+        await publishChange(site.payload, 'pages', moved, { slug: `globe-${share}` })
+        const deleted = await publish(site.payload, 'pages', { slug: `chart-${share}`, title: 'Chart' })
+        await publishChange(site.payload, 'pages', deleted, { slug: `map-${share}` })
+        const almanac = await publish(site.payload, 'news', { slug: `almanac-${share}`, title: 'Almanac' })
+        const findNoticesQuery = async (collection: string, document: { id: number | string }) => {
+          const req = await createEditorRequest(site.payload, buildSuggestionsRequest(collection, document))
+          return (await site.listQueries(async () => suggestionsEndpoint.handler(req))).find(isRedirects)!
+        }
+        const queries = {
+          delete: (await site.listQueries(() => remove(site.payload, 'pages', deleted))).find(isRedirects)!,
+          news: await findNoticesQuery('news', almanac),
+          page: await findNoticesQuery('pages', moved),
+          pageOfMany: await findNoticesQuery('pages', pages[0]!)
+        }
+        const findPlans = async () =>
+          Object.fromEntries(
+            await Promise.all(Object.entries(queries).map(async ([name, query]) => [name, await findTablePlan(query)]))
+          )
+        const searchesEverywhere = {
+          delete: SEARCH_TARGETS,
+          news: SEARCH_TARGETS,
+          page: SEARCH_TARGETS,
+          pageOfMany: SEARCH_TARGETS
+        }
+
+        expect(await findPlans()).toEqual(searchesEverywhere)
+        await (site.payload.db as unknown as SQLiteAdapter).client.execute('ANALYZE')
+        expect(await findPlans()).toEqual(searchesEverywhere)
+      }
+    }
+  )
 })
 
 describeSite(

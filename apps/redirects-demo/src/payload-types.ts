@@ -241,6 +241,7 @@ export interface Redirect {
         } | null);
     url?: string | null;
   };
+  targetDocumentKey?: string | null;
   status: 'on' | 'off' | 'suggested';
   type: 'permanent' | 'temporary';
   createdBy?: {
@@ -434,6 +435,7 @@ export interface RedirectsSelect<T extends boolean = true> {
         document?: T;
         url?: T;
       };
+  targetDocumentKey?: T;
   status?: T;
   type?: T;
   createdBy?: T;
