@@ -1,4 +1,4 @@
-import { createPayloadRequest } from 'payload'
+import { createPayloadRequest, type PayloadRequest } from 'payload'
 import { expect, it } from 'vitest'
 
 import { suggestionNotice } from '../src/plugin/messages.js'
@@ -8,6 +8,7 @@ import {
   acceptSuggestions,
   buildSuggestionsRequest,
   createEditorRequest,
+  createMemberRequest,
   findRedirects,
   publish,
   publishChange,
@@ -15,16 +16,18 @@ import {
   updateRedirect
 } from './support/documents.js'
 
-type Options = { locale?: string; signedIn?: boolean }
+// The editor's request by default, a visitor's when not signed in, or the given user's.
+type Options = { locale?: string; signedIn?: boolean; user?: PayloadRequest['user'] }
 
 async function findNotices(
   { payload }: Site,
   collection: string,
   id: number | string,
-  { locale, signedIn = true }: Options = {}
+  { locale, signedIn = true, user }: Options = {}
 ) {
   const request = buildSuggestionsRequest(collection, { id }, locale)
-  const req = signedIn ? await createEditorRequest(payload, request) : await createPayloadRequest({ payload, req: request })
+  const req =
+    signedIn && !user ? await createEditorRequest(payload, request) : await createPayloadRequest({ payload, req: request, user })
   const response = await suggestionsEndpoint.handler(req)
   return ((await response.json()) as { notices: { text: string }[] }).notices.map(({ text }) => text)
 }
@@ -86,11 +89,18 @@ describeSite('the notices of the redirects a move suggests', {}, (site) => {
     expect(await findNotices(site, 'pages', 'null', { signedIn: false })).toEqual([])
   })
 
-  // The endpoint compares the id as part of one string, so no database is asked to read it as an id.
-  it('shows none to an editor who asks with an id that is no id, without an error', async () => {
-    const ids = ['null', 'abc', '1.5', '99999999999999999999', 'Infinity', 'a\u0000b']
+  // A signed-in user of any collection, or an editor with a URL of their own making, asks for whatever
+  // id the URL holds. The endpoint compares it as part of one string, so no database is asked to read
+  // it as an id, and the suggestion the site holds stays out of the answer.
+  it('shows none to a signed-in user who asks with an id that is no id, without an error', async () => {
+    const quarry = await publish(site.payload, 'pages', { slug: 'quarry', title: 'Quarry' })
+    await publishChange(site.payload, 'pages', quarry, { slug: 'pit' })
+    const { user: member } = await createMemberRequest(site.payload)
 
-    for (const id of ids) expect(await findNotices(site, 'pages', id)).toEqual([])
+    for (const id of ['null', 'abc', '\u0000', '1.5', '99999999999999999999', 'Infinity']) {
+      expect(await findNotices(site, 'pages', id)).toEqual([])
+      expect(await findNotices(site, 'pages', id, { user: member })).toEqual([])
+    }
   })
 
   it('shows the path of the document as the editor reads it, drafts included', async () => {
