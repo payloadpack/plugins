@@ -1,0 +1,382 @@
+---
+// What @payloadpack/redirects does that Payload's own redirects plugin, with the lookup Payload's
+// website template gives it, doesn't. Every row is checked against Payload's source, and the speed row
+// reads the numbers of `bun run bench:compare`.
+
+import { buildSpeedSummary, FEWEST_REDIRECTS, listDatabases, MOST_REDIRECTS } from './comparison'
+import { formatCount } from './speed'
+
+type Row = { feature: string; example?: string; ours: string; theirs: string }
+
+const ROWS: Row[] = [
+  {
+    feature: 'Sends visitors to their redirect',
+    ours: 'The lookup is built in. Your page route calls findRedirect and sends the visitor on, about ten lines.',
+    theirs:
+      "Not on its own: the plugin only stores the list. Your site needs code that finds the redirect and sends the visitor. Payload's example website ships about 90 lines of it, in four files."
+  },
+  {
+    feature: 'Ignores capital letters',
+    example: '/About-Us finds the redirect from /about-us',
+    ours: 'Any spelling finds it.',
+    theirs: 'Only the exact spelling.'
+  },
+  {
+    feature: 'Redirects from URLs at any depth',
+    example: '/blog/2019/05/opening-hours',
+    ours: 'Any URL your site gets, up to 32 levels deep.',
+    theirs: 'Only /slug and /posts/slug. No route looks up a redirect for a deeper URL.'
+  },
+  {
+    feature: 'Redirects a whole section and keeps the rest of the URL',
+    example: '/blog/(.*) → /news/$1',
+    ours: 'One regex redirect. Its groups fill into the new URL as $1 to $9.',
+    theirs: "No regexes, and /blog/… is deeper than /slug, so editors can't redirect it."
+  },
+  {
+    feature: 'Tells old URLs apart by what follows the ?',
+    example: '/news.aspx?id=123 and ?id=124 to different pages',
+    ours: 'Yes, with the query-string proxy, and with the parameters in any order and case.',
+    theirs: 'No. Both go wherever /news.aspx goes.'
+  },
+  {
+    feature: 'Keeps campaign tags on the way',
+    example: '?utm_source=newsletter',
+    ours: 'Kept on the new URL, with the query-string proxy.',
+    theirs: 'Dropped.'
+  },
+  {
+    feature: 'Suggests a redirect when a page moves',
+    ours: 'Your site reports the move, and an editor turns the suggestion on with one click.',
+    theirs: 'Nothing. Someone has to notice the old URL and add a redirect by hand.'
+  },
+  {
+    feature: 'Redirects to pages at any depth',
+    example: '/about/team/people',
+    ours: "Any page's path, nested or not, in every collection you list, and it follows the page when it moves.",
+    theirs: "A picked page goes to /slug and a post to /posts/slug. Any other path must be typed as a URL, which doesn't follow the page when it moves."
+  },
+  {
+    feature: 'Permanent or temporary, as editors pick',
+    ours: 'Visitors get what the editor picked: permanent (308) or temporary (307).',
+    theirs: "The plugin can store one of five status codes editors pick. Payload's example website doesn't turn it on and always sends temporary."
+  },
+  {
+    feature: 'Turns a redirect off without deleting it',
+    ours: 'Set it to Off.',
+    theirs: 'Delete it.'
+  },
+  {
+    feature: 'Catches mistakes when you save',
+    example: 'a mailto: link to redirect from',
+    ours: "Cleans each one and refuses what can't work.",
+    theirs: 'Only checks that the fields are filled in and no old URL is used twice.'
+  }
+]
+
+const OURS = '@payloadpack/redirects'
+// Most rows are about the example website's code, not the plugin, so the column names both.
+const THEIRS = "Payload's plugin with Payload's example website"
+
+const speed = buildSpeedSummary()
+---
+
+<figure class="payload-comparison not-content">
+  <table class="payload-comparison-table">
+    <colgroup>
+      <col class="payload-comparison-feature-column" />
+      <col />
+      <col />
+    </colgroup>
+    <thead>
+      <tr>
+        <td></td>
+        <th scope="col" class="payload-comparison-ours">{OURS}</th>
+        <th scope="col">
+          {THEIRS}
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="payload-comparison-speed">
+        <th scope="row">
+          Finds one redirect among {formatCount(MOST_REDIRECTS)}
+          <span class="payload-comparison-example">
+            Median on {listDatabases()}, each on the same machine as the app.
+            <a href="/redirects/speed/#compared-with-payloads-redirects-plugin">How it's measured</a>
+          </span>
+        </th>
+        <td class="payload-comparison-ours" data-label={OURS}>
+          <span class="payload-comparison-answer">
+            <svg class="payload-comparison-yes" viewBox="0 0 16 16" aria-label="Yes" role="img">
+              <path d="M4.5 8.25 7 10.75 11.5 5.75" />
+            </svg>
+            <span>
+              <span class="payload-comparison-time">{speed.ours}</span>
+              <span class="payload-comparison-faster">{speed.timesFaster} faster</span>
+              <span class="payload-comparison-detail">About the same as among {formatCount(FEWEST_REDIRECTS)}.</span>
+            </span>
+          </span>
+        </td>
+        <td data-label={THEIRS}>
+          <span class="payload-comparison-answer">
+            <svg class="payload-comparison-no" viewBox="0 0 16 16" aria-label="Slower" role="img">
+              <path d="M5.5 8h5" />
+            </svg>
+            <span>
+              <span class="payload-comparison-time">{speed.theirs}</span>
+              <span class="payload-comparison-detail">
+                The example website's lookup. The list is too big for Next.js's data cache, so every lookup reads all {
+                  formatCount(MOST_REDIRECTS)
+                } from the database. Next.js caches each rendered page, so it runs when a page or post renders, not on every view, pages that exist included.
+              </span>
+            </span>
+          </span>
+        </td>
+      </tr>
+      {
+        ROWS.map(({ example, feature, ours, theirs }) => (
+          <tr>
+            <th scope="row">
+              {feature}
+              {example && <span class="payload-comparison-example">{example}</span>}
+            </th>
+            <td class="payload-comparison-ours" data-label={OURS}>
+              <span class="payload-comparison-answer">
+                <svg class="payload-comparison-yes" viewBox="0 0 16 16" aria-label="Yes" role="img">
+                  <path d="M4.5 8.25 7 10.75 11.5 5.75" />
+                </svg>
+                {ours}
+              </span>
+            </td>
+            <td data-label={THEIRS}>
+              <span class="payload-comparison-answer">
+                <svg class="payload-comparison-no" viewBox="0 0 16 16" aria-label="No" role="img">
+                  <path d="M5.75 5.75l4.5 4.5M10.25 5.75l-4.5 4.5" />
+                </svg>
+                {theirs}
+              </span>
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+  <figcaption>
+    Neither side waits on a network here, since each database runs on the same machine as the app. With the database
+    elsewhere, ours and the example website's uncached read each wait at least one round trip more, and the uncached read
+    pulls the whole list across it: see <a href="/redirects/speed/#with-redirects-that-win-over-pages">Speed</a> for ours
+    with the database 5 ms away. A list Next.js holds needs no query. With a custom cache handler, which Next.js doesn't hold to 2 MB, the example
+    website's lookup among {formatCount(MOST_REDIRECTS)} parses the cached list instead and costs at least {
+      speed.theirsCached
+    }. At {formatCount(FEWEST_REDIRECTS)} redirects, where Next.js's data cache holds the list, it costs at least {
+      speed.theirsCachedAtFewest
+    } with no database query: close to ours on the same machine, and faster than ours once the database is a round trip away.
+    The plugin indexes <code>from</code>, so a lookup you write yourself can find an exact path in one query, though only in
+    its exact spelling, without regexes, and with a query string only exactly as stored.
+  </figcaption>
+</figure>
+
+<style>
+  /* Every selector starts at .payload-comparison, so it beats the docs' own rules for a table in a page. */
+  .payload-comparison {
+    --comparison-band: var(--docs-accent-soft);
+    --comparison-radius: 0.75rem;
+    margin-block: 1.5rem;
+  }
+
+  .payload-comparison .payload-comparison-table {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--docs-border);
+    border-radius: var(--comparison-radius);
+    background: var(--docs-card);
+    box-shadow: var(--docs-shadow-card);
+    overflow: hidden;
+    font-size: var(--sl-text-sm);
+    line-height: 1.45;
+  }
+
+  .payload-comparison .payload-comparison-feature-column {
+    width: 32%;
+  }
+
+  .payload-comparison :is(th, td) {
+    padding: 0.875rem 1rem;
+    border: 0;
+    background: none;
+    text-align: start;
+    vertical-align: top;
+  }
+
+  .payload-comparison thead :is(th, td) {
+    padding-block: 1rem 0.875rem;
+    font-size: var(--sl-text-sm);
+    font-weight: 600;
+    color: var(--docs-foreground);
+  }
+
+  .payload-comparison tbody :is(th, td) {
+    border-block-start: 1px solid var(--docs-border);
+  }
+
+  .payload-comparison tbody th {
+    font-weight: 500;
+    color: var(--docs-foreground);
+  }
+
+  .payload-comparison tbody tr,
+  .payload-comparison tbody tr:hover {
+    background: none;
+  }
+
+  /* The package's own column is one band from the top of the card to its bottom. */
+  .payload-comparison .payload-comparison-ours {
+    background: var(--comparison-band);
+  }
+
+  .payload-comparison .payload-comparison-example {
+    display: block;
+    margin-block-start: 0.25rem;
+    font-family: var(--sl-font-mono);
+    font-size: var(--sl-text-xs);
+    font-weight: 400;
+    color: var(--docs-muted-foreground);
+    overflow-wrap: anywhere;
+  }
+
+  .payload-comparison .payload-comparison-example a {
+    color: inherit;
+  }
+
+  /* The speed row's times are the first thing a reader compares, so they read large. */
+  .payload-comparison .payload-comparison-time {
+    display: block;
+    font-size: var(--sl-text-xl);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+
+  .payload-comparison .payload-comparison-faster {
+    display: inline-block;
+    margin-block-start: 0.375rem;
+    padding: 0.0625rem 0.5rem;
+    border-radius: 999px;
+    background: var(--docs-accent-solid);
+    color: var(--docs-accent-on-solid);
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .payload-comparison .payload-comparison-detail {
+    display: block;
+    margin-block-start: 0.375rem;
+    color: var(--docs-muted-foreground);
+  }
+
+  .payload-comparison .payload-comparison-speed .payload-comparison-answer svg {
+    margin-block-start: 0.3125rem;
+  }
+
+  .payload-comparison .payload-comparison-answer {
+    display: flex;
+    gap: 0.625rem;
+    color: var(--docs-muted-foreground);
+  }
+
+  .payload-comparison .payload-comparison-ours .payload-comparison-answer {
+    color: var(--docs-foreground);
+  }
+
+  .payload-comparison svg {
+    flex: none;
+    box-sizing: border-box;
+    width: 1.125rem;
+    height: 1.125rem;
+    margin-block-start: 0.0625rem;
+    border-radius: 999px;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.75;
+  }
+
+  .payload-comparison .payload-comparison-yes {
+    background: var(--docs-accent-solid);
+    stroke: var(--docs-accent-on-solid);
+  }
+
+  .payload-comparison .payload-comparison-no {
+    border: 1px solid var(--docs-border-strong);
+    stroke: var(--docs-muted-foreground);
+  }
+
+  .payload-comparison figcaption {
+    margin-block-start: 0.75rem;
+    font-size: var(--sl-text-xs);
+    line-height: 1.6;
+    color: var(--docs-muted-foreground);
+  }
+
+  .payload-comparison figcaption a {
+    color: inherit;
+  }
+
+  .payload-comparison figcaption code {
+    font-family: var(--sl-font-mono);
+  }
+
+  /* On a phone, each row is a card of its own: the feature, then each side under its name. */
+  @media (width < 40rem) {
+    .payload-comparison .payload-comparison-table {
+      border: 0;
+      background: none;
+      box-shadow: none;
+      overflow: visible;
+    }
+
+    .payload-comparison :is(colgroup, thead) {
+      display: none;
+    }
+
+    .payload-comparison :is(.payload-comparison-table, tbody, tr, th, td) {
+      display: block;
+      width: auto;
+    }
+
+    .payload-comparison tbody tr {
+      border: 1px solid var(--docs-border);
+      border-radius: var(--comparison-radius);
+      background: var(--docs-card);
+      box-shadow: var(--docs-shadow-card);
+      overflow: hidden;
+    }
+
+    .payload-comparison tbody tr + tr {
+      margin-block-start: 0.75rem;
+    }
+
+    .payload-comparison tbody :is(th, td) {
+      border-block-start: 0;
+    }
+
+    .payload-comparison tbody td {
+      padding-block: 0.75rem;
+    }
+
+    .payload-comparison tbody td::before {
+      content: attr(data-label);
+      display: block;
+      margin-block-end: 0.375rem;
+      font-size: var(--sl-text-xs);
+      font-weight: 600;
+      color: var(--docs-muted-foreground);
+    }
+  }
+</style>

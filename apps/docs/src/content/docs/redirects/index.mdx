@@ -3,6 +3,8 @@ title: Introduction
 description: Redirects editors manage in Payload 4, found through database indexes at the same cost for 100,000 as for 1,000, with optional move suggestions.
 ---
 
+import PayloadPluginComparison from '../../../components/redirects/PayloadPluginComparison.astro'
+
 `@payloadpack/redirects` adds a **Redirects** collection to Payload 4. Editors send visitors from an exact path or a regex to a document on your site or to a URL, and your site asks for a redirect only when no page holds a path. When your site reports a page move, the plugin suggests a redirect from the old path that an editor turns on with a yes.
 
 ```ts title="payload.config.ts"
@@ -26,6 +28,12 @@ import { findRedirect } from '@payloadpack/redirects'
 const { foundRedirect } = await findRedirect({ path: '/about-us/team', payload })
 // foundRedirect: { destination: '/company/team', matchedQueryString: false, permanent: true, to: { type: 'document' } }, or null
 ```
+
+## Compared with Payload's redirects plugin
+
+Payload's own [`@payloadcms/plugin-redirects`](https://github.com/payloadcms/payload/tree/v4.0.0-beta.11/packages/plugin-redirects) only stores the list of redirects. On its own it sends no visitor anywhere: your site needs code that finds the redirect and sends the visitor on. Payload's [example website](https://github.com/payloadcms/payload/tree/v4.0.0-beta.11/templates/website) ships that code, so it's Payload's side below.
+
+<PayloadPluginComparison />
 
 ## What you get
 
