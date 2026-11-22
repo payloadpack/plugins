@@ -21,7 +21,7 @@ pathPlugin({ collections: ['pages', 'posts'], onPathsChanged: suggestRedirects }
 
 Each suggestion is permanent and sends visitors to the document, so once someone says yes it follows the document through every later move: a page moved twice sends its oldest path straight to its newest, with no chain between.
 
-A branch of any size gets one suggestion, from the path of the document at its top, which covers every page below: a move of a page with 1,000 below writes as much as one with 3. A page lifted by a delete or moved somewhere else than below its moved parent gets one of its own.
+A branch of any size gets one suggestion, from the path of the document at its top, which covers every page below: a move of a page with 1,000 below writes as much as one with 3. A page lifted by a delete or moved somewhere else than below its moved parent gets one of its own. A page that is unpublished, moved and published again gets none, since it gave up its old path when it was unpublished.
 
 Its **Match** is **Path and subpaths**, which only a suggestion has. An editor who makes a redirect picks **Exact path** or **Regex**.
 
