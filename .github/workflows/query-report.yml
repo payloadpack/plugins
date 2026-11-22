@@ -19,25 +19,35 @@ concurrency:
 # It reports and never fails the pull request: a package's run that stops says so in the comment.
 jobs:
   query-report:
+    # A fork's pull request gets a token that can't comment.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
-      # The commit the pull request is compared with, whose package source the report measures too.
-      QUERY_REPORT_BASE: ${{ github.event.pull_request.base.sha }}
+      MONGOMS_DOWNLOAD_DIR: ${{ github.workspace }}/.cache/mongodb-binaries
     steps:
+      # The merge commit and its parents: the pull request's base is the first.
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 2
       - uses: ./.github/actions/setup
+      # The packages' reports start a MongoDB replica set, which downloads its binary once.
+      - uses: actions/cache@v4
+        with:
+          path: .cache/mongodb-binaries
+          key: mongodb-binaries-${{ hashFiles('bun.lock') }}
+          restore-keys: mongodb-binaries-
       # Redirects' report runs path from its build, as its tests do.
       - run: bun run build --filter='@payloadpack/redirects^...'
       # Only the packages the pull request changes. A change to the report itself measures both.
       - name: Measure the changed packages
         run: |
+          export QUERY_REPORT_BASE=$(git rev-parse HEAD^1)
           changed=$(git diff --name-only "$QUERY_REPORT_BASE" HEAD)
           reports=()
           for name in path redirects; do
             grep -qE "^(packages/$name/|scripts/query-report/|\.github/workflows/query-report\.yml)" <<< "$changed" || continue
-            (cd "packages/$name" && QUERY_REPORT_OUTPUT="$RUNNER_TEMP/query-report/$name.json" bunx vitest run --config test/query-report.config.ts) || true
+            (cd "packages/$name" && QUERY_REPORT_OUTPUT="$RUNNER_TEMP/query-report/$name.json" bunx vitest run --config ../../scripts/query-report/vitest.config.ts) || true
             reports+=("$RUNNER_TEMP/query-report/$name.json")
           done
           bun scripts/query-report/report.ts "${reports[@]}" > "$RUNNER_TEMP/query-report.md"

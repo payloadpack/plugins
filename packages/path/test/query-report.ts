@@ -2,26 +2,17 @@ import { fileURLToPath } from 'node:url'
 import { buildConfig, getPayload, type CollectionSlug, type Config } from 'payload'
 import { afterAll, it } from 'vitest'
 
-import {
-  importBaseSource,
-  mapInChunks,
-  measureInTurns,
-  removeBaseSource,
-  writeReport,
-  type PackageReport
-} from '../../../scripts/query-report/report.js'
+import { mapInChunks, startQueryReport } from '../../../scripts/query-report/measure.js'
 import { buildAdapter, recordQueries } from './support/adapters.js'
 import { create, update } from './support/documents.js'
 import { TESTED_DATABASES, type DatabaseName } from './support/setups.js'
 
-// What a pull request costs the database: the query report. Run it with test/query-report.config.ts.
+// What a pull request costs the database: the query report. Run it with scripts/query-report/vitest.config.ts.
 
 type Version = typeof import('../src/index.js')
 type Id = number | string
 type Site = Awaited<ReturnType<typeof startSite>>
 
-const PACKAGE_DIRECTORY = fileURLToPath(new URL('..', import.meta.url))
-const LABELS: Record<DatabaseName, string> = { mongodb: 'MongoDB', postgres: 'Postgres', sqlite: 'SQLite' }
 const PAGES = 'pages' as CollectionSlug
 const LOOKUP_RUNS = 201
 const SAVE_RUNS = 51
@@ -54,60 +45,54 @@ async function startSite(version: Version, database: DatabaseName) {
   const payload = await getPayload({ config, key: name })
   const publishAll = (pages: { parent?: Id; slug: string }[]) =>
     mapInChunks(pages, async ({ parent, slug }) => (await create(payload, PAGES, { parent, slug, title: slug })).id as Id)
-  const below = (parents: Id[], count: number, slug: string) =>
-    parents.flatMap((parent, parentIndex) =>
+  const buildChildPages = (parentIds: Id[], count: number, slug: string) =>
+    parentIds.flatMap((parent, parentIndex) =>
       Array.from({ length: count }, (_, index) => ({ parent, slug: `${slug}-${parentIndex}-${index}` }))
     )
 
-  const sections = await publishAll(Array.from({ length: 30 }, (_, index) => ({ slug: `section-${index}` })))
-  await publishAll(below(sections, 10, 'page'))
-  let deepest: Id | undefined
-  for (let level = 0; level < 10; level++) [deepest] = await publishAll([{ parent: deepest, slug: `level-${level}` }])
-  const [moved] = await publishAll([{ slug: 'moved' }])
-  await publishAll(below(await publishAll(below([moved!], 10, 'shelf')), 9, 'item'))
-  return { deepest: deepest!, listQueries: countQueries, moved: moved!, payload, section: sections[3]!, version }
+  const sectionPageIds = await publishAll(Array.from({ length: 30 }, (_, index) => ({ slug: `section-${index}` })))
+  await publishAll(buildChildPages(sectionPageIds, 10, 'page'))
+  let deepestPageId: Id | undefined
+  for (let level = 0; level < 10; level++) [deepestPageId] = await publishAll([{ parent: deepestPageId, slug: `level-${level}` }])
+  const [movedPageId] = await publishAll([{ slug: 'moved' }])
+  await publishAll(buildChildPages(await publishAll(buildChildPages([movedPageId!], 10, 'shelf')), 9, 'item'))
+  return {
+    deepestPageId: deepestPageId!,
+    listQueries: countQueries,
+    movedPageId: movedPageId!,
+    payload,
+    sectionPageId: sectionPageIds[3]!,
+    version
+  }
 }
 
-const report: PackageReport = { base: [], name: 'path', pullRequest: [] }
-const pullRequestVersion: Version = await import('../src/index.js')
-const baseVersion = await importBaseSource<Version>(PACKAGE_DIRECTORY).catch((error: unknown) => {
-  report.baseError = String(error)
-  return undefined
-})
-// A report with a database missing would read as complete, so a run that stops writes none.
-let measuredDatabases = 0
-
-afterAll(async () => {
-  await removeBaseSource(PACKAGE_DIRECTORY)
-  if (measuredDatabases === TESTED_DATABASES.length) await writeReport(report)
+const queryReport = await startQueryReport({
+  databases: TESTED_DATABASES,
+  name: 'path',
+  packageDirectory: fileURLToPath(new URL('..', import.meta.url)),
+  pullRequestVersion: await import('../src/index.js'),
+  startSite
 })
 
-it.each(TESTED_DATABASES)('measures %s', async (database) => {
-  const pullRequest = await startSite(pullRequestVersion, database)
-  const base = baseVersion && (await startSite(baseVersion, database))
-  const measure = (operation: string, runs: number, run: (site: Site, index: number) => Promise<unknown>) =>
-    measureInTurns(report, LABELS[database], operation, runs, {
-      base: base && { listQueries: base.listQueries, run: (index) => run(base, index) },
-      pullRequest: { listQueries: pullRequest.listQueries, run: (index) => run(pullRequest, index) }
-    })
+afterAll(() => queryReport.finish())
 
-  for (const [operation, path, foundId] of [
-    ['`findByPath`: a top-level page', '/section-3', (site: Site) => site.section],
-    ['`findByPath`: a page 10 levels deep', DEEP_PATH, (site: Site) => site.deepest]
-  ] as const) {
-    await measure(operation, LOOKUP_RUNS, async (site) => {
-      const found = await site.version.findByPath({ path, payload: site.payload })
-      if (found?.document.id !== foundId(site)) throw new Error(`findByPath found ${String(found?.document.id)} at ${path}`)
-    })
-  }
-  await measure('Publish a page', SAVE_RUNS, ({ payload, section }, index) =>
-    create(payload, PAGES, { parent: section, slug: `new-${index}`, title: 'New' })
-  )
-  await measure('Move a page with 100 pages below it', MOVE_RUNS, ({ moved, payload }, index) =>
-    update(payload, PAGES, moved, { slug: `moved-${index}` })
-  )
-
-  await pullRequest.payload.destroy()
-  await base?.payload.destroy()
-  measuredDatabases++
-})
+it.each(TESTED_DATABASES)('measures %s', (database) =>
+  queryReport.measureDatabase(database, async (measure) => {
+    for (const [operation, path, readExpectedPageId] of [
+      ['`findByPath`: a top-level page', '/section-3', (site: Site) => site.sectionPageId],
+      ['`findByPath`: a page 10 levels deep', DEEP_PATH, (site: Site) => site.deepestPageId]
+    ] as const) {
+      await measure(operation, LOOKUP_RUNS, async (site) => {
+        const foundByPath = await site.version.findByPath({ path, payload: site.payload })
+        if (foundByPath?.document.id !== readExpectedPageId(site))
+          throw new Error(`findByPath found ${String(foundByPath?.document.id)} at ${path}`)
+      })
+    }
+    await measure('Publish a page', SAVE_RUNS, ({ payload, sectionPageId }, index) =>
+      create(payload, PAGES, { parent: sectionPageId, slug: `new-${index}`, title: 'New' })
+    )
+    await measure('Move a page with 100 pages below it', MOVE_RUNS, ({ movedPageId, payload }, index) =>
+      update(payload, PAGES, movedPageId, { slug: `moved-${index}` })
+    )
+  })
+)
