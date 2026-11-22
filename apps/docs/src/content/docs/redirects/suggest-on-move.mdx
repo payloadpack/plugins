@@ -39,7 +39,7 @@ export const Pages: CollectionConfig = {
 - **Unchanged paths:** A save that keeps the same path suggests nothing, so the hook can report every update.
 - **Pages below a moved page:** Pages below a moved page need no report of their own because the suggestion covers the old path and every path below it. If a redirect an editor added already holds the old path, no suggestion is written there, and each page right below that you report gets its own.
 - **Pass `req`:** Passing `req` writes the suggestion in the save's transaction. See [Transactions](#transactions).
-- **Read access:** The example's `Pages` sets no `access.read`, and Payload 4 lets only users of the admin read such a collection. Its redirects send visitors nowhere until you give it read access, such as `access: { read: () => true }` for pages without drafts.
+- **Read access:** The example's `Pages` sets no `access.read`, and Payload 4 lets only users of the admin read such a collection. A redirect to one of its pages sends nobody until you give it read access, such as `access: { read: () => true }` for pages without drafts.
 
 ## With `@payloadpack/path`
 

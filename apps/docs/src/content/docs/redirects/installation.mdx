@@ -73,11 +73,15 @@ import { Steps, TabItem, Tabs } from '@astrojs/starlight/components'
 
 4. **Allow visitors to read the collections a redirect can send visitors to.** A lookup reads a document target as a visitor, so a document visitors cannot read sends nobody. Payload 4 lets only users of the admin read a collection unless you set `access.read`.
 
+   For a collection with drafts, let visitors read what is published:
+
    ```ts title="collections/pages.ts"
    access: {
      read: ({ req: { payload, user } }) => user?.collection === payload.config.admin.user || { _status: { equals: 'published' } }
    }
    ```
+
+   A collection without drafts has no `_status`, so give it `access: { read: () => true }`.
 
 5. **Answer redirects in your page route.** Ask `findRedirect` only when no page holds the path, so normal page views run zero redirect queries.
 
