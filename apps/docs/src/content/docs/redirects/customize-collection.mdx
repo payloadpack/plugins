@@ -9,6 +9,14 @@ description: Use overrides in redirectsPlugin() to add hooks, change admin group
 
 Use `overrides` in [`redirectsPlugin()`](/redirects/configuration/#overrides) to change the **Redirects** collection before Payload registers it. `overrides` receives the plugin's `CollectionConfig` and returns the collection Payload uses.
 
+## When to use this
+
+- Your site caches redirects and has to purge that cache whenever one is saved or deleted.
+- **Redirects** should sit in an admin group, or needs other admin settings.
+- The collection needs another slug, such as when your site already has a `redirects` collection.
+
+Skip it otherwise: the collection works as the plugin adds it.
+
 ## Add hooks to the Redirects collection
 
 Append your own hooks after the collection's existing hooks so they run on every save and delete, such as to purge a redirect cache:

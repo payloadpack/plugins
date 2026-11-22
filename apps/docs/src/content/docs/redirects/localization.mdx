@@ -7,6 +7,13 @@ description: Build localized document paths, pass locales to findRedirect and su
 
 A redirect stores one **From** across all locales, while a document target sends visitors to the document's path in the locale you ask for.
 
+## When to use this
+
+- Your site uses Payload's localization, and a page's path differs between locales, such as `/about-us` and `/om-oss`, or carries a locale segment, such as `/sv/om-oss`.
+- You [suggest redirects on a move](/redirects/suggest-on-move/), and each locale's old path should get its own suggestion.
+
+Skip it if every locale shares one path for a page and your URLs carry no locale segment.
+
 ## Build localized document paths
 
 Use the `locale` argument in [`buildDocumentPath`](/redirects/configuration/#builddocumentpath) to build the document's path for that locale:

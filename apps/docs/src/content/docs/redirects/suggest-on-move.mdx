@@ -7,6 +7,14 @@ description: Call suggestRedirects from your own collection hook or from @payloa
 
 No move suggests a redirect unless your site calls [`suggestRedirects`](/redirects/api/suggest-redirects/). When your site reports where documents were and where they are now, the plugin saves a suggestion with status **Suggested** that an editor answers right on the moved page.
 
+## When to use this
+
+- Editors rename or move pages, and the old URLs should keep working.
+- An editor should say yes to each redirect before it answers anyone.
+- Your site moves whole sections: one suggestion covers the moved page and every page below it.
+
+Skip it if paths on your site never change. Without it, an old path answers 404 until someone adds a redirect by hand.
+
 ## With your own hook
 
 Add an `afterChange` hook to your collection and pass each moved document's old and new path to `suggestRedirects`. This example covers a collection without drafts, where every saved document has a public path before and after an update.
