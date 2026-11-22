@@ -3,8 +3,10 @@ name: Query report
 on:
   pull_request:
     paths:
-      - 'packages/path/**'
-      - 'packages/redirects/**'
+      - 'packages/path/src/**'
+      - 'packages/path/test/query-report.ts'
+      - 'packages/redirects/src/**'
+      - 'packages/redirects/test/query-report.ts'
       - 'scripts/query-report/**'
       - '.github/workflows/query-report.yml'
 
@@ -39,14 +41,15 @@ jobs:
           restore-keys: mongodb-binaries-
       # Redirects' report runs path from its build, as its tests do.
       - run: bun run build --filter='@payloadpack/redirects^...'
-      # Only the packages the pull request changes. A change to the report itself measures both.
+      # Only the packages whose src or report the pull request changes, since the base and the pull request
+      # differ only in src. A change to the report's scripts or workflow measures both.
       - name: Measure the changed packages
         run: |
           export QUERY_REPORT_BASE=$(git rev-parse HEAD^1)
           changed=$(git diff --name-only "$QUERY_REPORT_BASE" HEAD)
           reports=()
           for name in path redirects; do
-            grep -qE "^(packages/$name/|scripts/query-report/|\.github/workflows/query-report\.yml)" <<< "$changed" || continue
+            grep -qE "^(packages/$name/(src/|test/query-report\.ts$)|scripts/query-report/|\.github/workflows/query-report\.yml)" <<< "$changed" || continue
             (cd "packages/$name" && QUERY_REPORT_OUTPUT="$RUNNER_TEMP/query-report/$name.json" bunx vitest run --config ../../scripts/query-report/vitest.config.ts) || true
             reports+=("$RUNNER_TEMP/query-report/$name.json")
           done

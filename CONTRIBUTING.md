@@ -162,7 +162,7 @@ The jobs install Node, Bun and the dependencies through one local action, `.gith
 
 ### Query report
 
-On a pull request from a branch of this repository that changes `packages/path` or `packages/redirects`, the Query report workflow measures the packages it changes and keeps one comment updated with what each important operation costs on the pull request's base and on the pull request: its query count, which is exact, and its median time, on MongoDB, Postgres and SQLite, measured in turns on the same runner. It marks a row ⚠️ when the pull request adds a query or is slower by more than 5 ms and 25%, and never fails the build. To run a package's report against `origin/main`, or the commit in `QUERY_REPORT_BASE`, with path built first, since redirects' report runs it from its build:
+On a pull request from a branch of this repository that changes a package's `src` or its `test/query-report.ts`, in `packages/path` or `packages/redirects`, the Query report workflow measures that package and keeps one comment updated with what each important operation costs on the pull request's base and on the pull request: its query count, which is exact, and its median time, on MongoDB, Postgres and SQLite, measured in turns on the same runner. It marks a row ⚠️ when the pull request adds a query or is slower by more than 5 ms and 25%, and never fails the build. To run a package's report against `origin/main`, or the commit in `QUERY_REPORT_BASE`, with path built first, since redirects' report runs it from its build:
 
 ```sh
 bun run build --filter=@payloadpack/path
