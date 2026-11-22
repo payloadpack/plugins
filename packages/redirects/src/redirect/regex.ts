@@ -21,20 +21,21 @@ export function buildRegexRefusal(regex: string) {
 }
 
 /**
- * The path every path a regex matches lies at or below, from the fixed start RE2 works out: /news
- * for /news/(.*), and / for a regex that starts with a choice or a group. A lookup finds the
- * regexes that could match a path by this, through an index, so it tries only those.
+ * The fixed start of a regex, the path every path it matches lies at or below: the text RE2 works out
+ * every match begins with, cut at its last slash, so /news for /news/(.*), and / for a regex that
+ * starts with a choice or a group. A lookup finds the regexes that could match a path by this, through
+ * an index, so it tries only those.
  */
-export function buildRegexPath(regex: string) {
-  let fixedStart: string
+export function buildFixedStart(regex: string) {
+  let literalStart: string
   try {
     // re2Input.prefix is not part of re2js's documented API, which a test pins.
-    fixedStart = RE2JS.compile(regex.replace(/^\^/, '')).re2Input.prefix
+    literalStart = RE2JS.compile(regex.replace(/^\^/, '')).re2Input.prefix
   } catch {
     // Payload runs the field's hook before it reports the field's refusal, so the save still fails.
     return '/'
   }
-  return fixedStart.slice(0, fixedStart.lastIndexOf('/')) || '/'
+  return literalStart.slice(0, literalStart.lastIndexOf('/')) || '/'
 }
 
 /**

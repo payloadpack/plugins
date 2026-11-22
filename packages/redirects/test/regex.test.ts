@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 
 import { REGEX_TOO_LARGE_REFUSAL } from '../src/plugin/messages.js'
-import { buildRegexPath, buildRegexRefusal, matchRegex } from '../src/redirect/regex.js'
+import { buildFixedStart, buildRegexRefusal, matchRegex } from '../src/redirect/regex.js'
 import { measureFastestRun } from './support/timing.js'
 
 it("refuses only a regex RE2 can't run, or one too large to try on every unknown path", () => {
@@ -46,7 +46,7 @@ it('builds the fixed start of a regex, or / for one without', () => {
     '/(oops': '/'
   }
 
-  expect(Object.keys(fixedStarts).map(buildRegexPath)).toEqual(Object.values(fixedStarts))
+  expect(Object.keys(fixedStarts).map(buildFixedStart)).toEqual(Object.values(fixedStarts))
 })
 
 it('matches the whole path and gives the parts its groups captured', () => {

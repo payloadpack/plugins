@@ -6,7 +6,7 @@ import { beforeAll, expect, it } from 'vitest'
 import { buildDocumentKey } from '../src/fields/target-document-key.js'
 import { findRedirect } from '../src/index.js'
 import { suggestionsEndpoint } from '../src/plugin/suggestions-endpoint.js'
-import { buildRegexPath } from '../src/redirect/regex.js'
+import { buildFixedStart } from '../src/redirect/regex.js'
 import type { Query } from './support/adapters.js'
 import { describeSite } from './support/boot-payload.js'
 import {
@@ -36,7 +36,7 @@ async function seedRedirects(payload: Payload) {
     status: 'on',
     from,
     match,
-    lookupPath: match === 'regex' ? buildRegexPath(from) : from,
+    lookupPath: match === 'regex' ? buildFixedStart(from) : from,
     targetDocumentKey: null,
     to: { type: 'url', url },
     type: 'permanent',
@@ -314,7 +314,7 @@ describeSite('the cost of a lookup on SQLite, also with statistics', {}, (site, 
               createdAt: now,
               from,
               match: regex ? 'regex' : 'below',
-              lookupPath: regex ? buildRegexPath(from) : from,
+              lookupPath: regex ? buildFixedStart(from) : from,
               status: 'on',
               targetDocumentKey: null,
               to: toUrl(regex ? '/archive/$1' : `/new-${index}`),
