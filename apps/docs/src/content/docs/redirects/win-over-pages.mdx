@@ -5,17 +5,15 @@ description: Configure winOverDocuments and a Next.js proxy so selected or all r
 
 import { Steps } from '@astrojs/starlight/components'
 
-**Prerequisites:** Complete [Installation](/redirects/installation/) on a Next.js 16 site using `proxy.ts`.
-
-By default, a page at a path wins over every redirect at that path except one that matched the visitor's query string. Set `winOverDocuments` and answer redirects in `proxy.ts` to let selected redirects or every redirect that is **On** win over pages.
-
 ## When to use this
 
-- A redirect has to answer at a path where a page is still published, such as a campaign page you send elsewhere for a while without unpublishing it.
-- Only some redirects should do that: `'perRedirect'` gives each redirect a **Wins over a page** box.
-- Your team wants one rule, that a redirect that is **On** always answers: `'always'`.
+You want a redirect to answer at a path where a page is still published, without unpublishing the page.
 
-Skip it if your redirects only cover paths no page holds. That is the default, and it costs a normal page view nothing. With this guide, every page view pays one database query. See [Speed](/redirects/speed/#with-redirects-that-win-over-pages).
+With this setup, every page view pays one database query; see [Speed](/redirects/speed/#with-redirects-that-win-over-pages). Skip this guide if your redirects only cover paths no page holds.
+
+**Prerequisites:** Complete [Installation](/redirects/installation/) on a Next.js 16 site using `proxy.ts`.
+
+By default, a page wins over every redirect at its path except one that matched the visitor's query string.
 
 ## Set it up
 

@@ -3,16 +3,13 @@ title: Use with localization
 description: Build localized document paths, pass locales to findRedirect and suggestRedirects, and understand how From and notices work across locales.
 ---
 
-**Prerequisites:** Configure Payload localization and complete [Installation](/redirects/installation/).
-
-A redirect stores one **From** across all locales, while a document target sends visitors to the document's path in the locale you ask for.
-
 ## When to use this
 
-- Your site uses Payload's localization, and a page's path differs between locales, such as `/about-us` and `/om-oss`, or carries a locale segment, such as `/sv/om-oss`.
-- You [suggest redirects on a move](/redirects/suggest-on-move/), and each locale's old path should get its own suggestion.
+Your site uses Payload localization and a page's URL varies by locale, such as `/about-us` and `/om-oss` or `/sv/om-oss`.
 
-Skip it if every locale shares one path for a page and your URLs carry no locale segment.
+Skip this guide if every locale shares one path for a page and your URLs have no locale segment.
+
+**Prerequisites:** Configure Payload localization and complete [Installation](/redirects/installation/).
 
 ## Build localized document paths
 

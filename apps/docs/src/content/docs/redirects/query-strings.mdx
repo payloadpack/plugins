@@ -3,17 +3,16 @@ title: Match query strings in a proxy
 description: Add a Next.js 16 proxy so redirects with query strings answer before cached page routes and keep visitor parameters.
 ---
 
-**Prerequisites:** Complete [Installation](/redirects/installation/) (keep your page route) on a Next.js 16 site using `proxy.ts`.
-
-A redirect from a path and a query string, such as `/news.aspx?id=123`, needs the visitor's query string. A page route cached per path never sees query strings, so a Next.js proxy checks requests that carry a query string before they reach the page route. Next.js 16 runs `proxy.ts` on Node.js.
-
 ## When to use this
 
-- Old URLs tell pages apart by a query string, such as `/news.aspx?id=123` from an older CMS.
-- A redirect should answer one query string while the page at its path stays: `/products?id=5` redirects, and `/products` still renders.
-- Destinations should keep the visitor's tracking parameters, such as `utm_source`.
+- You need redirects that match a query string, such as `/news.aspx?id=123`, even at a path where a page still renders.
+- You want redirects to keep the visitor's query string parameters, such as `utm_source`.
 
-Skip it if none of these applies: the page route from [Installation](/redirects/installation/) answers every redirect from a plain path. With the proxy, every request passes through it, and only a URL with a query string runs a database query.
+Every request passes through this proxy, though only URLs with a query string run a database query.
+
+**Prerequisites:** Complete [Installation](/redirects/installation/) (keep your page route) on a Next.js 16 site using `proxy.ts`.
+
+A page route cached per path never sees query strings, so a Next.js proxy checks requests that carry one before they reach your page route. Next.js 16 runs `proxy.ts` on Node.js.
 
 ## Add the proxy
 
