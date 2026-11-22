@@ -2,7 +2,7 @@ import type { CollectionSlug, Endpoint, PayloadRequest } from 'payload'
 
 import { FROM_FIELD_NAME } from '../fields/from.js'
 import { STATUS_FIELD_NAME, type Status } from '../fields/status.js'
-import { TO_FIELD_NAME } from '../fields/to.js'
+import { TO_FIELD_NAME, type TargetType } from '../fields/to.js'
 import { suggestionNotice } from './messages.js'
 import { findTargetDocument, getRedirectsConfig } from './options.js'
 
@@ -32,6 +32,8 @@ async function findSuggestionNotices(req: PayloadRequest): Promise<SuggestionNot
     where: {
       and: [
         { [STATUS_FIELD_NAME]: { equals: 'suggested' satisfies Status } },
+        // A target an editor changed to a URL keeps the document it had, which Yes would not send to.
+        { [`${TO_FIELD_NAME}.type`]: { equals: 'document' satisfies TargetType } },
         { [`${TO_FIELD_NAME}.document.relationTo`]: { equals: collection } },
         { [`${TO_FIELD_NAME}.document.value`]: { equals: id } }
       ]

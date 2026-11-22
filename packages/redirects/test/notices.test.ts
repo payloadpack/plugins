@@ -4,7 +4,16 @@ import { expect, it } from 'vitest'
 import { suggestionNotice } from '../src/plugin/messages.js'
 import { suggestionsEndpoint } from '../src/plugin/suggestions-endpoint.js'
 import { describeSite, type Site } from './support/boot-payload.js'
-import { acceptSuggestions, buildSuggestionsRequest, createEditorRequest, publish, publishChange } from './support/documents.js'
+import {
+  acceptSuggestions,
+  buildSuggestionsRequest,
+  createEditorRequest,
+  findRedirects,
+  publish,
+  publishChange,
+  toUrl,
+  updateRedirect
+} from './support/documents.js'
 
 type Options = { locale?: string; signedIn?: boolean }
 
@@ -59,6 +68,17 @@ describeSite('the notices of the redirects a move suggests', {}, (site) => {
 
     expect(await findNotices(site, 'pages', orchard.id, { signedIn: false })).toEqual([])
     expect(await findNotices(site, 'pages', orchard.id)).toHaveLength(1)
+  })
+
+  // The suggestion keeps the document it was written with, which Yes would no longer send visitors to.
+  it('shows none for a suggestion an editor gave a URL target', async () => {
+    const dock = await publish(site.payload, 'pages', { slug: 'dock', title: 'Dock' })
+    await publishChange(site.payload, 'pages', dock, { slug: 'pier' })
+    const suggestion = (await findRedirects(site.payload)).find(({ from }) => from === '/dock')!
+
+    await updateRedirect(site.payload, suggestion.id, { to: toUrl('/campaign') })
+
+    expect(await findNotices(site, 'pages', dock.id)).toEqual([])
   })
 
   // Anyone can ask the endpoint for any id, which Postgres and SQLite refuse to compare.
