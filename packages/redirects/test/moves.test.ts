@@ -501,6 +501,19 @@ describeSite('the redirects a move suggests', {}, (site, setup) => {
     expect(await visit(site, '/faq?old/how')).toEqual(foundDocument('/answers/how'))
   })
 
+  // SQLite gives a new page the id of the last one deleted, which a redirect to that page still names.
+  it('keeps an editor’s redirect to a deleted page from the path a new page is published at', async () => {
+    const drydock = await publish(site.payload, 'pages', { slug: 'drydock', title: 'Drydock' })
+    await createRedirect(site.payload, { from: '/slipway', to: toDocument('pages', drydock) })
+    await remove(site.payload, 'pages', drydock)
+
+    await publish(site.payload, 'pages', { slug: 'slipway', title: 'Slipway' })
+
+    expect((await findRedirectsFrom(site, ['/slipway'])).map(({ from, status }) => ({ from, status }))).toEqual([
+      { from: '/slipway', status: 'on' }
+    ])
+  })
+
   it('deletes the suggestions to a deleted page, and keeps an editor’s redirect to it, which sends nobody', async () => {
     const page = await publish(site.payload, 'pages', { slug: 'gone-old', title: 'Gone' })
     await publishChange(site.payload, 'pages', page, { slug: 'gone-new' })

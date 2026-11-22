@@ -4,8 +4,8 @@ import { APIError, type CollectionSlug, type Payload, type PayloadRequest } from
 import { FROM_FIELD_NAME, isFromTooLong } from '../fields/from.js'
 import { MATCH_FIELD_NAME, SUGGESTED_MATCH, type Match } from '../fields/match.js'
 import { STATUS_FIELD_NAME, type Status } from '../fields/status.js'
-import { buildDocumentKey, TARGET_DOCUMENT_KEY_FIELD_NAME } from '../fields/target-document-key.js'
-import { TO_FIELD_NAME, type TargetType } from '../fields/to.js'
+import { buildDocumentKey } from '../fields/target-document-key.js'
+import { TO_FIELD_NAME, type StoredTarget, type TargetType } from '../fields/to.js'
 import { TYPE_FIELD_NAME, type RedirectType } from '../fields/type.js'
 import { getRedirectsConfig } from '../plugin/options.js'
 import { buildComparedPath, buildPathAndPathsAbove } from '../redirect/path.js'
@@ -24,7 +24,7 @@ type Move = Arrival & { from: string }
 type StoredRedirect = {
   [FROM_FIELD_NAME]: string
   [STATUS_FIELD_NAME]: Status
-  [TARGET_DOCUMENT_KEY_FIELD_NAME]?: null | string
+  [TO_FIELD_NAME]?: StoredTarget
   id: number | string
 }
 
@@ -105,7 +105,7 @@ async function findRedirectsFrom(payload: Payload, req: PayloadRequest, slug: Co
       overrideAccess: true,
       pagination: false,
       req,
-      select: { [FROM_FIELD_NAME]: true, [STATUS_FIELD_NAME]: true, [TARGET_DOCUMENT_KEY_FIELD_NAME]: true },
+      select: { [FROM_FIELD_NAME]: true, [STATUS_FIELD_NAME]: true, [TO_FIELD_NAME]: true },
       where: { [FROM_FIELD_NAME]: { in: chunk } }
     })
     redirects.push(...(docs as unknown as StoredRedirect[]))
@@ -113,8 +113,13 @@ async function findRedirectsFrom(payload: Payload, req: PayloadRequest, slug: Co
   return redirects
 }
 
-const sendsToDocument = ({ targetDocumentKey }: StoredRedirect, { collection, id }: Arrival) =>
-  targetDocumentKey === buildDocumentKey(collection, id)
+// By the relationship, which a database drops with the document it names, and never by the stored
+// document key, which outlives it: SQLite can give a new document the id of one deleted, and a
+// redirect an editor keeps to the old one would then read as one to the new.
+const sendsToDocument = ({ to }: StoredRedirect, { collection, id }: Arrival) =>
+  to?.type === 'document' &&
+  to.document?.relationTo !== undefined &&
+  buildDocumentKey(to.document.relationTo, to.document.value) === buildDocumentKey(collection, id)
 
 // The calls on one request, whose last settles once the last one begun has ended. On the request object
 // itself, which the copy of it Payload gives each document of some bulk updates reads through to.
