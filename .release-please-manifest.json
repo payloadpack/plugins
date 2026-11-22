@@ -1,4 +1,5 @@
 {
   "packages/theme": "0.3.8",
-  "packages/path": "0.3.2"
+  "packages/path": "0.3.2",
+  "packages/redirects": "0.1.0"
 }
