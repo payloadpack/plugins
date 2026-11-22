@@ -17,7 +17,7 @@ A redirect whose target sends nobody is skipped, and the next one answers: a doc
 
 **Exact path** and **Path and subpaths** match in any case: **From** is saved lowercased, so `/About-Us` saves as `/about-us` and answers `/ABOUT-US` too. The rest of a path below goes to a document in lowercase, as a page's path is, and to a URL as the visitor typed it.
 
-A regex matches as written. Start it with `(?i)` to ignore case, such as `(?i)/news/(.*)`.
+A regex matches as written. Start it with `(?i)` to ignore case, such as `(?i)/news/(.*)`. Such a regex has no fixed start, so it is tried on every path no other redirect covers: see [Writing a regex](#writing-a-regex).
 
 ## Query strings
 
