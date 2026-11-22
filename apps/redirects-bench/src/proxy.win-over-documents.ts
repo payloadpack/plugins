@@ -22,7 +22,10 @@ export async function proxy(request: NextRequest) {
 
   const { foundRedirect } = await findRedirect({ hasDocument, path, payload, searchParams: request.nextUrl.searchParams })
   if (!foundRedirect) return NextResponse.next()
-  return NextResponse.redirect(new URL(foundRedirect.destination, request.url), foundRedirect.permanent ? 308 : 307)
+  // A path on this site goes below its basePath, which Next adds to a page route's redirect() itself.
+  const { destination, permanent } = foundRedirect
+  const url = destination.startsWith('/') ? `${request.nextUrl.basePath}${destination}` : destination
+  return NextResponse.redirect(new URL(url, request.url), permanent ? 308 : 307)
 }
 
 // Skips the admin, the API and Next's own files, whole segments only, so a path such as /apiary passes.

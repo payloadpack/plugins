@@ -26,7 +26,10 @@ export async function proxy(request: NextRequest) {
   if (!foundRedirect) return NextResponse.next()
   // A page always wins over a redirect from its path, but not over one that matched the query string.
   if (!foundRedirect.matchedQueryString && (await hasDocument(path))) return NextResponse.next()
-  return NextResponse.redirect(new URL(foundRedirect.destination, request.url), foundRedirect.permanent ? 308 : 307)
+  // A path on this site goes below its basePath, which Next adds to a page route's redirect() itself.
+  const { destination, permanent } = foundRedirect
+  const url = destination.startsWith('/') ? `${request.nextUrl.basePath}${destination}` : destination
+  return NextResponse.redirect(new URL(url, request.url), permanent ? 308 : 307)
 }
 
 // Skips the admin, the API and Next's own files, whole segments only, so a path such as /apiary passes.
