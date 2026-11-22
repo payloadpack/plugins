@@ -1,4 +1,4 @@
-import type { PayloadRequest } from 'payload'
+import type { PayloadRequest, TextField, TextFieldSingleValidation } from 'payload'
 import { expect, it } from 'vitest'
 
 import { buildDocumentKey } from '../src/fields/target-document-key.js'
@@ -187,6 +187,33 @@ describeSite('the redirects collection', {}, (site) => {
       expect((await createRedirect(site.payload, { from, to: toUrl('/longest') })).from).toBe(from)
       expect(await findFoundRedirect({ path: from, payload: site.payload })).toEqual(foundUrl('/longest'))
     }
+  })
+
+  // The admin validates what an editor typed, before any hook cleans it, as it builds the form's state.
+  it('measures a from as it is stored, both as the admin validates what was typed and through a save', async () => {
+    const russianUrl = `https://example.com/${encodeURIComponent(`${'п'.repeat(180)}-${'р'.repeat(180)}`)}`
+    const trackedLink = `/spring-sale?utm_content=${'x'.repeat(2_120)}`
+    const req = await createEditorRequest(site.payload)
+    const fromField = site.payload.collections.redirects.config.fields.find(
+      (field) => 'name' in field && field.name === 'from'
+    ) as TextField
+    const validateTyped = (value: string, match: string) =>
+      (fromField.validate as TextFieldSingleValidation)(value, {
+        data: {},
+        req,
+        required: true,
+        siblingData: { match }
+      } as unknown as Parameters<TextFieldSingleValidation>[1])
+
+    expect([russianUrl, trackedLink].map((value) => new TextEncoder().encode(value).length > 2_048)).toEqual([true, true])
+    expect(await validateTyped(russianUrl, 'exact')).toBe(true)
+    expect(await validateTyped(trackedLink, 'exact')).toBe(true)
+    expect(await validateTyped(`/news/(.*)${' '.repeat(2_050)}`, 'regex')).toBe(true)
+    expect(await validateTyped(buildUnrepeatedPath(LETTERS_AND_DIGITS, 2_048), 'exact')).toBe(FROM_TOO_LONG_REFUSAL)
+    expect((await createRedirect(site.payload, { from: russianUrl, to: toUrl('/russian') })).from).toBe(
+      `/${'п'.repeat(180)}-${'р'.repeat(180)}`
+    )
+    expect((await createRedirect(site.payload, { from: trackedLink, to: toUrl('/sale') })).from).toBe('/spring-sale')
   })
 
   // Read by the notices and by a delete, which find a document's suggestions by it.

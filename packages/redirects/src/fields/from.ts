@@ -31,16 +31,21 @@ export function buildFromField(trackingParameters: readonly string[]): TextField
     return match === 'regex' ? value.trim() : (cleanFromPath(value, trackingParameters) ?? value)
   }
 
-  // Validation gets the stored fields with the sent ones over them, and the from cleanFrom gave, whose
-  // query string, cleaned, is still after a ?.
+  // Validation gets the stored fields with the sent ones over them, and on a save the from cleanFrom
+  // gave, whose query string, cleaned, is still after a ?. The admin's form validates what the editor
+  // typed instead, so the length is measured on the from as it will be stored.
   const validateFrom: TextFieldSingleValidation = (value, options) => {
     const textRefusal = text(value, options)
     if (textRefusal !== true || !value) return textRefusal
-    if (isFromTooLong(value)) return FROM_TOO_LONG_REFUSAL
     const { match } = options.siblingData as FromSiblings
-    if (match === 'regex') return hasRegexQueryString(value) ? QUERY_STRING_REFUSAL : (buildRegexRefusal(value) ?? true)
+    if (match === 'regex') {
+      const regex = value.trim()
+      if (isFromTooLong(regex)) return FROM_TOO_LONG_REFUSAL
+      return hasRegexQueryString(regex) ? QUERY_STRING_REFUSAL : (buildRegexRefusal(regex) ?? true)
+    }
     const from = cleanFromPath(value, trackingParameters)
     if (from === null) return FROM_WITHOUT_PATH_REFUSAL
+    if (isFromTooLong(from)) return FROM_TOO_LONG_REFUSAL
     if (match !== 'below') return true
     if (from.includes('?')) return QUERY_STRING_REFUSAL
     return from === '/' ? BELOW_ROOT_REFUSAL : true
