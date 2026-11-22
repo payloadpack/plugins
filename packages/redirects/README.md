@@ -97,7 +97,7 @@ export const Pages: CollectionConfig = {
 }
 ```
 
-With `@payloadpack/path`, pass `onPathsChanged: suggestRedirects` or call `await suggestRedirects(args)` inside your existing `onPathsChanged`. See [Suggest redirects when pages move](https://docs.payloadpack.com/redirects/suggest-on-move/).
+With `@payloadpack/path`, pass `onPathsChanged: suggestRedirects` or call `await suggestRedirects(args)` inside your existing `onPathsChanged`. See [Suggest redirects on a move](https://docs.payloadpack.com/redirects/suggest-on-move/).
 
 ## Configure
 

@@ -57,7 +57,7 @@ type ChangedPath = {
 - **One suggestion per moved branch:** Writes one permanent (308) suggestion with status **Suggested** and match **Path and subpaths** (or **Exact path** when `from` is `/`) from the top document of each moved branch. Skips old paths held by an **On** or **Off** redirect or occupied by another document in the same change, and gives direct moved children in `changedPaths` their own suggestions instead. An old path longer than 2,048 bytes in UTF-8 gets no suggestion, and neither do the paths below it.
 - **Transactional and serialized:** Reads and writes through `req` with `overrideAccess: true`, reading and deleting 1,000 values at a time, running your Redirects collection hooks and rolling back on failure when transactions are used. Concurrent calls sharing the same `req` (such as in a bulk update or delete) run sequentially so Payload's `orderable` assigns each suggestion its own `_order`; a nested call triggered from inside a hook runs immediately.
 
-See [How move suggestions work](/redirects/moves/) and [Suggest redirects when pages move](/redirects/suggest-on-move/#transactions).
+See [How move suggestions work](/redirects/moves/) and [Suggest redirects on a move](/redirects/suggest-on-move/#transactions).
 
 ## Errors
 
@@ -70,7 +70,7 @@ See [Refusals and errors](/redirects/refusals/).
 
 ## Example
 
-This example covers a collection without drafts, where every saved document has a public path before and after an update. See [Suggest redirects when pages move](/redirects/suggest-on-move/) for wiring it with `@payloadpack/path`.
+This example covers a collection without drafts, where every saved document has a public path before and after an update. See [Suggest redirects on a move](/redirects/suggest-on-move/) for wiring it with `@payloadpack/path`.
 
 ```ts title="collections/pages.ts"
 import type { CollectionAfterChangeHook, CollectionConfig } from 'payload'
