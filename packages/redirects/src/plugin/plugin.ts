@@ -1,5 +1,6 @@
 import type { CollectionSlug, Plugin } from 'payload'
 
+import { deleteSuggestionsToDocument } from './delete-suggestions-hook.js'
 import { addIndexes } from './indexes.js'
 import { buildCustom, buildRedirectsConfig, type RedirectsPluginOptions } from './options.js'
 import { buildRedirectsCollection } from './redirects-collection.js'
@@ -19,9 +20,18 @@ export function redirectsPlugin(options: RedirectsPluginOptions): Plugin {
     const redirectsCollection = options.overrides ? options.overrides(defaultCollection) : defaultCollection
     const slug = redirectsCollection.slug as CollectionSlug
     const targetCollections = new Set<string>(redirectsConfig.collections)
+    // Each of them shows its suggestions above its fields, and takes them with it when it is deleted,
+    // after the site's own hooks.
     const collections = (config.collections ?? []).map((siteCollection) =>
       targetCollections.has(siteCollection.slug)
-        ? { ...siteCollection, fields: [buildSuggestionNoticesField(slug), ...siteCollection.fields] }
+        ? {
+            ...siteCollection,
+            fields: [buildSuggestionNoticesField(slug), ...siteCollection.fields],
+            hooks: {
+              ...siteCollection.hooks,
+              beforeDelete: [...(siteCollection.hooks?.beforeDelete ?? []), deleteSuggestionsToDocument]
+            }
+          }
         : siteCollection
     )
     return {

@@ -479,6 +479,72 @@ describeSite('the redirects a move suggests', {}, (site, setup) => {
     expect(await visit(site, '/faq?old/how')).toEqual(foundDocument('/answers/how'))
   })
 
+  it('deletes the suggestions to a deleted page, and keeps an editor’s redirect to it, which sends nobody', async () => {
+    const page = await publish(site.payload, 'pages', { slug: 'gone-old', title: 'Gone' })
+    await publishChange(site.payload, 'pages', page, { slug: 'gone-new' })
+    await createRedirect(site.payload, { from: '/gone-link', to: toDocument('pages', page) })
+
+    await remove(site.payload, 'pages', page)
+
+    // Postgres and SQLite drop the relationship to a deleted row, so only the from and status are compared.
+    expect((await findRedirectsFrom(site, ['/gone-old', '/gone-link'])).map(({ from, status }) => ({ from, status }))).toEqual([
+      { from: '/gone-link', status: 'on' }
+    ])
+    expect(await visit(site, '/gone-link')).toBeNull()
+  })
+
+  it('keeps the suggestions to a page in the trash, and deletes them when it is deleted from there', async () => {
+    const page = await publish(site.payload, 'pages', { slug: 'binned-old', title: 'Binned' })
+    await publishChange(site.payload, 'pages', page, { slug: 'binned-new' })
+
+    await site.payload.update({
+      collection: 'pages',
+      data: { deletedAt: new Date().toISOString() },
+      id: page.id,
+      overrideAccess: true
+    })
+    expect(await describeRedirects(site, ['/binned-old'])).toEqual([
+      { from: '/binned-old', status: 'suggested', to: targetOf('pages', page) }
+    ])
+
+    await site.payload.delete({ collection: 'pages', id: page.id, overrideAccess: true, trash: true })
+    expect(await describeRedirects(site, ['/binned-old'])).toEqual([])
+  })
+
+  it('deletes the suggestions to each page of a bulk delete', async () => {
+    const first = await publish(site.payload, 'pages', { slug: 'cleared-a', title: 'Cleared A' })
+    const second = await publish(site.payload, 'pages', { slug: 'cleared-b', title: 'Cleared B' })
+    await publishChange(site.payload, 'pages', first, { slug: 'cleared-c' })
+    await publishChange(site.payload, 'pages', second, { slug: 'cleared-d' })
+
+    const { errors } = await site.payload.delete({
+      collection: 'pages',
+      overrideAccess: true,
+      where: { id: { in: [first.id, second.id] } }
+    })
+
+    expect(errors).toEqual([])
+    expect(await describeRedirects(site, ['/cleared-a', '/cleared-b'])).toEqual([])
+  })
+
+  it.runIf(setup.transactions)(
+    "deletes a deleted page's suggestions in the delete's transaction, so a delete that fails keeps them",
+    async () => {
+      const page = await publish(site.payload, 'pages', { slug: 'kept-old', title: 'Kept' })
+      await publishChange(site.payload, 'pages', page, { slug: 'kept-new' })
+      const req = await createPayloadRequest({ payload: site.payload })
+      await initTransaction(req)
+
+      await site.payload.delete({ collection: 'pages', id: page.id, overrideAccess: true, req })
+      await killTransaction(req)
+
+      expect(await describeRedirects(site, ['/kept-old'])).toEqual([
+        { from: '/kept-old', status: 'suggested', to: targetOf('pages', page) }
+      ])
+      expect(await visit(site, '/kept-new')).toBe('document')
+    }
+  )
+
   // Without transactions a failed save keeps what it wrote, as the docs say.
   it.runIf(setup.transactions)("writes its suggestions in the save's transaction, so a save that fails writes none", async () => {
     const press = await publish(site.payload, 'pages', { slug: 'press', title: 'Press' })
@@ -615,6 +681,14 @@ describeSite(
 
       // Back at /kiosk, the move deletes the suggestion from it.
       await expect(publishChange(site.payload, 'pages', kiosk, { slug: 'kiosk' })).rejects.toThrow('This redirect is kept.')
+    })
+
+    it('fails the delete of a page with a suggestion with the refusal, and keeps the page', async () => {
+      const booth = await publish(site.payload, 'pages', { slug: 'booth', title: 'Booth' })
+      await publishChange(site.payload, 'pages', booth, { slug: 'stall' })
+
+      await expect(remove(site.payload, 'pages', booth)).rejects.toThrow('This redirect is kept.')
+      expect(await visit(site, '/stall')).toBe('document')
     })
   }
 )

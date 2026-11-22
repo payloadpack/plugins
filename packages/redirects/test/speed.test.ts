@@ -15,6 +15,7 @@ import {
   publish,
   publishChange,
   recordHasDocument,
+  remove,
   toDocument,
   toUrl
 } from './support/documents.js'
@@ -232,6 +233,18 @@ describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
     expect(await listEndpointQueries(pasture)).toEqual(
       expect.arrayContaining([`${readOperation} redirects`, expect.stringMatching(/ _?pages/)])
     )
+  })
+
+  // Every page deleted asks for its suggestions, on the index of suggestions alone.
+  it('asks once for the suggestions of a deleted page, and reads none more when it has none', async () => {
+    const shed = await publish(site.payload, 'pages', { slug: 'shed', title: 'Shed' })
+
+    const queries = (await site.listQueries(() => remove(site.payload, 'pages', shed))).filter(isRedirects)
+
+    expect(queries.map(describeQuery)).toEqual([`${readOperation} redirects`])
+    if (database === 'mongodb') {
+      expect(await findMongodbPlan(site.payload, queries[0]!)).toMatchObject({ indexes: ['to.document.value_1'] })
+    }
   })
 
   it('writes the same suggestion for a branch with 1,000 pages below as for one with 3', async () => {
