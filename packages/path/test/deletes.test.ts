@@ -4,6 +4,7 @@ import { beforeEach, expect, it } from 'vitest'
 import { describeEachSetup, titled } from './support/boot-payload.js'
 import {
   catchFieldErrors,
+  changed,
   create,
   readDocument,
   readPath,
@@ -147,7 +148,7 @@ for (const transactions of [true, false]) {
         transactions
       })
     },
-    (test) => {
+    (test, setup) => {
       beforeEach(() => {
         keptGuides.clear()
         heldGuides.clear()
@@ -187,9 +188,10 @@ for (const transactions of [true, false]) {
         expect(await readPath(payload, 'guides', folds.id)).toBe('/folds')
       })
 
-      // The site hears the lifts in any order, so each names where a document ended up.
+      // The site hears the lifts in any order, so the first to name a document names it from where it was
+      // to where it ended up.
       for (const held of ['parent', 'parent above'] as const) {
-        it(`lifts a document to the top level when one bulk delete deletes its parent and the parent above that, with the lift from the ${held} last, and tells the site where it went`, async () => {
+        it(`lifts a document to the top level when one bulk delete deletes its parent and the parent above that, with the lift from the ${held} last, and tells the site once where it went`, async () => {
           const { changes, payload } = test
           const name = held === 'parent' ? 'mill' : 'forge'
           const top = await create(payload, 'guides', { slug: `${name}-top`, title: 'Top' })
@@ -205,24 +207,22 @@ for (const transactions of [true, false]) {
           })
 
           const lifted = await readDocument(payload, 'guides', low.id)
-          const reportedTo = changes
-            .flat()
-            .filter(({ id }) => String(id) === String(low.id))
-            .map(({ to }) => to)
+          const reportedOfLow = changes.flat().filter(({ id }) => String(id) === String(low.id))
           expect({
             ancestors: lifted.ancestors,
             draftPath: await readPath(payload, 'guides', low.id, { draft: true }),
             errors,
-            lastReportedTo: reportedTo.at(-1),
             parent: lifted.parent ?? null,
-            path: lifted.path
+            path: lifted.path,
+            reportedOfLow
           }).toEqual({
             ancestors: [],
             draftPath: `/${name}-low`,
             errors: [],
-            lastReportedTo: `/${name}-low`,
             parent: null,
-            path: `/${name}-low`
+            path: `/${name}-low`,
+            // Once, from where it was before the bulk delete, though both lifts moved it.
+            reportedOfLow: [changed(setup, 'guides', low, `/${name}-top/${name}-middle/${name}-low`, `/${name}-low`)]
           })
           // The delete above lifted the parent and its own delete removed it, so the site hears both.
           const reportedOfParent = changes

@@ -54,7 +54,7 @@ type ChangedPath = {
 - **Empty list:** `onPathsChanged` isn't called when nothing changed. Permanently deleting a trashed document omits that document (already reported when sent to the trash) while still listing lifted documents below it.
 - **Large branches:** Moving a branch of thousands emits thousands of entries — one for every published document below.
 - **Localization:** Each entry includes `locale`, listing only changed locales (including locales falling back to a renamed slug). Collections with [one path in every locale](/path/languages/#one-path-in-every-locale) emit one entry per published locale.
-- **Bulk deletes:** Deleting a document and a document below it in one bulk delete reports each delete separately, in either order. Each lifted document shows its new `to` path; a document lifted and then deleted in the same bulk delete appears in both (with `to` in the parent's delete, and `to: null` in its own).
+- **Bulk deletes:** Deleting a document and a document below it in one bulk delete reports each delete separately, in either order. Each lifted document appears once, from its old path to its new one (with MongoDB's `bulkOperationsSingleTransaction`, once per delete that lifts it); a document lifted and then deleted in the same bulk delete appears in both (with `to` in the parent's delete, and `to: null` in its own).
 
 </details>
 
