@@ -7,6 +7,7 @@ description: Add a Next.js 16 proxy so redirects with query strings answer befor
 
 - You need redirects that match a query string, such as `/news.aspx?id=123`, even at a path where a page still renders.
 - You want redirects to keep the visitor's query string parameters, such as `utm_source`.
+- You want all your redirect code in `proxy.ts`, at a database query on every page view. See [Answer every redirect in the proxy](#answer-every-redirect-in-the-proxy).
 
 Every request passes through this proxy, though only URLs with a query string run a database query.
 
@@ -63,6 +64,30 @@ export const config = { matcher: ['/((?!(?:admin|api|_next)(?:/|$)).*)'] }
 - **Visitor query strings:** The proxy passes `request.nextUrl.searchParams` to `findRedirect`, so destinations keep visitor parameters such as `utm_source` (minus parameters the redirect matched). A page route without `searchParams` does not pass them on.
 - **Matcher:** `config.matcher` skips `admin`, `api`, and `_next` as whole segments, so a path such as `/apiary` still reaches the proxy.
 - **Hosting cost:** Every request passes through the proxy. On `next start` that costs next to nothing; on Vercel it is a function call per request. See [Speed](/redirects/speed/).
+
+## Answer every redirect in the proxy
+
+To keep all your redirect code in `proxy.ts`, let the proxy check every request, with or without a query string:
+
+```ts title="src/proxy.ts" del={1-2,5} ins={3}
+// Answers the redirects that match a query string, which the page route never sees when its page is
+// cached per path. A URL without one goes on to the page route, which checks for a redirect itself.
+// Answers every redirect, with or without a query string, so the page route asks for none.
+export async function proxy(request: NextRequest) {
+  if (request.nextUrl.search === '') return NextResponse.next()
+```
+
+Then remove the redirect check from your page route, so it only renders the page or calls `notFound()`.
+
+A page still wins over a redirect from its path alone, as above. Keep the proxy's `hasDocument(path)` check: the proxy in [Let redirects win over pages](/redirects/win-over-pages/) has none, so without `winOverDocuments` it sends visitors away from published pages.
+
+:::caution
+
+- **Every page view runs a lookup:** one database query when no redirect covers the path, the same query whose time [Speed](/redirects/speed/#with-redirects-that-win-over-pages) shows for redirects that win over pages. Where a redirect covers a path a page holds, the proxy also finds that redirect's destination and calls `findPage` before the page renders.
+- **Hosting cost:** On Vercel, the proxy is already a function call on every request. Each call now also waits for the database, so it runs longer and adds to your usage.
+- **Files in `public/`:** Requests for static files such as `/favicon.ico` pass the default matcher and run a lookup. Exclude static files your site serves in `config.matcher`.
+
+:::
 
 ## Sites with `basePath` or `trailingSlash`
 

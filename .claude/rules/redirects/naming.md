@@ -130,11 +130,11 @@ The message a save of a redirect gets when the collection stops it, on the field
 _Avoid_: error, violation
 
 **Page route**:
-The site's catch-all route that renders its pages, which asks for a redirect only when no page holds the path. It pays nothing on a page view, and never sees the query string of a page cached per path. With `winOverDocuments`, the proxy answers every redirect, and the page route asks for none.
+The site's catch-all route that renders its pages, which asks for a redirect only when no page holds the path. It pays nothing on a page view, and never sees the query string of a page cached per path. With `winOverDocuments`, or on a site that keeps every redirect in its proxy, the proxy answers every redirect, and the page route asks for none.
 _Avoid_: catch-all, for the place a site checks; middleware
 
 **Proxy**:
-Next's `proxy.ts`, which runs before every page and sees the whole URL. By default a site checks there for redirects from a query string, sends a URL without one on at once, and lets a page win over a redirect that didn't match the query string. With `winOverDocuments`, it checks every request and answers every redirect `findRedirect` finds.
+Next's `proxy.ts`, which runs before every page and sees the whole URL. By default a site checks there for redirects from a query string, sends a URL without one on at once, and lets a page win over a redirect that didn't match the query string. A site that keeps every redirect in its proxy checks every request there the same way, and still lets a page win. With `winOverDocuments`, it checks every request and answers every redirect `findRedirect` finds.
 _Avoid_: middleware, edge function
 
 **Path**, **move**, **branch**, **lift**:

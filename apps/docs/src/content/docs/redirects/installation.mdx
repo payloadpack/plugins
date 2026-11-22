@@ -172,6 +172,8 @@ import { Steps, TabItem, Tabs } from '@astrojs/starlight/components'
 
    `permanentRedirect` answers 308 and `redirect` answers 307. See [`findRedirect`](/redirects/api/find-redirect/).
 
+   To keep every redirect in `proxy.ts` instead, at one database query on every page view, see [Answer every redirect in the proxy](/redirects/query-strings/#answer-every-redirect-in-the-proxy).
+
 6. **Generate the import map and types.** This registers the move notice component (`@payloadpack/redirects/client#SuggestionNotices`) in the admin and adds the `Redirect` collection to your Payload types.
 
    ```sh
