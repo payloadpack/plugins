@@ -172,8 +172,9 @@ const speed = buildSpeedSummary()
     }. At {formatCount(FEWEST_REDIRECTS)} redirects, where Next.js's data cache holds the list, it costs at least {
       speed.theirsCachedAtFewest
     } with no database query: close to ours on the same machine, and faster than ours once the database is a round trip away.
-    The plugin indexes <code>from</code>, so a lookup you write yourself can find an exact path in one query, though only in
-    its exact spelling, without regexes, and with a query string only exactly as stored.
+    The plugin indexes <code>from</code>, so a lookup you write yourself can find a redirect in one query
+    where <code>from</code> matches exactly as stored, without regexes, and with a query string only in the order and case it
+    was stored.
   </figcaption>
 </figure>
 

@@ -32,7 +32,7 @@ Payload's own redirects plugin only stores the list. Its docs say it "does not h
 
 Next.js still caches each rendered page, so the lookup runs whenever a page or post renders, pages that exist included: at build, on a path's first visit, each time Next.js renders it again, such as after any redirect is saved, and on every request in draft mode.
 
-The plugin indexes `from`, so a lookup you write yourself can find an exact path in one query, though only in its exact spelling, without regexes, and with a query string only exactly as stored. The times below are for the example website's lookup.
+The plugin indexes `from`, so a lookup you write yourself can find a redirect in one query where `from` matches exactly as stored, without regexes, and with a query string only in the order and case it was stored. The times below are for the example website's lookup.
 
 <ComparisonTimeTable />
 
