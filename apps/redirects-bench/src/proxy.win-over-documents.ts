@@ -1,12 +1,12 @@
-// The proxy the docs give for redirects that win over pages, with a site's own page lookup, as in
-// src/proxy.ts and as their page on redirects that win over pages shows it. Next takes it as the
-// proxy only in the build whose page extensions next.config.mjs sets to find it.
+// The proxy the docs give for redirects that win over pages, word for word, with this app's own
+// findPage. Next takes it as the proxy only in the build whose page extensions next.config.mjs sets to
+// find it.
 import payloadConfig from '@payload-config'
 import { findRedirect } from '@payloadpack/redirects'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getPayload } from 'payload'
 
-import { findPage } from './find-page.ts'
+import { findPage } from './find-page'
 
 // Answers every redirect, since one can win over the page at its path. findRedirect decides by
 // winOverDocuments whether a page wins, and asks hasDocument only when it needs to.

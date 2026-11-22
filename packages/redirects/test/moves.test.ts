@@ -7,6 +7,7 @@ import {
   type CollectionAfterChangeHook,
   type CollectionBeforeDeleteHook,
   type CollectionConfig,
+  type Payload,
   type PayloadRequest
 } from 'payload'
 import { expect, it } from 'vitest'
@@ -16,11 +17,11 @@ import { describeSite, type Site } from './support/boot-payload.js'
 import {
   acceptSuggestions,
   createDraft,
-  createEditorRequest,
   createRedirect,
   findFoundRedirect,
   foundDocument,
   findRedirects,
+  foundUrl,
   publish,
   publishChange,
   remove,
@@ -859,10 +860,28 @@ const Pages: CollectionConfig = {
   fields: [{ name: 'slug', type: 'text', required: true }]
 }
 
+// The docs' own find-page.ts, word for word: the page a site without @payloadpack/path finds at a
+// path, which its page route renders and asks as hasDocument.
+// Your site's own way of finding the page at a path, as a visitor reads it: by its slug, the way
+// buildDocumentPath builds its path.
+async function findPage({ path, payload }: { path: string; payload: Payload }) {
+  const { docs } = await payload.find({
+    collection: 'pages',
+    depth: 0,
+    limit: 1,
+    overrideAccess: false,
+    pagination: false,
+    where: { slug: { equals: path.slice(1) } }
+  })
+  return docs[0] ?? null
+}
+
 describeSite(
   "the redirects a move suggests, from a site's own hook",
   {
-    pagesWithoutPath: Pages,
+    // The docs' pages set no read access, so the site gives visitors the read access the installation
+    // docs ask for, here to every page, since these have no drafts.
+    pagesWithoutPath: { ...Pages, access: { read: () => true } },
     redirects: {
       buildDocumentPath: ({ document }) => `/${document.slug}`,
       collections: ['pages'],
@@ -874,10 +893,6 @@ describeSite(
 
     const renamePage = (page: { id: number | string }, slug: string, req?: PayloadRequest) =>
       site.payload.update({ collection: 'pages', data: { slug }, id: page.id, overrideAccess: true, req })
-
-    // The docs' pages have no read access of their own, so only a user of the admin reads them.
-    const findAsEditor = async (path: string) =>
-      findFoundRedirect({ path, payload: site.payload, req: await createEditorRequest(site.payload) })
 
     it('suggests one redirect from the old path and every path below it when a rename changes the path', async () => {
       const page = await createPage('old')
@@ -892,9 +907,30 @@ describeSite(
           to: expect.objectContaining({ document: { relationTo: 'pages', value: page.id }, type: 'document' })
         })
       ])
-      expect(await findAsEditor('/old/below')).toBeNull()
+      expect(await findFoundRedirect({ path: '/old/below', payload: site.payload })).toBeNull()
       await acceptSuggestions(site.payload, ['/old'])
-      expect(await findAsEditor('/old/below')).toEqual(foundDocument('/new/below'))
+      expect(await findFoundRedirect({ path: '/old/below', payload: site.payload })).toEqual(foundDocument('/new/below'))
+    })
+
+    it("finds a page with the docs' own findPage, and follows a chain only through paths it finds none at", async () => {
+      const { payload } = site
+      const harbour = await createPage('harbour')
+      await createRedirect(payload, { from: '/dock', to: toUrl('/quay') })
+      await createRedirect(payload, { from: '/quay', to: toDocument('pages', harbour) })
+      await createRedirect(payload, { from: '/pier', to: toUrl('/harbour') })
+      await createRedirect(payload, { from: '/harbour', to: toUrl('/elsewhere') })
+      // As the docs' page route asks.
+      const findPageRedirect = (path: string) =>
+        findFoundRedirect({
+          hasDocument: async (nextPath) => (await findPage({ path: nextPath, payload })) !== null,
+          path,
+          payload
+        })
+
+      expect(await findPage({ path: '/harbour', payload })).toMatchObject({ id: harbour.id, slug: 'harbour' })
+      expect(await findPage({ path: '/quay', payload })).toBeNull()
+      expect(await findPageRedirect('/dock')).toEqual(foundDocument('/harbour'))
+      expect(await findPageRedirect('/pier')).toEqual(foundUrl('/harbour'))
     })
 
     it('suggests none for a save that keeps the path', async () => {

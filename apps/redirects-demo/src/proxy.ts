@@ -1,8 +1,9 @@
 import payloadConfig from '@payload-config'
-import { findByPath } from '@payloadpack/path'
 import { findRedirect } from '@payloadpack/redirects'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getPayload } from 'payload'
+
+import { findPage } from './find-page'
 
 // Answers the redirects that match a query string, which the page route never sees when its page is
 // cached per path. A URL without one goes on to the page route, which checks for a redirect itself.
@@ -17,7 +18,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
   const payload = await getPayload({ config: payloadConfig })
-  const hasDocument = async (pathAsked: string) => (await findByPath({ path: pathAsked, payload })) !== null
+  const hasDocument = async (pathAsked: string) => (await findPage({ path: pathAsked, payload })) !== null
 
   const { foundRedirect } = await findRedirect({ hasDocument, path, payload, searchParams: request.nextUrl.searchParams })
   if (!foundRedirect) return NextResponse.next()
