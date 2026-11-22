@@ -160,6 +160,15 @@ A demo's suites run only when a change can alter what the demo runs: a file in t
 
 The jobs install Node, Bun and the dependencies through one local action, `.github/actions/setup`. The Docs workflow deploys the docs site on every push to `main` that changes `apps/docs` or `.github/assets`, and after each release.
 
+### Query report
+
+On a pull request that changes `packages/path` or `packages/redirects`, the Query report workflow comments with what each important operation costs on the pull request's base and on the pull request: its query count, which is exact, and its median time, on MongoDB, Postgres and SQLite, measured in turns on the same runner. It marks a row ⚠️ when the pull request adds a query or is slower by more than 5 ms and 25%, and never fails the build. To run a package's report against `origin/main`, or the commit in `QUERY_REPORT_BASE`:
+
+```sh
+cd packages/redirects && QUERY_REPORT_OUTPUT="$TMPDIR/redirects.json" bunx vitest run --config test/query-report.config.ts
+cd ../.. && bun scripts/query-report/report.ts "$TMPDIR/redirects.json"
+```
+
 ## Release
 
 Each package has its own version, changelog and tags. Merge pull requests with a [Conventional Commits](https://www.conventionalcommits.org) title. A commit counts toward a package when it changes a file in that package's folder, outside the folders it lists under `exclude-paths` in `release-please-config.json`: those that never ship to npm, such as its `test` folder. The README and `package.json` ship with the package, so a change to them releases it too.

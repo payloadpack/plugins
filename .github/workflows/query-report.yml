@@ -1,0 +1,42 @@
+name: Query report
+
+on:
+  pull_request:
+    paths:
+      - 'packages/path/**'
+      - 'packages/redirects/**'
+      - 'scripts/query-report/**'
+      - '.github/workflows/query-report.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: query-report-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# It reports and never fails the pull request: a package's run that stops says so in the comment.
+jobs:
+  query-report:
+    runs-on: ubuntu-latest
+    env:
+      # The commit the pull request is compared with, whose package source the report measures too.
+      QUERY_REPORT_BASE: ${{ github.event.pull_request.base.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      # Redirects' report runs path from its build, as its tests do.
+      - run: bun run build --filter='@payloadpack/redirects^...'
+      - name: Measure path and redirects
+        run: |
+          for name in path redirects; do
+            (cd "packages/$name" && QUERY_REPORT_OUTPUT="$RUNNER_TEMP/query-report/$name.json" bunx vitest run --config test/query-report.config.ts) || true
+          done
+          bun scripts/query-report/report.ts "$RUNNER_TEMP/query-report/path.json" "$RUNNER_TEMP/query-report/redirects.json" > "$RUNNER_TEMP/query-report.md"
+      - uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: query-report
+          path: ${{ runner.temp }}/query-report.md

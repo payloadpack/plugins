@@ -20,3 +20,6 @@ apps/theme-demo/e2e-media/
 .claude/worktrees/
 .astro/
 /.cache/
+
+# The base source the query report measures, which it removes when it ends.
+packages/*/.query-report-base/
