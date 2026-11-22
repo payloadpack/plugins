@@ -29,7 +29,7 @@ export function redirectsPlugin(options: RedirectsPluginOptions): Plugin {
             fields: [buildSuggestionNoticesField(slug), ...siteCollection.fields],
             hooks: {
               ...siteCollection.hooks,
-              beforeDelete: [...(siteCollection.hooks?.beforeDelete ?? []), deleteSuggestionsToDocument]
+              afterDelete: [...(siteCollection.hooks?.afterDelete ?? []), deleteSuggestionsToDocument]
             }
           }
         : siteCollection

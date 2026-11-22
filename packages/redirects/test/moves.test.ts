@@ -743,13 +743,82 @@ describeSite(
       // Back at /kiosk, the move deletes the suggestion from it.
       await expect(publishChange(site.payload, 'pages', kiosk, { slug: 'kiosk' })).rejects.toThrow('This redirect is kept.')
     })
+  }
+)
 
-    it('fails the delete of a page with a suggestion with the refusal, and keeps the page', async () => {
-      const booth = await publish(site.payload, 'pages', { slug: 'booth', title: 'Booth' })
-      await publishChange(site.payload, 'pages', booth, { slug: 'stall' })
+// The site's own rules: a redirect from a path that ends in -kept is never deleted, nor a page titled
+// Stuck.
+const refuseKeptRedirect: CollectionBeforeDeleteHook = async ({ id, req }) => {
+  const redirect = await req.payload.findByID({ collection: 'redirects', depth: 0, id, overrideAccess: true, req })
+  if (String(redirect.from).endsWith('-kept')) throw new APIError('This redirect is kept.', 400, null, true)
+}
 
-      await expect(remove(site.payload, 'pages', booth)).rejects.toThrow('This redirect is kept.')
-      expect(await visit(site, '/stall')).toBe('document')
+const refuseStuckPage: CollectionBeforeDeleteHook = async ({ id, req }) => {
+  const page = await req.payload.findByID({ collection: 'pages', depth: 0, id, overrideAccess: true, req })
+  if (page.title === 'Stuck') throw new APIError('This page is kept.', 400, null, true)
+}
+
+describeSite(
+  'the suggestions a delete takes, on a site that keeps some redirects and pages from being deleted',
+  {
+    pages: { hooks: { beforeDelete: [refuseStuckPage] } },
+    redirects: {
+      overrides: (redirects) => ({
+        ...redirects,
+        hooks: { ...redirects.hooks, beforeDelete: [...(redirects.hooks?.beforeDelete ?? []), refuseKeptRedirect] }
+      })
+    }
+  },
+  (site) => {
+    const describeSuggestions = async (froms: string[]) =>
+      (await findRedirectsFrom(site, froms)).map(({ from, status }) => ({ from, status }))
+
+    it('keeps every suggestion to a page whose delete fails, by id and through a where', async () => {
+      const anchor = await publish(site.payload, 'pages', { slug: 'anchor', title: 'Stuck' })
+      const buoy = await publish(site.payload, 'pages', { slug: 'buoy', title: 'Stuck' })
+      await publishChange(site.payload, 'pages', anchor, { slug: 'mooring' })
+      await publishChange(site.payload, 'pages', buoy, { slug: 'beacon' })
+
+      await expect(remove(site.payload, 'pages', anchor)).rejects.toThrow('This page is kept.')
+      const { docs, errors } = await site.payload.delete({
+        collection: 'pages',
+        overrideAccess: true,
+        where: { id: { equals: buoy.id } }
+      })
+
+      expect({ deleted: docs.length, errors: errors.map(({ message }) => message) }).toEqual({
+        deleted: 0,
+        errors: ['This page is kept.']
+      })
+      expect(await describeSuggestions(['/anchor', '/buoy'])).toEqual([
+        { from: '/anchor', status: 'suggested' },
+        { from: '/buoy', status: 'suggested' }
+      ])
+    })
+
+    // As the list view deletes, through a where, and as an edit view does, by id.
+    it('deletes a page and its suggestions but one the site keeps, which stays without failing the delete', async () => {
+      const lantern = await publish(site.payload, 'pages', { slug: 'lantern-kept', title: 'Lantern' })
+      const torch = await publish(site.payload, 'pages', { slug: 'torch-kept', title: 'Torch' })
+      for (const [page, slugs] of [
+        [lantern, ['lantern-a', 'lantern']],
+        [torch, ['torch-a', 'torch']]
+      ] as const) {
+        for (const slug of slugs) await publishChange(site.payload, 'pages', page, { slug })
+      }
+
+      await remove(site.payload, 'pages', lantern)
+      const { docs, errors } = await site.payload.delete({
+        collection: 'pages',
+        overrideAccess: true,
+        where: { id: { equals: torch.id } }
+      })
+
+      expect({ deleted: docs.length, errors }).toEqual({ deleted: 1, errors: [] })
+      expect(await describeSuggestions(['/lantern-kept', '/lantern-a', '/torch-kept', '/torch-a'])).toEqual([
+        { from: '/lantern-kept', status: 'suggested' },
+        { from: '/torch-kept', status: 'suggested' }
+      ])
     })
   }
 )
