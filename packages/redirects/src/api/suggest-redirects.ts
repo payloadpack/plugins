@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { APIError, type CollectionSlug, type Payload, type PayloadRequest } from 'payload'
 
 import { FROM_FIELD_NAME, isFromTooLong } from '../fields/from.js'
@@ -115,6 +116,18 @@ async function findRedirectsFrom(payload: Payload, req: PayloadRequest, slug: Co
 const sendsToDocument = ({ targetDocumentKey }: StoredRedirect, { collection, id }: Arrival) =>
   targetDocumentKey === buildDocumentKey(collection, id)
 
+// The calls on one request, whose last settles once the last one begun has ended. On the request object
+// itself, which the copy of it Payload gives each document of some bulk updates reads through to.
+const SUGGESTING = Symbol('payloadpackRedirectsSuggesting')
+
+type Suggesting = { last: Promise<void> }
+
+type SuggestingRequest = PayloadRequest & { [SUGGESTING]?: Suggesting }
+
+// The calls of the request whose call is running, in the code that call runs, the hooks of its own
+// writes included.
+const runningCalls = new AsyncLocalStorage<Suggesting>()
+
 /**
  * For onPathsChanged of @payloadpack/path: each moved branch gets a suggestion, a redirect from the
  * old path of the document at its top, and every path below it, to that document, which answers nobody
@@ -125,7 +138,21 @@ const sendsToDocument = ({ targetDocumentKey }: StoredRedirect, { collection, id
  * send that path and every path below it to itself. Written through the save's req, so they roll back
  * with a failed save.
  */
-export async function suggestRedirects({ changedPaths, payload, req }: SuggestRedirectsArgs) {
+export function suggestRedirects(args: SuggestRedirectsArgs): Promise<void> {
+  // Payload runs the hooks of a bulk delete or a bulk update all at once on one request, and its
+  // orderable puts a new redirect after the last one stored, so the calls on one request suggest one
+  // after another, each after the last one's suggestions. One that fails fails only its own caller. A
+  // call from inside a running one, such as from a site's hook on a suggestion it writes, would wait
+  // for itself, so it runs at once.
+  const req = args.req as SuggestingRequest
+  const suggesting = (req[SUGGESTING] ??= { last: Promise.resolve() })
+  if (runningCalls.getStore() === suggesting) return suggestForChangedPaths(args)
+  const call = suggesting.last.then(() => runningCalls.run(suggesting, () => suggestForChangedPaths(args)))
+  suggesting.last = call.catch(() => undefined)
+  return call
+}
+
+async function suggestForChangedPaths({ changedPaths, payload, req }: SuggestRedirectsArgs) {
   const { collections, slug } = getRedirectsConfig(payload)
   const targetCollections = new Set<string>(collections)
   const reportedArrivals = changedPaths.filter(isArrival)

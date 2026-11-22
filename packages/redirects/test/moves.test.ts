@@ -340,6 +340,27 @@ describeSite('the redirects a move suggests', {}, (site, setup) => {
     expect(await visit(site, '/p/c/g')).toEqual(foundDocument('/g'))
   })
 
+  // Payload runs the hooks after a bulk delete all at once, and its orderable puts a new redirect after
+  // the last one stored.
+  it('gives each suggestion of one bulk delete a place of its own in the editors’ order, after the redirects before it', async () => {
+    const aisles = []
+    for (let index = 0; index < 20; index++) {
+      const aisle = await publish(site.payload, 'pages', { slug: `aisle-${index}`, title: `Aisle ${index}` })
+      await publish(site.payload, 'pages', { parent: aisle.id, slug: `shelf-${index}`, title: `Shelf ${index}` })
+      aisles.push(aisle)
+    }
+    const ordersBefore = (await findRedirects(site.payload)).map(({ _order }) => _order)
+    const lastOrderBefore = ordersBefore.sort().at(-1) ?? ''
+
+    await site.payload.delete({ collection: 'pages', overrideAccess: true, where: { id: { in: aisles.map(({ id }) => id) } } })
+
+    const shelfPaths = aisles.map((_, index) => `/aisle-${index}/shelf-${index}`)
+    const orders = (await findRedirectsFrom(site, shelfPaths)).map(({ _order }) => _order)
+    expect(orders).toHaveLength(aisles.length)
+    expect(new Set(orders).size).toBe(aisles.length)
+    expect(orders.filter((order) => order <= lastOrderBefore)).toEqual([])
+  })
+
   // A page a site doesn't show reports no delete of its own, only the pages it lifts, which the same
   // bulk delete may take away too.
   it('deletes a parent a site does not show with its published child in one bulk delete, suggesting no redirect to either', async () => {
@@ -656,6 +677,45 @@ describeSite(
 
       expect(changedRedirects).toEqual(['/shop', '/shop'])
       expect(await visit(site, '/shop/cart')).toEqual(foundDocument('/store/cart'))
+    })
+  }
+)
+
+// A hook of the site's own that moves another page, through the same request, when a suggestion from
+// /kite is written, so suggestRedirects runs again from inside its own write.
+const moveReedAfterKite: CollectionAfterChangeHook = async ({ doc, operation, req }) => {
+  if (operation !== 'create' || doc.from !== '/kite') return
+  const { docs } = await req.payload.find({
+    collection: 'pages',
+    depth: 0,
+    overrideAccess: true,
+    req,
+    where: { slug: { equals: 'reed' } }
+  })
+  await publishChange(req.payload, 'pages', docs[0]!, { slug: 'rush' }, { req })
+}
+
+describeSite(
+  'the redirects a move suggests, in a collection whose hook moves another page',
+  {
+    redirects: {
+      overrides: (redirects) => ({
+        ...redirects,
+        hooks: { ...redirects.hooks, afterChange: [...(redirects.hooks?.afterChange ?? []), moveReedAfterKite] }
+      })
+    }
+  },
+  (site) => {
+    it('suggests one for each move, the one the hook makes too, and settles', { timeout: 15_000 }, async () => {
+      const kite = await publish(site.payload, 'pages', { slug: 'kite', title: 'Kite' })
+      const reed = await publish(site.payload, 'pages', { slug: 'reed', title: 'Reed' })
+
+      await publishChange(site.payload, 'pages', kite, { slug: 'falcon' })
+
+      expect(await describeRedirects(site, ['/kite', '/reed'])).toEqual([
+        { from: '/kite', status: 'suggested', to: targetOf('pages', kite) },
+        { from: '/reed', status: 'suggested', to: targetOf('pages', reed) }
+      ])
     })
   }
 )
