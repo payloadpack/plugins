@@ -3,7 +3,7 @@ import { text } from 'payload/shared'
 
 import { BELOW_ROOT_REFUSAL, FROM_TOO_LONG_REFUSAL, FROM_WITHOUT_PATH_REFUSAL, QUERY_STRING_REFUSAL } from '../plugin/messages.js'
 import { cleanFromPath, LONGEST_REDIRECTED_PATH } from '../redirect/path.js'
-import { buildRegexRefusal } from '../redirect/regex.js'
+import { getRegexRefusal } from '../redirect/regex.js'
 import { hasRegexQueryString } from '../redirect/query-string.js'
 import { MATCH_FIELD_NAME, type Match } from './match.js'
 
@@ -41,7 +41,7 @@ export function buildFromField(trackingParameters: readonly string[]): TextField
     if (match === 'regex') {
       const regex = value.trim()
       if (isFromTooLong(regex)) return FROM_TOO_LONG_REFUSAL
-      return hasRegexQueryString(regex) ? QUERY_STRING_REFUSAL : (buildRegexRefusal(regex) ?? true)
+      return hasRegexQueryString(regex) ? QUERY_STRING_REFUSAL : (getRegexRefusal(regex) ?? true)
     }
     const from = cleanFromPath(value, trackingParameters)
     if (from === null) return FROM_WITHOUT_PATH_REFUSAL

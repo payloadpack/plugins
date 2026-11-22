@@ -1,9 +1,9 @@
 import { expect, it } from 'vitest'
 
-import { buildComparedPath, cleanFromPath, buildSitePath } from '../src/redirect/path.js'
-import { buildTrackingParameters } from '../src/redirect/query-string.js'
+import { toComparedPath, cleanFromPath, parseSitePath } from '../src/redirect/path.js'
+import { mergeTrackingParameters } from '../src/redirect/query-string.js'
 
-const TRACKING = buildTrackingParameters(['ref_src'])
+const TRACKING = mergeTrackingParameters(['ref_src'])
 const cleanPath = (value: string) => cleanFromPath(value, TRACKING)
 
 it('cleans what an editor typed into the decoded, lowercased path the site looks up', () => {
@@ -107,13 +107,13 @@ it('keeps encoded what a URL reads as something else than a path, so a cleaned f
 
   expect(Object.keys(values).map(cleanPath)).toEqual(Object.values(values))
   for (const cleanedFrom of Object.values(values)) expect(cleanPath(cleanedFrom)).toBe(cleanedFrom)
-  expect(buildComparedPath('/FAQ?old#top')).toBe('/faq%3Fold%23top')
+  expect(toComparedPath('/FAQ?old#top')).toBe('/faq%3Fold%23top')
 })
 
 it('decodes a destination on this site into the path the site looks up, and gives null for any other', () => {
-  expect(buildSitePath('/%D0%BC%D0%B8%D1%80/team?ref=1#top')).toBe('/мир/team')
-  expect(buildSitePath('/q%26a')).toBe('/q&a')
-  expect(buildSitePath('https://shop.example/cart')).toBeNull()
-  expect(buildSitePath('/a%2Fb')).toBeNull()
-  expect(buildSitePath('/%E0%A4%A')).toBeNull()
+  expect(parseSitePath('/%D0%BC%D0%B8%D1%80/team?ref=1#top')).toBe('/мир/team')
+  expect(parseSitePath('/q%26a')).toBe('/q&a')
+  expect(parseSitePath('https://shop.example/cart')).toBeNull()
+  expect(parseSitePath('/a%2Fb')).toBeNull()
+  expect(parseSitePath('/%E0%A4%A')).toBeNull()
 })

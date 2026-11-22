@@ -11,7 +11,7 @@ const MOST_REGEX_INSTRUCTIONS = 1_000
  * Why a regex can't be saved, or null when it can: RE2 can't run it, such as a look-ahead, a
  * look-behind or a back-reference, or it is too large to try on every path no document holds.
  */
-export function buildRegexRefusal(regex: string) {
+export function getRegexRefusal(regex: string) {
   try {
     if (RE2JS.compile(regex).programSize() <= MOST_REGEX_INSTRUCTIONS) return null
   } catch (error) {
@@ -26,7 +26,7 @@ export function buildRegexRefusal(regex: string) {
  * starts with a choice or a group. A lookup finds the regexes that could match a path by this, through
  * an index, so it tries only those.
  */
-export function buildFixedStart(regex: string) {
+export function getFixedStart(regex: string) {
   let literalStart: string
   try {
     // re2Input.prefix is not part of re2js's documented API, which a test pins.

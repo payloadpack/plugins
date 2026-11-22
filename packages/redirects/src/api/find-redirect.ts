@@ -12,17 +12,22 @@ import { findTargetDocument, getRedirectsConfig, type RedirectsConfig } from '..
 import { ORDER_FIELD_NAME } from '../plugin/redirects-collection.js'
 import { buildDestination, type DestinationParts } from '../redirect/destination.js'
 import {
-  buildComparedPath,
-  buildLookedUpPath,
-  buildPathAndPathsAbove,
-  buildPathBelow,
+  toComparedPath,
+  stripEndSlashes,
+  listPathAndPathsAbove,
+  getPathBelow,
   encodePath,
-  buildSitePath,
+  parseSitePath,
   LONGEST_REDIRECTED_PATH,
   SITE_ORIGIN
 } from '../redirect/path.js'
 import { matchRegex } from '../redirect/regex.js'
-import { buildQueryString, buildSearchParams, buildTrackingSearchParams, type SearchParams } from '../redirect/query-string.js'
+import {
+  toComparedQueryString,
+  toURLSearchParams,
+  pickTrackingSearchParams,
+  type SearchParams
+} from '../redirect/query-string.js'
 
 export type FoundRedirect = {
   /**
@@ -153,10 +158,10 @@ async function* findTries(
 ): AsyncGenerator<Try> {
   if (path.length > LONGEST_REDIRECTED_PATH || countSegments(path) > MOST_REDIRECTED_SEGMENTS) return
   const { slug, trackingParameters, winOverDocuments } = config
-  // A From of a path is stored as buildComparedPath says, and a regex and its fixed start as written.
-  const paths = buildPathAndPathsAbove(path)
-  const comparedPaths = paths.map(buildComparedPath)
-  const queryString = buildQueryString(searchParams, trackingParameters)
+  // A From of a path is stored as toComparedPath says, and a regex and its fixed start as written.
+  const paths = listPathAndPathsAbove(path)
+  const comparedPaths = paths.map(toComparedPath)
+  const queryString = toComparedQueryString(searchParams, trackingParameters)
   const queryFrom = queryString ? `${comparedPaths[0]}?${queryString}` : null
   // A redirect from a path is found at its From, as compared, and a regex at its fixed start, as written.
   // Postgres refuses a NUL in a value, so no fixed start it stores holds one, and a path that holds one
@@ -199,7 +204,7 @@ async function* findTries(
     yield {
       candidate,
       matchedQueryString: true,
-      parts: { searchParams: buildTrackingSearchParams(searchParams, trackingParameters) }
+      parts: { searchParams: pickTrackingSearchParams(searchParams, trackingParameters) }
     }
   }
   // A redirect from a path covers it only from a compared path: one found at the path as the visitor
@@ -210,7 +215,7 @@ async function* findTries(
     )
     .sort((first, second) => countSegments(second.from) - countSegments(first.from))
   for (const candidate of coveringRedirects) {
-    const pathBelow = buildPathBelow(path, candidate.from)
+    const pathBelow = getPathBelow(path, candidate.from)
     // A page's path is lowercase, and a URL takes the rest of the path as the visitor typed it.
     yield {
       candidate,
@@ -253,7 +258,7 @@ async function findRedirectStep(
   return null
 }
 
-const buildResult = (step: null | Step): FindRedirectResult => {
+const toResult = (step: null | Step): FindRedirectResult => {
   if (!step) return { foundRedirect: null }
   const { landsOnDocument: _, ...foundRedirect } = step
   return { foundRedirect }
@@ -266,8 +271,8 @@ type FindStepAt = (pathAsked: PathAsked, landsOnDocument: boolean) => Promise<nu
 
 // Each step is asked as a visitor asks for the destination before it, with its query string. Null for
 // a destination on another site.
-function buildNextPathAsked({ destination }: Step): null | PathAsked {
-  const path = buildSitePath(destination)
+function getNextPathAsked({ destination }: Step): null | PathAsked {
+  const path = parseSitePath(destination)
   return path === null ? null : { path, searchParams: new URL(destination, SITE_ORIGIN).searchParams }
 }
 
@@ -278,7 +283,7 @@ const buildPathAskedKey = ({ path, searchParams }: PathAsked) => JSON.stringify(
 // A browser that follows a Location without a fragment keeps the one it had, so a step whose
 // destination has none keeps the chain's. Every # a visitor or a document fills in is encoded, so the
 // first one starts the fragment.
-function buildChainDestination(chainDestination: string, nextDestination: string) {
+function keepChainFragment(chainDestination: string, nextDestination: string) {
   const fragmentStart = chainDestination.indexOf('#')
   if (fragmentStart === -1 || nextDestination.includes('#')) return nextDestination
   return `${nextDestination}${chainDestination.slice(fragmentStart)}`
@@ -286,7 +291,7 @@ function buildChainDestination(chainDestination: string, nextDestination: string
 
 const joinSteps = (chain: Step, nextStep: Step): Step => ({
   ...nextStep,
-  destination: buildChainDestination(chain.destination, nextStep.destination),
+  destination: keepChainFragment(chain.destination, nextStep.destination),
   matchedQueryString: chain.matchedQueryString,
   permanent: chain.permanent && nextStep.permanent
 })
@@ -298,7 +303,7 @@ async function followChainToDocument(pathAsked: PathAsked, firstStep: Step, hasD
   const pathsMet = new Set([buildPathAskedKey(pathAsked)])
   let chain = firstStep
   for (;;) {
-    const nextPathAsked = chain.landsOnDocument ? null : buildNextPathAsked(chain)
+    const nextPathAsked = chain.landsOnDocument ? null : getNextPathAsked(chain)
     if (nextPathAsked === null || (await hasDocument(nextPathAsked.path))) return chain
     const nextPathKey = buildPathAskedKey(nextPathAsked)
     if (pathsMet.has(nextPathKey) || pathsMet.size === MOST_PATHS_FOLLOWED) return null
@@ -318,7 +323,7 @@ async function followChainOverDocuments(pathAsked: PathAsked, firstStep: Step, f
   const pathsMet = new Set([buildPathAskedKey(pathAsked)])
   let chain = firstStep
   for (;;) {
-    const nextPathAsked = buildNextPathAsked(chain)
+    const nextPathAsked = getNextPathAsked(chain)
     if (nextPathAsked === null) return chain
     const nextStep = await findStepAt(nextPathAsked, chain.landsOnDocument)
     if (!nextStep) return chain
@@ -358,10 +363,10 @@ export async function findRedirect({
   const perRedirectHasDocument = winOverDocuments === 'perRedirect' ? hasDocument : undefined
   const findStepAt: FindStepAt = (pathAsked, landsOnDocument) =>
     findRedirectStep(pathAsked.path, pathAsked.searchParams, options, config, perRedirectHasDocument, landsOnDocument)
-  const pathAsked = { path: buildLookedUpPath(path), searchParams: buildSearchParams(searchParams) }
+  const pathAsked = { path: stripEndSlashes(path), searchParams: toURLSearchParams(searchParams) }
   const firstStep = await findStepAt(pathAsked, false)
-  if (!firstStep) return buildResult(null)
-  if (winOverDocuments) return buildResult(await followChainOverDocuments(pathAsked, firstStep, findStepAt))
-  if (!hasDocument) return buildResult(firstStep)
-  return buildResult(await followChainToDocument(pathAsked, firstStep, hasDocument, findStepAt))
+  if (!firstStep) return toResult(null)
+  if (winOverDocuments) return toResult(await followChainOverDocuments(pathAsked, firstStep, findStepAt))
+  if (!hasDocument) return toResult(firstStep)
+  return toResult(await followChainToDocument(pathAsked, firstStep, hasDocument, findStepAt))
 }

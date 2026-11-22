@@ -8,11 +8,11 @@ export type SearchParams = Record<string, string | string[] | undefined> | URLSe
 const DEFAULT_TRACKING_PARAMETERS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid']
 
 /** The tracking parameters, the defaults and a site's own, lowercased as they are compared. */
-export const buildTrackingParameters = (siteParameters: string[] = []) => [
+export const mergeTrackingParameters = (siteParameters: string[] = []) => [
   ...new Set([...DEFAULT_TRACKING_PARAMETERS, ...siteParameters].map((name) => name.toLowerCase()))
 ]
 
-export function buildSearchParams(searchParams: SearchParams | undefined) {
+export function toURLSearchParams(searchParams: SearchParams | undefined) {
   if (searchParams instanceof URLSearchParams) return searchParams
   const urlSearchParams = new URLSearchParams()
   for (const [name, value] of Object.entries(searchParams ?? {})) {
@@ -46,7 +46,7 @@ const compare = (first: string, second: string) => (first < second ? -1 : first 
  * out and the rest sorted by name and then value, such as id=123 for ?ID=123&utm_source=mail. Empty
  * when nothing is left. Cleaning what it gives again gives the same.
  */
-export function buildQueryString(searchParams: URLSearchParams, trackingParameters: readonly string[]) {
+export function toComparedQueryString(searchParams: URLSearchParams, trackingParameters: readonly string[]) {
   return [...searchParams]
     .map(([name, value]) => [name.toLowerCase(), value.toLowerCase()] as const)
     .filter(([name]) => !trackingParameters.includes(name))
@@ -58,7 +58,7 @@ export function buildQueryString(searchParams: URLSearchParams, trackingParamete
 }
 
 /** The tracking parameters of a visitor's query string, as the visitor sent them. */
-export const buildTrackingSearchParams = (searchParams: URLSearchParams, trackingParameters: readonly string[]) =>
+export const pickTrackingSearchParams = (searchParams: URLSearchParams, trackingParameters: readonly string[]) =>
   new URLSearchParams([...searchParams].filter(([name]) => trackingParameters.includes(name.toLowerCase())))
 
 // A regex that matches a literal ?, written \?, or a ? followed by a name and =, such as

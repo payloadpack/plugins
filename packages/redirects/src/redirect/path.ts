@@ -1,4 +1,4 @@
-import { buildQueryString, encodeReadAsOther } from './query-string.js'
+import { toComparedQueryString, encodeReadAsOther } from './query-string.js'
 
 // Stands for the site's own origin, so a path parses as a URL on it and a target on another site has
 // another origin.
@@ -11,7 +11,7 @@ export const SITE_ORIGIN = 'http://site.invalid'
 export const LONGEST_REDIRECTED_PATH = 2_048
 
 /** The path and each path above it, deepest first: /a/b/c, /a/b and /a for /a/b/c. */
-export function buildPathAndPathsAbove(path: string) {
+export function listPathAndPathsAbove(path: string) {
   const paths = [path]
   for (let end = path.lastIndexOf('/'); end > 0; end = path.lastIndexOf('/', end - 1)) {
     paths.push(path.slice(0, end))
@@ -25,7 +25,7 @@ export function buildPathAndPathsAbove(path: string) {
  * the end rather than matched, so a run of slashes inside a path costs what any other character does,
  * before the lookup counts its length.
  */
-export function buildLookedUpPath(path: string) {
+export function stripEndSlashes(path: string) {
   let end = path.length
   while (path[end - 1] === '/') end--
   return path.slice(0, end) || '/'
@@ -52,12 +52,12 @@ const READ_AS_OTHER = /[%?#\\\u0000-\u001f\u007f]/g
  * reads as something else or drops encoded, such as /q%3Fa for /q?a and /a%20 for a space at the end.
  * So a From that a save sends back cleans to itself, and a visitor's path compares the same way.
  */
-export const buildComparedPath = (path: string) => encodeReadAsOther(path.toLowerCase(), READ_AS_OTHER)
+export const toComparedPath = (path: string) => encodeReadAsOther(path.toLowerCase(), READ_AS_OTHER)
 
 /**
  * A From of Exact path or Path and subpaths as the site looks it up, from what an editor typed: a
  * pasted URL becomes its path and query string, a missing first slash is added and a doubled one
- * dropped, a last slash goes, and every segment is decoded and compared as buildComparedPath says. A
+ * dropped, a last slash goes, and every segment is decoded and compared as toComparedPath says. A
  * backslash reads as a slash, as a URL reads it, and so does an encoded slash. The query string is
  * kept as a redirect compares it, after a ?, and none is left when it holds only tracking parameters.
  * Null when the value holds no path on this site, such as // alone, https:// alone or a mailto: link.
@@ -70,10 +70,10 @@ export function cleanFromPath(value: string, trackingParameters: readonly string
   // A scheme of its own, such as mailto: or the old: a URL reads in old:page, leaves no path here.
   if (!url?.pathname.startsWith('/')) return null
   // A pasted URL keeps a doubled first slash in its path, and so does one a dot segment leaves.
-  const pathname = buildLookedUpPath(url.pathname.replace(/^\/{2,}/, '/'))
+  const pathname = stripEndSlashes(url.pathname.replace(/^\/{2,}/, '/'))
   const path = pathname.split('/').map(decodeEscapes).join('/')
-  const queryString = buildQueryString(url.searchParams, trackingParameters)
-  return `${buildComparedPath(path)}${queryString ? `?${queryString}` : ''}`
+  const queryString = toComparedQueryString(url.searchParams, trackingParameters)
+  return `${toComparedPath(path)}${queryString ? `?${queryString}` : ''}`
 }
 
 /**
@@ -81,7 +81,7 @@ export function cleanFromPath(value: string, trackingParameters: readonly string
  * below /about-us, or empty at the path itself. Cut by segments, so a path whose lowercase is longer
  * or shorter than it is cuts at the same place.
  */
-export function buildPathBelow(path: string, from: string) {
+export function getPathBelow(path: string, from: string) {
   const segmentsBelow = path.split('/').slice(from.split('/').length)
   return segmentsBelow.length === 0 ? '' : `/${segmentsBelow.join('/')}`
 }
@@ -96,15 +96,15 @@ export function encodePath(path: string) {
 
 /**
  * The path a visitor's request for a destination on this site is looked up at: its path, decoded
- * segment by segment, as buildLookedUpPath says. Null for another site, and for a path that doesn't
- * decode or holds a slash inside a segment, which the site doesn't look up.
+ * segment by segment, with stripEndSlashes taking the slashes off its end. Null for another site,
+ * and for a path that doesn't decode or holds a slash inside a segment, which the site doesn't look up.
  */
-export function buildSitePath(destination: string) {
+export function parseSitePath(destination: string) {
   if (!destination.startsWith('/')) return null
   const { pathname } = new URL(destination, SITE_ORIGIN)
   try {
     const segments = pathname.split('/').map(decodeURIComponent)
-    return segments.some((segment) => segment.includes('/')) ? null : buildLookedUpPath(segments.join('/'))
+    return segments.some((segment) => segment.includes('/')) ? null : stripEndSlashes(segments.join('/'))
   } catch {
     return null
   }

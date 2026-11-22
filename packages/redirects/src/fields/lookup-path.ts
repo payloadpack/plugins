@@ -1,6 +1,6 @@
 import type { FieldHook, TextField } from 'payload'
 
-import { buildFixedStart } from '../redirect/regex.js'
+import { getFixedStart } from '../redirect/regex.js'
 import { FROM_FIELD_NAME } from './from.js'
 import { MATCH_FIELD_NAME, type Match } from './match.js'
 
@@ -13,7 +13,7 @@ type LookupSiblings = { [FROM_FIELD_NAME]?: string; [MATCH_FIELD_NAME]?: Match }
 const setLookupPath: FieldHook = ({ siblingData }) => {
   const { from, match } = siblingData as LookupSiblings
   if (!from) return null
-  return match === 'regex' ? buildFixedStart(from) : from
+  return match === 'regex' ? getFixedStart(from) : from
 }
 
 /**

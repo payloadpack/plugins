@@ -2,7 +2,7 @@ import type { CollectionSlug, Plugin } from 'payload'
 
 import { deleteSuggestionsToDocument } from './delete-suggestions-hook.js'
 import { addIndexes } from './indexes.js'
-import { buildCustom, buildRedirectsConfig, type RedirectsPluginOptions } from './options.js'
+import { withRedirectsConfig, buildRedirectsConfig, type RedirectsPluginOptions } from './options.js'
 import { buildRedirectsCollection } from './redirects-collection.js'
 import { buildSuggestionNoticesField } from './suggestion-notices-field.js'
 
@@ -37,7 +37,7 @@ export function redirectsPlugin(options: RedirectsPluginOptions): Plugin {
     return {
       ...config,
       collections: [...collections, redirectsCollection],
-      custom: buildCustom(config.custom, { ...redirectsConfig, slug }),
+      custom: withRedirectsConfig(config.custom, { ...redirectsConfig, slug }),
       db: addIndexes(config.db, slug)
     }
   }

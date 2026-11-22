@@ -9,7 +9,7 @@ import type {
   TypeWithID
 } from 'payload'
 
-import { buildTrackingParameters } from '../redirect/query-string.js'
+import { mergeTrackingParameters } from '../redirect/query-string.js'
 import { EMPTY_COLLECTIONS_ERROR, PLUGIN_MISSING_ERROR, WIN_OVER_DOCUMENTS_ERROR } from './messages.js'
 
 /** What buildDocumentPath gets: a document a redirect sends visitors to, which the plugin has read. */
@@ -112,7 +112,7 @@ export function buildRedirectsConfig({
     buildDocumentPath: keepPathOnSite(buildDocumentPath),
     collections,
     documentSelect,
-    trackingParameters: buildTrackingParameters(trackingParameters),
+    trackingParameters: mergeTrackingParameters(trackingParameters),
     winOverDocuments
   }
 }
@@ -142,7 +142,7 @@ export const findTargetDocument = (
     select: documentSelect
   })
 
-export const buildCustom = (custom: Record<string, unknown> | undefined, redirectsConfig: RedirectsConfig) => ({
+export const withRedirectsConfig = (custom: Record<string, unknown> | undefined, redirectsConfig: RedirectsConfig) => ({
   ...custom,
   [REDIRECTS_PLUGIN_KEY]: redirectsConfig
 })

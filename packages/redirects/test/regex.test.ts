@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 
 import { REGEX_TOO_LARGE_REFUSAL } from '../src/plugin/messages.js'
-import { buildFixedStart, buildRegexRefusal, matchRegex } from '../src/redirect/regex.js'
+import { getFixedStart, getRegexRefusal, matchRegex } from '../src/redirect/regex.js'
 import { measureFastestRun } from './support/timing.js'
 
 it("refuses only a regex RE2 can't run, or one too large to try on every unknown path", () => {
@@ -16,16 +16,16 @@ it("refuses only a regex RE2 can't run, or one too large to try on every unknown
     '(?i)/news/(.*)'
   ]
 
-  expect(unreadable.map((regex) => buildRegexRefusal(regex)?.startsWith("This isn't a regex the site can read ("))).toEqual(
+  expect(unreadable.map((regex) => getRegexRefusal(regex)?.startsWith("This isn't a regex the site can read ("))).toEqual(
     unreadable.map(() => true)
   )
-  expect(buildRegexRefusal('/(?:a?){1000}b')).toBe(REGEX_TOO_LARGE_REFUSAL)
-  expect(acceptedRegexes.filter((regex) => buildRegexRefusal(regex) !== null)).toEqual([])
+  expect(getRegexRefusal('/(?:a?){1000}b')).toBe(REGEX_TOO_LARGE_REFUSAL)
+  expect(acceptedRegexes.filter((regex) => getRegexRefusal(regex) !== null)).toEqual([])
 })
 
 it('accepts a regex that lists 100 old slugs', () => {
   const slugs = Array.from({ length: 100 }, (_, index) => `old-slug-${index}`)
-  expect(buildRegexRefusal(`/news/(?:${slugs.join('|')})`)).toBeNull()
+  expect(getRegexRefusal(`/news/(?:${slugs.join('|')})`)).toBeNull()
 })
 
 // re2Input.prefix is not part of re2js's documented API, so an upgrade that changes it fails here.
@@ -46,7 +46,7 @@ it('builds the fixed start of a regex, or / for one without', () => {
     '/(oops': '/'
   }
 
-  expect(Object.keys(fixedStarts).map(buildFixedStart)).toEqual(Object.values(fixedStarts))
+  expect(Object.keys(fixedStarts).map(getFixedStart)).toEqual(Object.values(fixedStarts))
 })
 
 it('matches the whole path and gives the parts its groups captured', () => {

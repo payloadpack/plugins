@@ -8,7 +8,7 @@ import { buildDocumentKey } from '../fields/target-document-key.js'
 import { TO_FIELD_NAME, type StoredTarget, type TargetType } from '../fields/to.js'
 import { TYPE_FIELD_NAME, type RedirectType } from '../fields/type.js'
 import { getRedirectsConfig } from '../plugin/options.js'
-import { buildComparedPath, buildPathAndPathsAbove } from '../redirect/path.js'
+import { toComparedPath, listPathAndPathsAbove } from '../redirect/path.js'
 
 /** Where a site finds one document, before and now, as onPathsChanged of @payloadpack/path reports it. */
 type ChangedPath = { collection: string; from: null | string; id: number | string; locale?: string; to: null | string }
@@ -36,7 +36,7 @@ const isMove = (arrival: Arrival): arrival is Move => arrival.from !== null
 // a change of any size is read and deleted 1,000 values at a time.
 const CHUNK_SIZE = 1_000
 
-function buildChunks<Value>(values: Value[]) {
+function splitIntoChunks<Value>(values: Value[]) {
   const chunks: Value[][] = []
   for (let start = 0; start < values.length; start += CHUNK_SIZE) chunks.push(values.slice(start, start + CHUNK_SIZE))
   return chunks
@@ -50,7 +50,7 @@ const buildLocalePathKey = (locale: string | undefined, path: string) => JSON.st
 // document lifted twice in one bulk delete may, tops a branch of its own.
 function getAncestorMove({ from, locale, to }: Arrival, movesByFrom: Map<string, Move>) {
   if (from === null) return null
-  for (const pathAbove of buildPathAndPathsAbove(from).slice(1)) {
+  for (const pathAbove of listPathAndPathsAbove(from).slice(1)) {
     const aboveMove = movesByFrom.get(buildLocalePathKey(locale, pathAbove))
     if (aboveMove && `${aboveMove.to}${from.slice(pathAbove.length)}` === to) return aboveMove
   }
@@ -61,11 +61,11 @@ function getAncestorMove({ from, locale, to }: Arrival, movesByFrom: Map<string,
 // path, by the From it is stored as: a collection with one path in every locale reports a move once per
 // locale. A From too long for the index on from is refused, which would fail the save that moved the
 // document, so such an old path gets none, nor do the paths below it.
-const buildMovesByOldPath = (arrivals: Arrival[], targetCollections: Set<string>) =>
+const indexMovesByOldPath = (arrivals: Arrival[], targetCollections: Set<string>) =>
   new Map(
     arrivals
       .filter((arrival): arrival is Move => isMove(arrival) && targetCollections.has(arrival.collection))
-      .map((move) => [buildComparedPath(move.from), move] as const)
+      .map((move) => [toComparedPath(move.from), move] as const)
       .filter(([oldPath]) => !isFromTooLong(oldPath))
   )
 
@@ -78,7 +78,7 @@ async function findStoredArrivals(payload: Payload, req: PayloadRequest, arrival
   const storedDocumentKeys = new Set<string>()
   for (const collection of new Set(arrivals.map((arrival) => arrival.collection))) {
     const ids = arrivals.filter((arrival) => arrival.collection === collection).map(({ id }) => id)
-    for (const chunk of buildChunks(ids)) {
+    for (const chunk of splitIntoChunks(ids)) {
       const { docs } = await payload.find({
         collection: collection as CollectionSlug,
         depth: 0,
@@ -98,7 +98,7 @@ async function findStoredArrivals(payload: Payload, req: PayloadRequest, arrival
 // The redirects from the paths, each given as a From of a path is stored.
 async function findRedirectsFrom(payload: Payload, req: PayloadRequest, slug: CollectionSlug, froms: string[]) {
   const redirects: StoredRedirect[] = []
-  for (const chunk of buildChunks([...new Set(froms)])) {
+  for (const chunk of splitIntoChunks([...new Set(froms)])) {
     const { docs } = await payload.find({
       collection: slug,
       depth: 0,
@@ -168,7 +168,7 @@ async function suggestForChangedPaths({ changedPaths, payload, req }: SuggestRed
   const arrivalsBelowByFrom = new Map<null | string, Arrival[]>()
   for (const arrival of arrivals) {
     const ancestorMove = getAncestorMove(arrival, movesByFrom)
-    const ancestorFrom = ancestorMove && buildComparedPath(ancestorMove.from)
+    const ancestorFrom = ancestorMove && toComparedPath(ancestorMove.from)
     const arrivalsBelow = arrivalsBelowByFrom.get(ancestorFrom) ?? []
     arrivalsBelow.push(arrival)
     arrivalsBelowByFrom.set(ancestorFrom, arrivalsBelow)
@@ -176,9 +176,9 @@ async function suggestForChangedPaths({ changedPaths, payload, req }: SuggestRed
   const topArrivals = arrivalsBelowByFrom.get(null) ?? []
   if (topArrivals.length === 0) return
   // Every path a document of the change is at now, which no suggestion can be from.
-  const newPaths = new Set(arrivals.map(({ to }) => buildComparedPath(to)))
-  let movesToDecide = buildMovesByOldPath(topArrivals, targetCollections)
-  const topNewPaths = topArrivals.map(({ to }) => buildComparedPath(to))
+  const newPaths = new Set(arrivals.map(({ to }) => toComparedPath(to)))
+  let movesToDecide = indexMovesByOldPath(topArrivals, targetCollections)
+  const topNewPaths = topArrivals.map(({ to }) => toComparedPath(to))
   const redirectsByFrom = new Map(
     (await findRedirectsFrom(payload, req, slug, [...topNewPaths, ...movesToDecide.keys()])).map((redirect) => [
       redirect.from,
@@ -189,7 +189,7 @@ async function suggestForChangedPaths({ changedPaths, payload, req }: SuggestRed
   // document to the path another left, such as two pages that swap paths, meets none on the unique from.
   const deletedIds = new Set<number | string>()
   for (const arrival of topArrivals) {
-    const atNewPath = redirectsByFrom.get(buildComparedPath(arrival.to))
+    const atNewPath = redirectsByFrom.get(toComparedPath(arrival.to))
     if (atNewPath && (atNewPath.status === 'suggested' || sendsToDocument(atNewPath, arrival))) deletedIds.add(atNewPath.id)
   }
   const movesToSuggest: Move[] = []
@@ -208,7 +208,7 @@ async function suggestForChangedPaths({ changedPaths, payload, req }: SuggestRed
       if (atOldPath) deletedIds.add(atOldPath.id)
       movesToSuggest.push(move)
     }
-    movesToDecide = buildMovesByOldPath(
+    movesToDecide = indexMovesByOldPath(
       keptOldPaths.flatMap((oldPath) => arrivalsBelowByFrom.get(oldPath) ?? []),
       targetCollections
     )
@@ -216,7 +216,7 @@ async function suggestForChangedPaths({ changedPaths, payload, req }: SuggestRed
       redirectsByFrom.set(redirect.from, redirect)
     }
   }
-  for (const chunk of buildChunks([...deletedIds])) {
+  for (const chunk of splitIntoChunks([...deletedIds])) {
     const { errors } = await payload.delete({
       collection: slug,
       depth: 0,
@@ -232,7 +232,7 @@ async function suggestForChangedPaths({ changedPaths, payload, req }: SuggestRed
     const data = {
       // As it is compared above, which the From field cleans to itself: the path as a visitor asks for
       // it, so a ? or # in it stays part of the path.
-      [FROM_FIELD_NAME]: buildComparedPath(from),
+      [FROM_FIELD_NAME]: toComparedPath(from),
       // Every path is below the home page's, which has no document below it.
       [MATCH_FIELD_NAME]: from === '/' ? ('exact' satisfies Match) : SUGGESTED_MATCH,
       [STATUS_FIELD_NAME]: 'suggested' satisfies Status,
