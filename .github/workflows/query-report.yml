@@ -30,12 +30,18 @@ jobs:
       - uses: ./.github/actions/setup
       # Redirects' report runs path from its build, as its tests do.
       - run: bun run build --filter='@payloadpack/redirects^...'
-      - name: Measure path and redirects
+      # Only the packages the pull request changes. A change to the report itself measures both.
+      - name: Measure the changed packages
         run: |
+          changed=$(git diff --name-only "$QUERY_REPORT_BASE" HEAD)
+          reports=()
           for name in path redirects; do
+            grep -qE "^(packages/$name/|scripts/query-report/|\.github/workflows/query-report\.yml)" <<< "$changed" || continue
             (cd "packages/$name" && QUERY_REPORT_OUTPUT="$RUNNER_TEMP/query-report/$name.json" bunx vitest run --config test/query-report.config.ts) || true
+            reports+=("$RUNNER_TEMP/query-report/$name.json")
           done
-          bun scripts/query-report/report.ts "$RUNNER_TEMP/query-report/path.json" "$RUNNER_TEMP/query-report/redirects.json" > "$RUNNER_TEMP/query-report.md"
+          bun scripts/query-report/report.ts "${reports[@]}" > "$RUNNER_TEMP/query-report.md"
+      # One comment per pull request: each run replaces the one with this header.
       - uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
         with:
           header: query-report
