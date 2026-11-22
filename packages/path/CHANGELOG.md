@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.2](https://github.com/payloadpack/plugins/compare/path-v0.3.1...path-v0.3.2) (2026-11-22)
+
+
+### Bug Fixes
+
+* **path:** find nothing at a path with a NUL ([8e9e0e3](https://github.com/payloadpack/plugins/commit/8e9e0e31da75e9183aa36ce6478a90a8f065e591))
+* **path:** report each lifted document once ([8e9e0e3](https://github.com/payloadpack/plugins/commit/8e9e0e31da75e9183aa36ce6478a90a8f065e591))
+
 ## [0.3.1](https://github.com/payloadpack/plugins/compare/path-v0.3.0...path-v0.3.1) (2026-11-20)
 
 
