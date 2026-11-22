@@ -40,8 +40,10 @@ async function liftBranch(collection: CollectionConfig, id: Id, req: PayloadRequ
   })
   getPathContext(req).deleted.set(documentKey(slug, id), [...ownPaths, ...getChangedPathsBelow(branchMove, payload)])
   // A later lift in a bulk delete may move a lifted document again.
-  for (const { document: lifted, pathAndAncestors } of branchMove.documents) {
-    bulkOperation?.landings.set(String(lifted.id), pathAndAncestors.paths)
+  for (const { document: lifted, pathAndAncestors, storedPaths } of branchMove.documents) {
+    const key = String(lifted.id)
+    const from = bulkOperation?.lifts.get(key)?.from ?? storedPaths
+    bulkOperation?.lifts.set(key, { from, to: pathAndAncestors.paths })
   }
 }
 

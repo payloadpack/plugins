@@ -27,6 +27,15 @@ describeEachSetup('', {}, (test, setup) => {
     expect(await findByPath({ path: '/shop/nothing', payload })).toBeNull()
   })
 
+  // A visitor asks for one with %00 in the URL.
+  it('finds nothing at a path that holds a NUL', async () => {
+    const { payload } = test
+    await create(payload, 'pages', { slug: 'ab', title: 'Ab' })
+
+    expect(await findByPath({ path: '/a\u0000b', payload })).toBeNull()
+    expect(await findByPath({ draft: true, path: '/a\u0000b', payload })).toBeNull()
+  })
+
   it('finds a document of a collection without drafts', async () => {
     const { payload } = test
     const closures = await create(payload, 'notices', { slug: 'closures', title: 'Closures' })

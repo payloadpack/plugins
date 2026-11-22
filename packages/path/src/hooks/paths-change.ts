@@ -2,12 +2,12 @@ import type { CollectionSlug, Payload, PayloadRequest, SanitizedCollectionConfig
 import { hasDraftsEnabled } from 'payload/shared'
 
 import type { DocumentAndLatestVersion } from '../database/versions.js'
-import type { Id, PathAndAncestors, Paths } from '../path/build-path-and-ancestors.js'
+import type { Id, PathAndAncestors } from '../path/build-path-and-ancestors.js'
 import type { BranchMove } from '../path/move-branch.js'
 import { getPathConfig, isLocalized } from '../plugin/options.js'
 import { getSaved, inLocale, NO_LOCALE } from '../utils/locales.js'
 import { getPublishedLocales, getShownLocales, hasStatusPerLocale } from '../utils/published-locales.js'
-import type { PathAndAncestorsBefore } from './context.js'
+import type { Lift, PathAndAncestorsBefore } from './context.js'
 
 /**
  * Where a site finds one document, before and now, in the locale the paths belong to. Without
@@ -61,16 +61,24 @@ export function getChangedPathsBelow({ collection, documents }: BranchMove, payl
 }
 
 // A lift of a document further up can move a document again after another lift moved it, and Payload
-// starts the hooks after the deletes all at once, so the site may hear the lifts in any order. So each
-// lifted document is named where the last lift of the same bulk delete put it.
-export function withLastLandings(changedPaths: ChangedPath[], landings: Map<string, Paths>): ChangedPath[] {
-  return changedPaths.flatMap((changed) => {
+// starts the hooks after the deletes all at once, so the site may hear the lifts in any order. So the
+// first report that names a lifted document names it from where it was before the first lift to where
+// the last lift of the same bulk delete put it, and takes those lifts, so no later report names them
+// again.
+export function takeLifts(changedPaths: ChangedPath[], lifts: Map<string, Lift>): ChangedPath[] {
+  const namedChangedPaths = changedPaths.flatMap((changed) => {
     // The deleted document's own paths have no to, and stay as they are: an earlier lift may have moved
     // that document too.
     if (changed.to === null) return [changed]
-    const to = landings.get(String(changed.id))?.[changed.locale ?? NO_LOCALE] ?? changed.to
-    return to === changed.from ? [] : [{ ...changed, to }]
+    const lift = lifts.get(String(changed.id))
+    // An earlier report named it.
+    if (!lift) return []
+    const locale = changed.locale ?? NO_LOCALE
+    const [from, to] = [lift.from[locale] ?? changed.from, lift.to[locale] ?? changed.to]
+    return to === from ? [] : [{ ...changed, from, to }]
   })
+  for (const { id, to } of changedPaths) if (to !== null) lifts.delete(String(id))
+  return namedChangedPaths
 }
 
 export function getChangedPaths(

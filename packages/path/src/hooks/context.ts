@@ -45,8 +45,12 @@ export type BulkOperation = {
   takenPaths: TakenPaths
   // The lifts of a bulk delete, one at a time: settles once the last one begun has ended.
   lifting: Promise<void>
-  landings: Map<string, Paths>
+  // The documents its lifts moved that no report has named yet, by id: where each was before the first
+  // of those lifts, and where the last one put it.
+  lifts: Map<string, Lift>
 }
+
+export type Lift = { from: Paths; to: Paths }
 
 // On the request object itself: Payload gives each document of a bulk update of an upload collection a
 // copy of the request that reads and writes every other property through to the request itself. Not in
@@ -58,8 +62,8 @@ const withBulkOperations = (req: PayloadRequest) => req as PayloadRequest & { [B
 export function startBulkOperation(req: PayloadRequest, collection: string, documentWrite: DocumentWrite) {
   const bulkOperations = (withBulkOperations(req)[BULK_OPERATIONS] ??= new Map())
   bulkOperations.set(collection, {
-    landings: new Map(),
     lifting: Promise.resolve(),
+    lifts: new Map(),
     documentWrite,
     savedOnTheirOwn: new Set(),
     takenPaths: new Map()
