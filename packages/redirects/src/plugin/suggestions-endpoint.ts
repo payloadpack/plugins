@@ -3,6 +3,7 @@ import type { CollectionSlug, Endpoint, PayloadRequest } from 'payload'
 import { FROM_FIELD_NAME } from '../fields/from.js'
 import { STATUS_FIELD_NAME, type Status } from '../fields/status.js'
 import { buildDocumentKey, TARGET_DOCUMENT_KEY_FIELD_NAME } from '../fields/target-document-key.js'
+import { TYPE_FIELD_NAME } from '../fields/type.js'
 import { suggestionNotice } from './messages.js'
 import { findTargetDocument, getRedirectsConfig } from './options.js'
 
@@ -28,9 +29,12 @@ async function findSuggestionNotices(req: PayloadRequest): Promise<SuggestionNot
     pagination: false,
     req,
     select: { [FROM_FIELD_NAME]: true },
-    // In Payload's own order, which no index gives, so SQLite searches the index of document targets
-    // even when its statistics count every redirect without one as one value. A sort on from would
-    // have it read every redirect in the order of from's index instead.
+    // By a field no index holds, in an order nobody needs, the notices being sorted by from below. With
+    // statistics that count every redirect without a document target as one value, SQLite reads every
+    // redirect in the order of an index it can sort by, from's, _order's, Payload's own, or that of
+    // createdAt, which Payload sorts by after a field whose value the where fixes, such as the status,
+    // rather than search the index of document targets and sort.
+    sort: TYPE_FIELD_NAME,
     where: {
       and: [
         { [TARGET_DOCUMENT_KEY_FIELD_NAME]: { equals: buildDocumentKey(collection, id) } },

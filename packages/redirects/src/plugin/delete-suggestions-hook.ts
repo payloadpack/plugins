@@ -2,6 +2,7 @@ import { APIError, type CollectionBeforeDeleteHook } from 'payload'
 
 import { STATUS_FIELD_NAME, type Status } from '../fields/status.js'
 import { buildDocumentKey, TARGET_DOCUMENT_KEY_FIELD_NAME } from '../fields/target-document-key.js'
+import { TYPE_FIELD_NAME } from '../fields/type.js'
 import { getRedirectsConfig } from './options.js'
 
 /**
@@ -23,6 +24,8 @@ export const deleteSuggestionsToDocument: CollectionBeforeDeleteHook = async ({ 
     pagination: false,
     req,
     select: {},
+    // By a field no index holds, as the notices ask, so SQLite with statistics searches the index.
+    sort: TYPE_FIELD_NAME,
     where: {
       and: [
         { [TARGET_DOCUMENT_KEY_FIELD_NAME]: { equals: buildDocumentKey(collection.slug, id) } },

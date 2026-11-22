@@ -357,14 +357,15 @@ describeSite("the cost of a document's suggestions on SQLite, also with statisti
       const SEARCH_TARGETS = ['SEARCH redirects USING INDEX redirects_target_document_key_idx (target_document_key=?)']
       const findTablePlan = async (query: Query) =>
         (await findSqlitePlan(site.payload, query)).filter((line) => /^(SCAN|SEARCH) /.test(line))
-      // None, one in a hundred and every second of 2,000 redirects to a page, the rest to a URL.
+      // None, one in a hundred and every second of 20,000 redirects to a page, the rest to a URL: below
+      // a few thousand, SQLite searches whatever the order asked for.
       for (const share of [0, 0.01, 0.5]) {
         await site.payload.db.deleteMany({ collection: 'redirects', where: { id: { exists: true } } })
         const now = new Date().toISOString()
         await storeInBatches(
           site.payload,
           'redirects',
-          generateNKeysBetween(null, null, 2_000).map((order, index) => {
+          generateNKeysBetween(null, null, 20_000).map((order, index) => {
             const page = share > 0 && index % Math.round(1 / share) === 0 ? pages[index % pages.length]! : undefined
             return {
               _order: order,
@@ -409,7 +410,8 @@ describeSite("the cost of a document's suggestions on SQLite, also with statisti
         await (site.payload.db as unknown as SQLiteAdapter).client.execute('ANALYZE')
         expect(await findPlans()).toEqual(searchesEverywhere)
       }
-    }
+    },
+    600_000
   )
 })
 
