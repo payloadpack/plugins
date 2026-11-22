@@ -3,7 +3,7 @@ title: findRedirect
 description: Reference for findRedirect(), FindRedirectArgs, FindRedirectResult, FoundRedirect, SearchParams, and runtime errors.
 ---
 
-Looks up the redirect that answers a path (and optional query string) through the `lookupPath` index. With `hasDocument` or `winOverDocuments`, it follows a chain to its end in one hop.
+Finds the redirect that answers a path, and its query string if you pass one. With `hasDocument` or `winOverDocuments`, it follows a chain to its end in one hop.
 
 ```ts
 import {
@@ -78,7 +78,7 @@ See [Refusals and errors](/redirects/refusals/).
 
 ## Example
 
-The [query-string proxy](/redirects/query-strings/), which calls the `findPage` from step 5 of [Installation](/redirects/installation/). See [Let redirects win over pages](/redirects/win-over-pages/) for the `winOverDocuments` proxy.
+This is the [query-string proxy](/redirects/query-strings/), which calls the `findPage` from step 5 of [Installation](/redirects/installation/). See [Let redirects win over pages](/redirects/win-over-pages/) for the `winOverDocuments` proxy.
 
 ```ts title="src/proxy.ts"
 import payloadConfig from '@payload-config'
