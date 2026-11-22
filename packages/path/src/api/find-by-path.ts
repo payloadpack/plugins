@@ -146,6 +146,9 @@ export async function findByPath<Slug extends PathCollectionSlug = PathCollectio
 }: FindByPathArguments<Slug, TSelect>) {
   const slugs = pickCollections(collections, getPathConfig(payload))
   if (getReservedPathRefusal(path, payload)) return null
+  // Postgres can't store a NUL and refuses one in a query, so a path that holds one, which a visitor
+  // asks for as %00, finds nothing on every database.
+  if (path.includes('\u0000')) return null
   const passedFindOptions = pickPassedFindOptions(otherArguments)
 
   const findInCollection = async (collection: CollectionSlug): Promise<FoundByPath<Slug, TSelect> | null> => {

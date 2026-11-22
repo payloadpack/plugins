@@ -77,7 +77,7 @@ Matches the stored path verbatim. Strip trailing slashes before calling, except 
 <details>
 <summary>More details</summary>
 
-- Runs 1 indexed query per searched collection in parallel (or sequentially inside a transaction), and 0 queries for a path with a [reserved slug](/path/configuration/#reserved-slugs).
+- Runs 1 indexed query per searched collection in parallel (or sequentially inside a transaction), and 0 queries for a path with a [reserved slug](/path/configuration/#reserved-slugs) or a NUL character (`%00`), which find nothing.
 - Never returns a document in the trash.
 - In a collection with [one path in every locale](/path/languages/#one-path-in-every-locale), a document is found at its path in each locale it is published in.
 - Passing a collection not given to `pathPlugin()` throws:
