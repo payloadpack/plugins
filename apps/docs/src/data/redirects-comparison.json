@@ -1,0 +1,554 @@
+{
+  "ranOn": {
+    "date": "2026-11-22",
+    "memoryGigabytes": 128,
+    "next": "16.4.6",
+    "node": "26.13.1",
+    "operatingSystem": "macOS 27.0.1",
+    "payload": "4.0.0-beta.11",
+    "processor": "Apple M3 Max",
+    "pluginRedirects": "4.0.0-beta.11"
+  },
+  "warmUpRuns": 500,
+  "timedRuns": 2000,
+  "fewestTimedRuns": 100,
+  "nextCacheLimit": 2097152,
+  "databases": [
+    {
+      "database": "mongodb",
+      "version": "8.2.6"
+    },
+    {
+      "database": "postgres",
+      "version": "18.6"
+    },
+    {
+      "database": "sqlite",
+      "version": "3.45.1"
+    }
+  ],
+  "cases": [
+    {
+      "database": "mongodb",
+      "redirects": 1000,
+      "pathARedirectCovers": {
+        "path": "/area-99/old-499/part-1",
+        "position": 500
+      },
+      "pathNoRedirectCovers": "/area-0/view-0",
+      "cachedList": {
+        "bytes": 192674,
+        "bytesPerRedirect": 193,
+        "nextCacheEntryLength": 218766,
+        "overNextCacheLimit": false
+      },
+      "ours": {
+        "pathARedirectCovers": {
+          "median": 0.22,
+          "p95": 0.31,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 0.17,
+          "p95": 0.24,
+          "runs": 2000,
+          "warmUpRuns": 500
+        }
+      },
+      "theirsListNotCached": {
+        "pathARedirectCovers": {
+          "median": 10.41,
+          "p95": 12.69,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 10.18,
+          "p95": 11.29,
+          "runs": 2000,
+          "warmUpRuns": 500
+        }
+      },
+      "theirsListCached": {
+        "pathARedirectCovers": {
+          "median": 0.31,
+          "p95": 0.35,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 0.31,
+          "p95": 0.35,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "happensInNext": true
+      }
+    },
+    {
+      "database": "mongodb",
+      "redirects": 10000,
+      "pathARedirectCovers": {
+        "path": "/area-99/old-4999/part-1",
+        "position": 5000
+      },
+      "pathNoRedirectCovers": "/area-0/view-0",
+      "cachedList": {
+        "bytes": 1946774,
+        "bytesPerRedirect": 195,
+        "nextCacheEntryLength": 2206866,
+        "overNextCacheLimit": true
+      },
+      "ours": {
+        "pathARedirectCovers": {
+          "median": 0.19,
+          "p95": 0.28,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 0.16,
+          "p95": 0.21,
+          "runs": 2000,
+          "warmUpRuns": 500
+        }
+      },
+      "theirsListNotCached": {
+        "pathARedirectCovers": {
+          "median": 111.33,
+          "p95": 127.98,
+          "runs": 537,
+          "warmUpRuns": 132
+        },
+        "pathNoRedirectCovers": {
+          "median": 111.56,
+          "p95": 127.88,
+          "runs": 538,
+          "warmUpRuns": 133
+        }
+      },
+      "theirsListCached": {
+        "pathARedirectCovers": {
+          "median": 3.17,
+          "p95": 3.66,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 3.2,
+          "p95": 3.69,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "happensInNext": false
+      }
+    },
+    {
+      "database": "mongodb",
+      "redirects": 100000,
+      "pathARedirectCovers": {
+        "path": "/area-99/old-49999/part-1",
+        "position": 50000
+      },
+      "pathNoRedirectCovers": "/area-0/view-0",
+      "cachedList": {
+        "bytes": 19667774,
+        "bytesPerRedirect": 197,
+        "nextCacheEntryLength": 22267866,
+        "overNextCacheLimit": true
+      },
+      "ours": {
+        "pathARedirectCovers": {
+          "median": 0.19,
+          "p95": 0.3,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 0.16,
+          "p95": 0.22,
+          "runs": 2000,
+          "warmUpRuns": 500
+        }
+      },
+      "theirsListNotCached": {
+        "pathARedirectCovers": {
+          "median": 1265.19,
+          "p95": 1378.93,
+          "runs": 100,
+          "warmUpRuns": 12
+        },
+        "pathNoRedirectCovers": {
+          "median": 1262.89,
+          "p95": 1356.04,
+          "runs": 100,
+          "warmUpRuns": 12
+        }
+      },
+      "theirsListCached": {
+        "pathARedirectCovers": {
+          "median": 33.12,
+          "p95": 33.97,
+          "runs": 1808,
+          "warmUpRuns": 452
+        },
+        "pathNoRedirectCovers": {
+          "median": 33.42,
+          "p95": 34.48,
+          "runs": 1793,
+          "warmUpRuns": 449
+        },
+        "happensInNext": false
+      }
+    },
+    {
+      "database": "postgres",
+      "redirects": 1000,
+      "pathARedirectCovers": {
+        "path": "/area-79/old-479/part-1/part-2",
+        "position": 500
+      },
+      "pathNoRedirectCovers": "/area-0/view-0",
+      "cachedList": {
+        "bytes": 169567,
+        "bytesPerRedirect": 170,
+        "nextCacheEntryLength": 193659,
+        "overNextCacheLimit": false
+      },
+      "ours": {
+        "pathARedirectCovers": {
+          "median": 0.35,
+          "p95": 0.47,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 0.33,
+          "p95": 0.45,
+          "runs": 2000,
+          "warmUpRuns": 500
+        }
+      },
+      "theirsListNotCached": {
+        "pathARedirectCovers": {
+          "median": 11.06,
+          "p95": 12.1,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 10.87,
+          "p95": 11.89,
+          "runs": 2000,
+          "warmUpRuns": 500
+        }
+      },
+      "theirsListCached": {
+        "pathARedirectCovers": {
+          "median": 0.31,
+          "p95": 0.34,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 0.31,
+          "p95": 0.34,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "happensInNext": true
+      }
+    },
+    {
+      "database": "postgres",
+      "redirects": 10000,
+      "pathARedirectCovers": {
+        "path": "/area-25/old-4825/part-1",
+        "position": 5000
+      },
+      "pathNoRedirectCovers": "/area-0/view-0",
+      "cachedList": {
+        "bytes": 1725668,
+        "bytesPerRedirect": 173,
+        "nextCacheEntryLength": 1965760,
+        "overNextCacheLimit": false
+      },
+      "ours": {
+        "pathARedirectCovers": {
+          "median": 0.36,
+          "p95": 0.45,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 0.33,
+          "p95": 0.44,
+          "runs": 2000,
+          "warmUpRuns": 500
+        }
+      },
+      "theirsListNotCached": {
+        "pathARedirectCovers": {
+          "median": 115.36,
+          "p95": 123.67,
+          "runs": 517,
+          "warmUpRuns": 130
+        },
+        "pathNoRedirectCovers": {
+          "median": 115.36,
+          "p95": 123.31,
+          "runs": 518,
+          "warmUpRuns": 125
+        }
+      },
+      "theirsListCached": {
+        "pathARedirectCovers": {
+          "median": 3.05,
+          "p95": 3.38,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 3.1,
+          "p95": 3.46,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "happensInNext": true
+      }
+    },
+    {
+      "database": "postgres",
+      "redirects": 100000,
+      "pathARedirectCovers": {
+        "path": "/area-83/old-50083/part-1",
+        "position": 50000
+      },
+      "pathNoRedirectCovers": "/area-0/view-0",
+      "cachedList": {
+        "bytes": 17556669,
+        "bytesPerRedirect": 176,
+        "nextCacheEntryLength": 19956761,
+        "overNextCacheLimit": true
+      },
+      "ours": {
+        "pathARedirectCovers": {
+          "median": 0.36,
+          "p95": 0.43,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 0.32,
+          "p95": 0.39,
+          "runs": 2000,
+          "warmUpRuns": 500
+        }
+      },
+      "theirsListNotCached": {
+        "pathARedirectCovers": {
+          "median": 1276.72,
+          "p95": 1349.29,
+          "runs": 100,
+          "warmUpRuns": 12
+        },
+        "pathNoRedirectCovers": {
+          "median": 1270.18,
+          "p95": 1340.51,
+          "runs": 100,
+          "warmUpRuns": 12
+        }
+      },
+      "theirsListCached": {
+        "pathARedirectCovers": {
+          "median": 32.43,
+          "p95": 33.23,
+          "runs": 1852,
+          "warmUpRuns": 462
+        },
+        "pathNoRedirectCovers": {
+          "median": 33.95,
+          "p95": 34.83,
+          "runs": 1771,
+          "warmUpRuns": 442
+        },
+        "happensInNext": false
+      }
+    },
+    {
+      "database": "sqlite",
+      "redirects": 1000,
+      "pathARedirectCovers": {
+        "path": "/area-99/old-499/part-1",
+        "position": 500
+      },
+      "pathNoRedirectCovers": "/area-0/view-0",
+      "cachedList": {
+        "bytes": 169567,
+        "bytesPerRedirect": 170,
+        "nextCacheEntryLength": 193659,
+        "overNextCacheLimit": false
+      },
+      "ours": {
+        "pathARedirectCovers": {
+          "median": 0.21,
+          "p95": 0.32,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 0.18,
+          "p95": 0.26,
+          "runs": 2000,
+          "warmUpRuns": 500
+        }
+      },
+      "theirsListNotCached": {
+        "pathARedirectCovers": {
+          "median": 12.81,
+          "p95": 13.83,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 12.96,
+          "p95": 14.77,
+          "runs": 2000,
+          "warmUpRuns": 500
+        }
+      },
+      "theirsListCached": {
+        "pathARedirectCovers": {
+          "median": 0.3,
+          "p95": 0.33,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 0.31,
+          "p95": 0.33,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "happensInNext": true
+      }
+    },
+    {
+      "database": "sqlite",
+      "redirects": 10000,
+      "pathARedirectCovers": {
+        "path": "/area-99/old-4999/part-1",
+        "position": 5000
+      },
+      "pathNoRedirectCovers": "/area-0/view-0",
+      "cachedList": {
+        "bytes": 1725668,
+        "bytesPerRedirect": 173,
+        "nextCacheEntryLength": 1965760,
+        "overNextCacheLimit": false
+      },
+      "ours": {
+        "pathARedirectCovers": {
+          "median": 0.2,
+          "p95": 0.22,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 0.18,
+          "p95": 0.22,
+          "runs": 2000,
+          "warmUpRuns": 500
+        }
+      },
+      "theirsListNotCached": {
+        "pathARedirectCovers": {
+          "median": 134.04,
+          "p95": 149.37,
+          "runs": 448,
+          "warmUpRuns": 112
+        },
+        "pathNoRedirectCovers": {
+          "median": 133.7,
+          "p95": 149.12,
+          "runs": 447,
+          "warmUpRuns": 111
+        }
+      },
+      "theirsListCached": {
+        "pathARedirectCovers": {
+          "median": 3.03,
+          "p95": 3.34,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 3.04,
+          "p95": 3.34,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "happensInNext": true
+      }
+    },
+    {
+      "database": "sqlite",
+      "redirects": 100000,
+      "pathARedirectCovers": {
+        "path": "/area-99/old-49999/part-1",
+        "position": 50000
+      },
+      "pathNoRedirectCovers": "/area-0/view-0",
+      "cachedList": {
+        "bytes": 17556669,
+        "bytesPerRedirect": 176,
+        "nextCacheEntryLength": 19956761,
+        "overNextCacheLimit": true
+      },
+      "ours": {
+        "pathARedirectCovers": {
+          "median": 0.2,
+          "p95": 0.26,
+          "runs": 2000,
+          "warmUpRuns": 500
+        },
+        "pathNoRedirectCovers": {
+          "median": 0.17,
+          "p95": 0.21,
+          "runs": 2000,
+          "warmUpRuns": 500
+        }
+      },
+      "theirsListNotCached": {
+        "pathARedirectCovers": {
+          "median": 1493.47,
+          "p95": 1569.15,
+          "runs": 100,
+          "warmUpRuns": 10
+        },
+        "pathNoRedirectCovers": {
+          "median": 1500.68,
+          "p95": 1550.28,
+          "runs": 100,
+          "warmUpRuns": 11
+        }
+      },
+      "theirsListCached": {
+        "pathARedirectCovers": {
+          "median": 32.73,
+          "p95": 34.22,
+          "runs": 1848,
+          "warmUpRuns": 459
+        },
+        "pathNoRedirectCovers": {
+          "median": 33.41,
+          "p95": 34.26,
+          "runs": 1800,
+          "warmUpRuns": 451
+        },
+        "happensInNext": false
+      }
+    }
+  ]
+}

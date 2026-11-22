@@ -1,0 +1,191 @@
+---
+title: Installation
+description: Install @payloadpack/redirects, configure redirectsPlugin, run a migration on Postgres or SQLite, and answer redirects in your Next.js page route.
+---
+
+import { Steps, TabItem, Tabs } from '@astrojs/starlight/components'
+
+**Prerequisites:** Payload 4.0.0-beta.11 or later with MongoDB, Postgres, or SQLite, and a Next.js App Router site. Peer dependencies are `payload`, `@payloadcms/ui`, and `react`, which a Payload app with the admin already has.
+
+<Steps>
+
+1. **Install the package.**
+
+   ```sh
+   bun add @payloadpack/redirects
+   ```
+
+   Or use `npm install`, `pnpm add`, or `yarn add`.
+
+2. **Add the plugin.** Name the collections a redirect can send visitors to and pass `buildDocumentPath` to build a document's path from the document. Pass `documentSelect` so a lookup reads only the fields `buildDocumentPath` uses.
+
+   <Tabs>
+
+   <TabItem label="Without @payloadpack/path">
+
+   ```ts title="payload.config.ts"
+   import { redirectsPlugin } from '@payloadpack/redirects'
+   import { buildConfig } from 'payload'
+
+   export default buildConfig({
+     plugins: [
+       redirectsPlugin({
+         collections: ['pages'],
+         buildDocumentPath: ({ document }) => `/${document.slug}`,
+         documentSelect: { slug: true }
+       })
+     ]
+   })
+   ```
+
+   </TabItem>
+
+   <TabItem label="With @payloadpack/path">
+
+   ```ts title="payload.config.ts"
+   import { pathPlugin } from '@payloadpack/path'
+   import { redirectsPlugin } from '@payloadpack/redirects'
+   import { buildConfig } from 'payload'
+
+   export default buildConfig({
+     plugins: [
+       pathPlugin({ collections: ['pages'] }),
+       redirectsPlugin({
+         collections: ['pages'],
+         buildDocumentPath: ({ document }) => document.path,
+         documentSelect: { path: true }
+       })
+     ]
+   })
+   ```
+
+   </TabItem>
+
+   </Tabs>
+
+   See [`buildDocumentPath`](/redirects/configuration/#builddocumentpath) for multiple collections or custom path shapes.
+
+3. **Create a migration** on Postgres and SQLite for the Redirects collection the plugin adds. In development with `push: true`, Payload adds the tables automatically.
+
+   ```sh
+   bunx payload migrate:create
+   ```
+
+4. **Allow visitors to read the collections a redirect can send visitors to.** A lookup reads a document target as a visitor, so a document visitors cannot read sends nobody. Payload 4 lets only users of the admin read a collection unless you set `access.read`.
+
+   For a collection with drafts, let visitors read what is published:
+
+   ```ts title="collections/pages.ts"
+   access: {
+     read: ({ req: { payload, user } }) => user?.collection === payload.config.admin.user || { _status: { equals: 'published' } }
+   }
+   ```
+
+   A collection without drafts has no `_status`, so give it `access: { read: () => true }`.
+
+5. **Answer redirects in your page route.** Ask `findRedirect` only when no page holds the path, so normal page views run zero redirect queries.
+
+   First write `findPage`, which gives the page at a path as a visitor reads it, or `null`. The page route below calls it, and so do the proxies in [Match query strings in a proxy](/redirects/query-strings/) and [Let redirects win over pages](/redirects/win-over-pages/), so it is the one part that differs from site to site.
+
+   <Tabs>
+
+   <TabItem label="Without @payloadpack/path">
+
+   This one finds a page by its slug, as the `buildDocumentPath` of step 2 builds its path. Change the `where` to match how your site builds a page's path.
+
+   ```ts title="src/find-page.ts"
+   import type { Payload } from 'payload'
+
+   // Your site's own way of finding the page at a path, as a visitor reads it: by its slug, the way
+   // buildDocumentPath builds its path.
+   export async function findPage({ path, payload }: { path: string; payload: Payload }) {
+     const { docs } = await payload.find({
+       collection: 'pages',
+       depth: 0,
+       limit: 1,
+       overrideAccess: false,
+       pagination: false,
+       where: { slug: { equals: path.slice(1) } }
+     })
+     return docs[0] ?? null
+   }
+   ```
+
+   </TabItem>
+
+   <TabItem label="With @payloadpack/path">
+
+   ```ts title="src/find-page.ts"
+   import { findByPath } from '@payloadpack/path'
+   import type { Payload } from 'payload'
+
+   // The page at a path, or null: the document @payloadpack/path finds published there.
+   export async function findPage({ path, payload }: { path: string; payload: Payload }) {
+     return (await findByPath({ path, payload }))?.document ?? null
+   }
+   ```
+
+   </TabItem>
+
+   </Tabs>
+
+   Then call it in your page route:
+
+   ```tsx title="src/app/(frontend)/[[...segments]]/page.tsx"
+   import config from '@payload-config'
+   import { findRedirect } from '@payloadpack/redirects'
+   import { notFound, permanentRedirect, redirect } from 'next/navigation'
+   import { getPayload } from 'payload'
+
+   import { findPage } from '../../../find-page'
+
+   type Props = { params: Promise<{ segments?: string[] }> }
+
+   export default async function SitePage({ params }: Props) {
+     const { segments = [] } = await params
+     const payload = await getPayload({ config })
+     // Next gives each segment encoded, so /öppettider comes as %C3%B6ppettider.
+     const path = `/${segments.map(decodeURIComponent).join('/')}`
+
+     const page = await findPage({ path, payload })
+     if (page) return <h1>{page.title}</h1>
+
+     // With hasDocument, a redirect that lands on a path no document holds is looked up again, so a
+     // visitor takes one hop through a chain.
+     const { foundRedirect } = await findRedirect({
+       hasDocument: async (nextPath) => (await findPage({ path: nextPath, payload })) !== null,
+       path,
+       payload
+     })
+     if (!foundRedirect) notFound()
+     if (foundRedirect.permanent) permanentRedirect(foundRedirect.destination)
+     redirect(foundRedirect.destination)
+   }
+   ```
+
+   The route calls `findPage` in two places, for two different paths:
+
+   - **The path the visitor asked for:** If a page is there, the route renders it without running a redirect lookup.
+   - **The path a redirect sends the visitor to:** `findRedirect` calls `hasDocument` to decide whether to stop there or follow the next redirect. It does not call `hasDocument` when that path is the target page's own path.
+
+   `hasDocument` is optional. Without it, `findRedirect` stops at the first redirect.
+
+   `permanentRedirect` answers 308 and `redirect` answers 307. See [`findRedirect`](/redirects/api/find-redirect/).
+
+   To keep every redirect in `proxy.ts` instead, at one database query on every page view, see [Answer every redirect in the proxy](/redirects/query-strings/#answer-every-redirect-in-the-proxy).
+
+6. **Generate the import map and types.** This registers the move notice component (`@payloadpack/redirects/client#SuggestionNotices`) in the admin and adds the `Redirect` collection to your Payload types.
+
+   ```sh
+   bunx payload generate:importmap
+   bunx payload generate:types
+   ```
+
+</Steps>
+
+## Next steps
+
+- [Suggest redirects on a move](/redirects/suggest-on-move/) — report moves so editors get a notice on each moved page.
+- [Match query strings in a proxy](/redirects/query-strings/) — match old URLs with query strings such as `/news.aspx?id=123`.
+- [Let redirects win over pages](/redirects/win-over-pages/) — let selected or all redirects answer even where a page holds the path.
+- [Configuration](/redirects/configuration/) — see every option `redirectsPlugin()` accepts.

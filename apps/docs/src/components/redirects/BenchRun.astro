@@ -1,0 +1,18 @@
+---
+import { DATABASE_LABELS, formatCount, report } from './speed'
+
+const { databases, ranOn, timedPairs, warmUpPairs } = report
+const software = [
+  `Node ${ranOn.node}`,
+  `Next.js ${ranOn.next}`,
+  `Payload ${ranOn.payload}`,
+  ...databases.map(({ database, version }) => `${DATABASE_LABELS[database]} ${version}`)
+]
+const listedSoftware = `${software.slice(0, -1).join(', ')} and ${software.at(-1)}`
+---
+
+<p>
+  Measured on {ranOn.date} with <code>next start</code> on {ranOn.processor} with {ranOn.memoryGigabytes} GB of memory, {
+    ranOn.operatingSystem
+  }, {listedSoftware}, over {formatCount(timedPairs)} page views of each build after {formatCount(warmUpPairs)} untimed ones.
+</p>

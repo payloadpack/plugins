@@ -1,0 +1,79 @@
+---
+import { comparison, formatTime, listDatabases } from './comparison'
+import { DATABASE_LABELS, formatCount } from './speed'
+
+type Timing = { median: number; p95: number }
+
+const formatTiming = ({ median, p95 }: Timing) => `${formatTime(median)} (${formatTime(p95)})`
+
+const { cases, databases, fewestTimedRuns, nextCacheLimit, ranOn, timedRuns } = comparison
+const rows = databases.flatMap(({ database }) =>
+  cases
+    .filter((result) => result.database === database)
+    .sort((first, second) => first.redirects - second.redirects)
+    .map((result) => ({
+      database: DATABASE_LABELS[database],
+      redirects: formatCount(result.redirects),
+      ours: formatTiming(result.ours.pathARedirectCovers),
+      theirsNotCached: formatTiming(result.theirsListNotCached.pathARedirectCovers),
+      // Over Next's limit, its data cache refuses the list, which the note below the table says.
+      theirsCached: `${formatTiming(result.theirsListCached.pathARedirectCovers)}${result.theirsListCached.happensInNext ? '' : ' *'}`
+    }))
+)
+const software = [
+  `Node ${ranOn.node}`,
+  `Payload ${ranOn.payload}`,
+  `@payloadcms/plugin-redirects ${ranOn.pluginRedirects}`,
+  ...databases.map(({ database, version }) => `${DATABASE_LABELS[database]} ${version}`)
+]
+// Next's limit as the bench read it, in megabytes, as Next's own warning counts them.
+const cacheLimit = `${nextCacheLimit / 1024 ** 2} MB`
+const measuredOn = [
+  `Measured on ${ranOn.date} on ${ranOn.processor} with ${ranOn.memoryGigabytes} GB of memory, ${ranOn.operatingSystem},`,
+  `${software.slice(0, -1).join(', ')} and ${software.at(-1)},`,
+  `with up to ${formatCount(timedRuns)} timed lookups of each case, and no fewer than ${formatCount(fewestTimedRuns)}, on ${listDatabases()}.`
+].join(' ')
+---
+
+<table>
+  <caption>Finding one redirect: median (p95)</caption>
+  <thead>
+    <tr>
+      <td></td>
+      <th scope="col">Redirects</th>
+      <th scope="col">@payloadpack/redirects</th>
+      <th scope="col">Payload's example website, list read from the database</th>
+      <th scope="col">Payload's example website, list cached</th>
+    </tr>
+  </thead>
+  <tbody>
+    {
+      rows.map(({ database, ours, redirects, theirsCached, theirsNotCached }) => (
+        <tr>
+          <th scope="row">{database}</th>
+          <td>{redirects}</td>
+          <td>{ours}</td>
+          <td>{theirsNotCached}</td>
+          <td>{theirsCached}</td>
+        </tr>
+      ))
+    }
+  </tbody>
+</table>
+
+<p>
+  * Its cache entry is over {cacheLimit}, which the data cache of Next.js {ranOn.next} refuses, so with it every lookup costs at least what the
+  column before it says. A custom cache handler can hold a larger list.
+</p>
+
+<p>{measuredOn}</p>
+
+<style>
+  caption {
+    caption-side: top;
+    text-align: start;
+    font-weight: 600;
+    color: var(--docs-foreground);
+    padding-block-end: 0.5rem;
+  }
+</style>

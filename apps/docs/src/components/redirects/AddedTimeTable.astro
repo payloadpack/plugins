@@ -1,0 +1,93 @@
+---
+import { DATABASE_LABELS, formatCount, report } from './speed'
+
+type ProxyBuild = 'query-string-proxy' | 'win-over-documents-proxy'
+
+interface Props {
+  proxyBuild: ProxyBuild
+}
+
+type Timing = { median: number; p95: number }
+
+type Column = { distance: 'relayed' | 'same-machine'; heading: string; queryString: boolean }
+
+const TABLES: Record<ProxyBuild, { caption: string; columns: Column[] }> = {
+  'query-string-proxy': {
+    caption: 'Added to each page view',
+    columns: [
+      { distance: 'same-machine', heading: 'Without a query string', queryString: false },
+      { distance: 'same-machine', heading: 'With one, database on the same machine', queryString: true },
+      { distance: 'relayed', heading: 'With one, database 5 ms away', queryString: true }
+    ]
+  },
+  'win-over-documents-proxy': {
+    caption: 'Added to every page view',
+    columns: [
+      { distance: 'same-machine', heading: 'Database on the same machine', queryString: false },
+      { distance: 'relayed', heading: 'Database 5 ms away', queryString: false }
+    ]
+  }
+}
+
+const { proxyBuild } = Astro.props
+const { caption, columns } = TABLES[proxyBuild]
+const { cases, databases } = report
+const mostRedirects = Math.max(...cases.map(({ redirects }) => redirects))
+
+// ms is joined by a space that never breaks, so a narrow screen breaks a cell only between the median
+// and its p95.
+const formatTime = (milliseconds: number) =>
+  `${milliseconds.toLocaleString('en', { maximumFractionDigits: Math.abs(milliseconds) < 10 ? 2 : 1 })} ms`
+const formatTiming = ({ median, p95 }: Timing) => `${formatTime(median)} (${formatTime(p95)})`
+
+// SQLite can't be 5 ms away, so it has no relayed case.
+function formatCell(database: string, { distance, heading, queryString }: Column) {
+  const columnCase = cases.find(
+    (result) =>
+      result.proxyBuild === proxyBuild &&
+      result.database === database &&
+      result.distance === distance &&
+      result.redirects === mostRedirects &&
+      result.regexesWithoutFixedStart === 0 &&
+      result.queryString === queryString
+  )
+  if (columnCase) return formatTiming(columnCase.added)
+  if (distance === 'relayed') return 'Same machine only'
+  throw new Error(`redirects-speed.json has no ${proxyBuild} case for ${DATABASE_LABELS[database]}, ${heading}`)
+}
+
+const rows = databases.map(({ database }) => ({
+  cells: columns.map((column) => formatCell(database, column)),
+  label: DATABASE_LABELS[database]
+}))
+---
+
+<table>
+  <caption>{caption} at {formatCount(mostRedirects)} redirects: median (p95)</caption>
+  <thead>
+    <tr>
+      <td></td>
+      {columns.map(({ heading }) => <th scope="col">{heading}</th>)}
+    </tr>
+  </thead>
+  <tbody>
+    {
+      rows.map(({ cells, label }) => (
+        <tr>
+          <th scope="row">{label}</th>
+          {cells.map((cell) => <td>{cell}</td>)}
+        </tr>
+      ))
+    }
+  </tbody>
+</table>
+
+<style>
+  caption {
+    caption-side: top;
+    text-align: start;
+    font-weight: 600;
+    color: var(--docs-foreground);
+    padding-block-end: 0.5rem;
+  }
+</style>

@@ -1,0 +1,69 @@
+---
+title: The Redirects collection
+description: Reference for REDIRECTS_SLUG, Redirects collection settings, fields and exported types, From cleaning, and access control.
+---
+
+`redirectsPlugin()` adds the **Redirects** collection to your Payload config. Use [`overrides`](/redirects/customize-collection/) to customize it while keeping its fields and visitor read access intact.
+
+```ts
+import { REDIRECTS_SLUG, type Match, type RedirectType, type Status, type TargetType } from '@payloadpack/redirects'
+```
+
+## Collection settings and `REDIRECTS_SLUG`
+
+| Setting                | Value                                                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Default slug           | `'redirects'`, exported as `REDIRECTS_SLUG` (changeable via [`overrides`](/redirects/customize-collection/)) |
+| `orderable`            | `true` — editors drag rows in the list to set the order regexes are tried in                                 |
+| `versions`             | `false` — no version history is stored                                                                       |
+| `admin.useAsTitle`     | `'from'`                                                                                                     |
+| `admin.defaultColumns` | `['from', 'match', 'type', 'status']`                                                                        |
+
+## Fields and exported types
+
+| Field              | Payload field type                                      | Exported type  | Default       | Admin label and behavior                                                                                                                     |
+| ------------------ | ------------------------------------------------------- | -------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `from`             | `text` (required, unique)                               | `string`       | None          | Path visitors ask for (such as `/old-page` or `/news.aspx?id=123`) or a regex (such as `/news/(.*)`). Cleaned on save.                       |
+| `match`            | `select` (required, not clearable)                      | `Match`        | `'exact'`     | Offers **Exact path** (`'exact'`) and **Regex** (`'regex'`). **Path and subpaths** (`'below'`) shows only on a redirect that already has it. |
+| `to.type`          | `radio` (required, inside `to` group)                   | `TargetType`   | `'document'`  | Labeled **Send visitors to**: **A document on this site** (`'document'`) or **A URL** (`'url'`).                                             |
+| `to.document`      | `relationship` (required when `to.type === 'document'`) | Relationship   | None          | Picks a document from the collections listed in `collections` of `redirectsPlugin()`.                                                        |
+| `to.url`           | `text` (required when `to.type === 'url'`)              | `string`       | None          | Labeled **URL**. Path starting with `/` or whole `http(s)://` URL, trimmed on save. Supports `$1`–`$9` regex groups.                         |
+| `type`             | `radio` (required, sidebar)                             | `RedirectType` | `'permanent'` | **Permanent (308)** (`'permanent'`) or **Temporary (307)** (`'temporary'`).                                                                  |
+| `status`           | `select` (required, not clearable, sidebar)             | `Status`       | `'on'`        | Offers **On** (`'on'`) and **Off** (`'off'`). **Suggested** (`'suggested'`) shows only on a redirect that already has it.                    |
+| `winsOverDocument` | `checkbox` (sidebar, conditional)                       | `boolean`      | `false`       | Labeled **Wins over a page**. Added only when `winOverDocuments` is `'perRedirect'`. Unchecked by default and on suggestions turned **On**.  |
+
+```ts
+type Match = 'below' | 'exact' | 'regex'
+type TargetType = 'document' | 'url'
+type RedirectType = 'permanent' | 'temporary'
+type Status = 'off' | 'on' | 'suggested'
+```
+
+## Fields the plugin sets itself
+
+Each redirect also holds `lookupPath` and `targetDocumentKey`, hidden fields the plugin sets on every save. Keep them if you change the collection with [`overrides`](/redirects/customize-collection/), or lookups and suggestions break. Each collection in `collections` gets `redirectSuggestions` as its first field, which stores nothing and shows the [move notices](/redirects/moves/).
+
+## How From is cleaned
+
+For **Exact path** and **Path and subpaths**, `from` is cleaned on save before validation:
+
+- **Pasted URLs:** A full URL such as `https://example.com/Old-Page/` is saved as its path and query string.
+- **Slashes:** A missing leading slash is added, doubled leading slashes and trailing slashes are removed (keeping `/` for the home page), and backslashes and encoded slashes (`%2f`) are read as slashes.
+- **Decoding and case:** Valid percent-escapes are decoded (so `/q%26a` saves as `/q&a`), and the path and query string are lowercased.
+- **Kept encoded:** Characters a URL reads as something else (`%`, `?`, `#`, `\`, control characters) and trailing whitespace stay percent-encoded in a path (such as `/faq%3Fold` or `/old-page%20`).
+- **Query strings, on Exact path only:** Parameters are decoded, lowercased, stripped of tracking parameters, and sorted by name then value. A query string with only tracking parameters is dropped.
+- **Length limit:** Stored `from` values hold at most 2,048 bytes in UTF-8.
+
+For **Regex**, `from` is trimmed of leading and trailing whitespace and stored as written, preserving case. A regex containing `\?`, or `?` followed by a parameter name and `=`, is refused as a query string. See [Refusals and errors](/redirects/refusals/).
+
+## Access control
+
+| Who                                                          | Read                          | Create, update, delete | `createdBy` / `updatedBy` |
+| ------------------------------------------------------------ | ----------------------------- | ---------------------- | ------------------------- |
+| Anyone (visitors)                                            | Redirects with `status: 'on'` | No                     | No                        |
+| Non-admin signed-in user (such as a customer)                | Redirects with `status: 'on'` | No                     | No                        |
+| Admin user (`user.collection === payload.config.admin.user`) | Every redirect                | Yes                    | Yes                       |
+
+- Anyone can list **On** redirects through the REST API at `/api/redirects`, just as anyone can follow them.
+- [`findRedirect`](/redirects/api/find-redirect/) reads as a visitor (`overrideAccess: false`). If you change `access.read` via [`overrides`](/redirects/customize-collection/), keep `status: 'on'` redirects readable to visitors or lookups will find none.
+- Only admin users read **Suggested** redirects, so only editors see notices on moved documents.

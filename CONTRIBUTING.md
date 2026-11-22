@@ -4,15 +4,18 @@ This repository holds the open-source `@payloadpack` packages for Payload. Each 
 
 ## Repository
 
-| Path                | What                                                                                                                |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `packages/theme`    | `@payloadpack/theme`, the admin theme                                                                               |
-| `apps/theme-demo`   | A Payload 4 app that runs the theme, with its e2e, visual and screenshot tests                                      |
-| `packages/path`     | `@payloadpack/path`, stored URL paths for pages and posts, with its tests and benchmark                             |
-| `apps/path-demo`    | A Payload 4 app that runs path, with its e2e tests                                                                  |
-| `apps/docs`         | The docs site for every package at [docs.payloadpack.com](https://docs.payloadpack.com), built with Astro Starlight |
-| `.claude`           | Conventions, naming and design notes                                                                                |
-| `.github/workflows` | CI, releases, the docs deploy, screenshots and visual baselines                                                     |
+| Path                   | What                                                                                                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/theme`       | `@payloadpack/theme`, the admin theme                                                                                                                            |
+| `apps/theme-demo`      | A Payload 4 app that runs the theme, with its e2e, visual and screenshot tests                                                                                   |
+| `packages/path`        | `@payloadpack/path`, stored URL paths for pages and posts, with its tests and benchmark                                                                          |
+| `apps/path-demo`       | A Payload 4 app that runs path, with its e2e tests                                                                                                               |
+| `packages/redirects`   | `@payloadpack/redirects`, redirects editors manage, with its tests                                                                                               |
+| `apps/redirects-demo`  | A Payload 4 app that runs redirects beside path, with its e2e tests                                                                                              |
+| `apps/redirects-bench` | A Next.js and Payload 4 app that measures what checking for a redirect in a proxy adds to a page view, and compares a lookup with Payload's own redirects plugin |
+| `apps/docs`            | The docs site for every package at [docs.payloadpack.com](https://docs.payloadpack.com), built with Astro Starlight                                              |
+| `.claude`              | Conventions, naming and design notes                                                                                                                             |
+| `.github/workflows`    | CI, releases, the docs deploy, screenshots and visual baselines                                                                                                  |
 
 Every package and app reads the same config from the root:
 
@@ -38,15 +41,17 @@ Each dev command builds the packages its app imports, then starts the app:
 | `bun run dev:theme`          | The theme demo on http://localhost:3020/admin. It seeds itself on first start                                                    |
 | `bun run dev:path`           | The path demo on http://localhost:3030/admin, on a fresh MongoDB replica set in memory that it seeds on each start, so no `.env` |
 | `bun run dev:path:localized` | The path demo with English and Swedish                                                                                           |
+| `bun run dev:redirects`      | The redirects demo on http://localhost:3040/admin, on a fresh MongoDB replica set in memory that it seeds on each start          |
 | `bun run dev:docs`           | The docs site on http://localhost:4321                                                                                           |
 
-Log in to either demo with `demo@payloadpack.com` / `demo`.
+Log in to any demo with `demo@payloadpack.com` / `demo`.
 
 A demo imports its package's built `dist`, so rebuild the package after a change while the demo runs:
 
 ```sh
 bun run build --filter=@payloadpack/theme
 bun run build --filter=@payloadpack/path
+bun run build --filter=@payloadpack/redirects
 ```
 
 ## Commands
@@ -104,6 +109,31 @@ It seeds 100,000 pages and posts on each database, without and with localization
 
 Only that full run writes. Any other run prints its tables and says why it wrote nothing: `BENCH_DOCUMENTS=4000` gives a quick run to check the script itself, `BENCH_COMPARISON=off` leaves the comparison out when you only want to know whether path got slower, and `PATH_TEST_DATABASES` picks the databases, as it does for the tests.
 
+## Test redirects
+
+| Command                                        | What it checks                                                                                                                                                                                 |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run test --filter=@payloadpack/redirects` | The collection, the lookup, chains, the redirects a move suggests and their notices, on MongoDB, Postgres and SQLite, the queries each costs, and that a lookup reads only indexes             |
+| `cd apps/redirects-demo && bun run test:e2e`   | The answers a visitor gets beside path, 308, 307 and 404, from the page route and the proxy, and the notice a moved page shows, with its yes and no, on one fresh production build of the demo |
+
+The package tests start their own databases, as path's do, and run SQLite both with and without transactions. To run them on one database, or a few, set `REDIRECTS_TEST_DATABASES` to a comma list of `mongodb`, `postgres` and `sqlite`, such as `REDIRECTS_TEST_DATABASES=sqlite bun run test`; only those servers start. The e2e suite serves the demo on port 3042, so it runs beside a dev server on 3040.
+
+## Benchmark redirects
+
+```sh
+cd apps/redirects-bench && bun run bench
+```
+
+It builds the app three times, with each proxy the installation docs give, for query strings and for redirects that win over pages, and without one, and starts MongoDB, Postgres and SQLite itself, with MongoDB and Postgres also behind a relay that adds 5 ms to each round trip. At 1,000, 10,000 and 100,000 redirects and as many regexes, and with 20 regexes without a fixed start as well, it sends 2,000 page views with a query string to the build with the proxy for query strings and to the one without, in turn, after 500 untimed ones. At 100,000 it also sends as many without a query string, to that build and, with the database at both distances, to the build for redirects that win over pages. It prints what each proxy adds and the round trips one check makes, takes about 10 minutes, and writes its numbers to `apps/docs/src/data/redirects-speed.json`, which the speed page reads, and to the tables in redirects' README.
+
+Only that full run writes. `BENCH_DATABASES=sqlite` and `BENCH_COUNTS=1000` narrow a run to check the bench itself, which prints its tables and writes nothing.
+
+```sh
+cd apps/redirects-bench && bun run bench:compare
+```
+
+It times finding one redirect with `findRedirect` against the way Payload's example website finds one with Payload's own `@payloadcms/plugin-redirects`, on MongoDB, Postgres and SQLite at 1,000, 10,000 and 100,000 redirects: every redirect read and compared to the path, with the list read from the database and from a cache, which Next.js's own data cache holds only while its entry is under its 2 MB limit, each database on the same machine. It takes about 40 minutes and writes its numbers to `apps/docs/src/data/redirects-comparison.json`, which the introduction and the speed page read, and to the comparison table in redirects' README. The same narrowing applies, and a narrowed run writes nothing.
+
 ## Theme images
 
 | Command                                        | What it makes                                                                            |
@@ -123,6 +153,7 @@ On a pull request, CI builds, tests and type-checks the packages and apps the ch
 | `theme-e2e`      | The theme demo's e2e suite, in four shards                                                                                                                      |
 | `theme-visual`   | The theme demo's visual suite, in six shards                                                                                                                    |
 | `path-e2e`       | The path demo's e2e suite, without and with localization, and a check that its generated types and import map are current                                       |
+| `redirects-e2e`  | The redirects demo's e2e suite, and a check that its generated types and import map are current                                                                 |
 | `validate`       | Fails when any job above failed. It is the check a pull request needs to merge                                                                                  |
 
 A demo's suites run only when a change can alter what the demo runs: a file in the demo or in a package it builds from, a `package.json` change beyond metadata such as `version` or `homepage`, a lockfile change to their dependencies, or `tsconfig.base.json`. Docs, Markdown, unit tests, a package's `bench` folder and licenses never count, and a screenshot-only change runs the visual suite alone. `scripts/demo-tests.sh` makes that call for one demo and prints it under the demo's name, such as `theme_demo_e2e` and `theme_demo_visual`. The Screenshots and React Doctor workflows start only for changes under `packages/theme` or `apps/theme-demo`, and then make the same call.

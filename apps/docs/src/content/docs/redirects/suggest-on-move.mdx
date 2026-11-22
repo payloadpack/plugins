@@ -1,0 +1,91 @@
+---
+title: Suggest redirects on a move
+description: Call suggestRedirects from your own collection hook or from @payloadpack/path's onPathsChanged so moves suggest redirects from old paths.
+---
+
+## When to use this
+
+You want a moved page's old URL to redirect to its new one, with editors choosing to accept or decline each suggestion.
+
+**Prerequisites:** Complete [Installation](/redirects/installation/) and list each collection you want move suggestions for in `collections` of [`redirectsPlugin()`](/redirects/configuration/).
+
+No move suggests a redirect unless your site calls [`suggestRedirects`](/redirects/api/suggest-redirects/). When you report where documents were and where they are now, the plugin saves a suggestion with status **Suggested** that an editor answers right on the moved page.
+
+## With your own hook
+
+Add an `afterChange` hook to your collection and pass each moved document's old and new path to `suggestRedirects`. This example covers a collection without drafts, where every saved document has a public path before and after an update.
+
+```ts title="collections/pages.ts"
+import type { CollectionAfterChangeHook, CollectionConfig } from 'payload'
+import { suggestRedirects } from '@payloadpack/redirects'
+
+// Your site's own way of building a page's path.
+const buildPath = (page: { slug: string }) => `/${page.slug}`
+
+const suggestRedirectOnMove: CollectionAfterChangeHook = async ({ doc, operation, previousDoc, req }) => {
+  if (operation !== 'update') return doc
+  await suggestRedirects({
+    changedPaths: [{ collection: 'pages', id: doc.id, from: buildPath(previousDoc), to: buildPath(doc) }],
+    payload: req.payload,
+    req
+  })
+  return doc
+}
+
+export const Pages: CollectionConfig = {
+  slug: 'pages',
+  hooks: { afterChange: [suggestRedirectOnMove] },
+  fields: [{ name: 'slug', type: 'text', required: true }]
+}
+```
+
+- **`from` and `to`:** `from` is the path visitors could reach before the save, and `to` is the path after it. Pass `null` where visitors could not reach the document.
+- **Unchanged paths:** A save that keeps the same path suggests nothing, so the hook can report every update.
+- **Pages below a moved page:** Pages below a moved page need no report of their own because the suggestion covers the old path and every path below it. If a redirect an editor added already holds the old path, no suggestion is written there, and each page right below that you report gets its own.
+- **Pass `req`:** Passing `req` writes the suggestion in the save's transaction. See [Transactions](#transactions).
+- **Read access:** The `Pages` collection above sets no `access.read`, so Payload 4 lets only admin users read it. A redirect to one of its pages sends nobody until you give the collection read access, such as `access: { read: () => true }` for a collection without drafts.
+
+## With `@payloadpack/path`
+
+[`onPathsChanged`](/path/api/on-paths-changed/) in `@payloadpack/path` reports `changedPaths` in the same shape for whole branches, publishes, deletes, and locales. Import `suggestRedirects` from `@payloadpack/redirects` and call it inside `onPathsChanged` alongside your cache purge:
+
+```ts title="payload.config.ts"
+pathPlugin({
+  collections: ['pages', 'posts'],
+  onPathsChanged: async (args) => {
+    // Suggests a redirect from each old path, in the save's transaction.
+    await suggestRedirects(args)
+    // What your site already does on a move, such as purging its cache.
+    for (const { from, to } of args.changedPaths) {
+      if (from) revalidatePath(from)
+      if (to) revalidatePath(to)
+    }
+  }
+})
+```
+
+If your site does nothing else when paths change, pass `suggestRedirects` directly:
+
+```ts title="payload.config.ts"
+pathPlugin({
+  collections: ['pages', 'posts'],
+  onPathsChanged: suggestRedirects
+})
+```
+
+To suggest redirects only for selected collections, filter `changedPaths` before calling `suggestRedirects`:
+
+```ts
+await suggestRedirects({ ...args, changedPaths: args.changedPaths.filter(({ collection }) => collection === 'pages') })
+```
+
+See [How move suggestions work](/redirects/moves/) for how notices, collisions, deletes, and move-backs behave.
+
+## Transactions
+
+| Database setup                          | If a save that moves a page fails                                                                     |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| With transactions                       | Everything rolls back, and no suggestion is written                                                   |
+| Without transactions (SQLite's default) | Suggestions written before the failure stay as **Suggested** and answer nobody until someone says yes |
+
+Works with and without transactions on MongoDB, Postgres, and SQLite.

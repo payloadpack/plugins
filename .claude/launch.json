@@ -20,6 +20,12 @@
       "port": 3030
     },
     {
+      "name": "redirects-demo",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "dev:redirects"],
+      "port": 3040
+    },
+    {
       "name": "docs",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["run", "dev:docs"],

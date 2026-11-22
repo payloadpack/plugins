@@ -1,5 +1,6 @@
 import gitBranchIcon from 'lucide-static/icons/git-branch.svg?raw'
 import paletteIcon from 'lucide-static/icons/palette.svg?raw'
+import signpostIcon from 'lucide-static/icons/signpost.svg?raw'
 
 export interface PackageMeta {
   description: string
@@ -17,5 +18,10 @@ export const packageMetaByLabel: Record<string, PackageMeta> = {
     id: 'path',
     description: 'Stored URL paths & 1-query lookups',
     iconSvg: gitBranchIcon
+  },
+  redirects: {
+    id: 'redirects',
+    description: 'Editor-managed redirects & indexed lookups',
+    iconSvg: signpostIcon
   }
 }

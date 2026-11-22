@@ -1,0 +1,97 @@
+---
+title: Speed
+description: What checking for redirects adds to a page view on MongoDB, Postgres, and SQLite at 100,000 redirects.
+---
+
+import AddedTimeTable from '../../../components/redirects/AddedTimeTable.astro'
+import BenchRun from '../../../components/redirects/BenchRun.astro'
+import ComparisonTimeTable from '../../../components/redirects/ComparisonTimeTable.astro'
+
+Without a proxy, your page route asks for a redirect only when no page holds the path, so normal page views pay nothing. When you add the [query-string proxy](/redirects/query-strings/), it runs before every page and adds the time below:
+
+<AddedTimeTable proxyBuild="query-string-proxy" />
+
+<BenchRun />
+
+- **Without a query string:** the proxy passes the page view straight to your page route with no database query.
+- **With a query string:** even a tracking parameter such as `utm_source` runs one indexed database query, so database round-trip time drives the added latency.
+- **Constant cost with scale:** a lookup searches the `lookupPath` index for only the redirects and regexes that can cover the path, so 100,000 redirects cost the same as 1,000.
+- **Document targets:** when a winning redirect sends visitors to a document, reading that document's path adds one database query.
+
+## With redirects that win over pages
+
+With [`winOverDocuments`](/redirects/win-over-pages/), the proxy checks the database on every page view, with or without a query string:
+
+<AddedTimeTable proxyBuild="win-over-documents-proxy" />
+
+Every page view runs the same single indexed query shown above, so database distance is the main cost. The table shows `winOverDocuments: 'always'`. With `'perRedirect'`, a page view no redirect covers makes the same single query, because `findRedirect` calls `hasDocument` only when a redirect covers the path.
+
+## Compared with Payload's redirects plugin
+
+Payload's own redirects plugin only stores the list. Its docs say it "does not handle the redirect itself" and point to Payload's example website, its Website Template, which ships the code that does. That code reads every redirect, compares them in turn until one matches, and keeps the list in Next.js's data cache, which refuses an entry over 2 MB. Next.js escapes the list once more in that entry, so a list a little under 2 MB or longer is read from the database again on every lookup.
+
+Next.js still caches each rendered page, so the lookup runs whenever a page or post renders, pages that exist included: at build, on a path's first visit, each time Next.js renders it again, such as after any redirect is saved, and on every request in draft mode.
+
+The plugin indexes `from`, so a lookup you write yourself can find an exact path in one query, though only in its exact spelling, without regexes, and with a query string only exactly as stored. The times below are for the example website's lookup.
+
+<ComparisonTimeTable />
+
+Each side runs this for one lookup, timed in the same Node.js process on the same machine, without a page request around it. Payload's side is its example website's [`getRedirects`](https://github.com/payloadcms/payload/blob/v4.0.0-beta.11/templates/website/src/utilities/getRedirects.ts) and the match in its [`PayloadRedirects`](https://github.com/payloadcms/payload/blob/v4.0.0-beta.11/templates/website/src/components/PayloadRedirects/index.tsx):
+
+```ts title="Payload's example website"
+const { docs } = await payload.find({
+  collection: 'redirects',
+  depth: 1,
+  limit: 0,
+  overrideAccess: true,
+  pagination: false
+})
+const redirect = docs.find((redirect) => redirect.from === path)
+```
+
+```ts title="@payloadpack/redirects"
+const { foundRedirect } = await findRedirect({ path, payload })
+```
+
+While Next.js holds the list, a lookup costs `JSON.parse` of the whole list, which Next.js runs on every read of its cache, and the same `docs.find`. That's the last column, without Next.js's own read of its cache, and the least a lookup costs once a custom cache handler holds a list over 2 MB, before the handler's own read.
+
+- **The same redirects on both sides:** each database holds the same redirects in both plugins' collections, every one from an exact path to a URL. Payload's collection has a slug of its own, so both live in one Payload app. Payload's find then has no pages to load, the case that costs Payload least. They also have no authors, which a redirect an editor saves carries and Payload's find at depth 1 loads. It's the cheapest case for `findRedirect` too: a redirect to a page costs it one more query, and the collection holds no regex, which a lookup also reads when its fixed start is above the path.
+- **The redirect found:** one from the middle of the list, so Payload's way looks through half of it. Both sides must find the same redirect, and none for a path no redirect covers, before any timing starts.
+- **Next.js's own work:** with a list over 2 MB, Next.js turns the whole list into a string twice on each lookup before it refuses to cache it, and logs a warning. None of that is timed, so the example website's lookup costs at least what the table shows.
+- **Access:** the example website reads without access control. `findRedirect` reads as the visitor, which costs a little more.
+- **Same machine:** each database runs on the same machine as the app, so neither side waits on a network. With the database elsewhere, ours and the example website's uncached read each wait at least one round trip more, and the uncached read pulls the whole list across it, while a list Next.js holds needs no query. At 1,000 redirects that makes the cached lookup faster than ours. See [above](#with-redirects-that-win-over-pages) for ours with the database 5 ms away.
+- **Chains:** `findRedirect` runs without `hasDocument`, so it follows no chain, as the example website follows none. The [Installation](/redirects/installation/) route passes `hasDocument`, which adds one of your page queries for a destination on your site, and one more lookup where no page is there. Neither is timed here.
+- **Warm-up:** each case runs untimed first, then timed as many times as the line under the table says. A slow case gets as many as fit in about a minute, but never fewer than the smallest number that line gives, so the slowest cases ran for over two minutes.
+
+### Run the comparison yourself
+
+The benchmark lives in this package's public repository. With Bun and a Node.js version Payload supports:
+
+```sh
+git clone https://github.com/payloadpack/plugins.git
+cd plugins
+bun install
+bun run build --filter=@payloadpack/redirects
+cd apps/redirects-bench
+bun run bench:compare
+```
+
+It starts MongoDB, Postgres and SQLite itself, downloading MongoDB on its first run, takes about 40 minutes, and writes the numbers on this page, on the [Introduction](/redirects/) and in the package README. Its code is in [`compare.ts`](https://github.com/payloadpack/plugins/blob/main/apps/redirects-bench/bench/compare.ts) and [`official-redirects.ts`](https://github.com/payloadpack/plugins/blob/main/apps/redirects-bench/bench/official-redirects.ts). To check the script in a few minutes first, `BENCH_DATABASES=sqlite BENCH_COUNTS=1000 bun run bench:compare` runs one database at 1,000 redirects and writes nothing.
+
+## How the proxy times are measured
+
+- **Three builds:** `apps/redirects-bench` builds the same Next.js app three times — with the query-string proxy, with the `winOverDocuments` proxy, and without a proxy. All three run on `next start`.
+- **Static pages:** the viewed pages are built ahead of time and never read the database, so the proxy is the only difference between builds.
+- **Seeded data:** each database holds 100,000 redirects from paths right beside the viewed pages and 100,000 regexes, none of which covers a viewed page.
+- **Randomized comparison:** every page view goes to a proxy build and to the no-proxy build in random order. The tables show how much later the proxy build answered, at the median and at the p95.
+- **Database latency:** to place MongoDB and Postgres 5 ms away, a relay delays every packet by 2.5 ms each way. SQLite is a file on the server itself, so it is measured on the same machine only.
+- **Hosting:** these numbers are for a self-hosted Node.js server. On Vercel, the proxy runs as a separate function call before the cache on every request, which is not measured here.
+
+## Run the proxy benchmark yourself
+
+```sh
+cd apps/redirects-bench
+bun run bench
+```
+
+This command builds the app, starts MongoDB, Postgres, and SQLite automatically, and seeds 1,000, 10,000, and 100,000 redirects (plus as many regexes) into each database. Only a full run across all three databases updates the numbers on this page and the tables in the package README.

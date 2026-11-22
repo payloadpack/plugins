@@ -1,0 +1,93 @@
+---
+title: How move suggestions work
+description: What moves and deletes suggest, how editor notices work on moved pages, and how collisions, move-backs, and swaps behave.
+---
+
+When your site reports changed paths to [`suggestRedirects`](/redirects/api/suggest-redirects/), every published path that changes gets a suggestion. Your site can call it from its own hook or from [`onPathsChanged`](/path/api/on-paths-changed/) in `@payloadpack/path`.
+
+A suggestion is saved with status **Suggested** and answers nobody until an editor says yes. Without calling `suggestRedirects`, moves suggest nothing. See [Suggest redirects on a move](/redirects/suggest-on-move/).
+
+## What a move suggests
+
+Each move below suggests one redirect to the moved page or post. The delete suggests one to each page it lifts.
+
+| Editor action                                         | The suggested redirect is from                                 |
+| ----------------------------------------------------- | -------------------------------------------------------------- |
+| Rename `/about-us` to `/company`, with pages below it | `/about-us` (**Path and subpaths**)                            |
+| Move `/team` below `/company`                         | `/team` (**Path and subpaths**)                                |
+| Change a post's slug at `/blog/spring-menu`           | `/blog/spring-menu` (**Path and subpaths**)                    |
+| Give the home page at `/` another slug                | `/` (**Exact path**)                                           |
+| Delete `/workshops`, lifting `/workshops/pottery`     | The old path of each lifted page, such as `/workshops/pottery` |
+
+- **Permanent document targets:** Every suggestion is permanent (308) and points to the document. Once an editor says yes, it follows the document through every later move without creating chains.
+- **One suggestion per moved branch:** A branch of any size gets one suggestion from the document at its top, covering every page below. Moving a page with 1,000 pages below writes as much as moving one with 3.
+- **Lifted and split pages:** A page lifted by a delete gets a suggestion of its own. A page moved somewhere other than below its moved parent gets one too.
+- **Unpublished before moving:** A page that is unpublished, moved, and published again gets no suggestion. It gave up its old path when it was unpublished.
+- **`Path and subpaths` match:** Suggestions use **Path and subpaths**, except from `/`, which uses **Exact path** since every path is below `/`. Only suggestions have **Path and subpaths**. Editors creating a redirect manually pick **Exact path** or **Regex**.
+
+## Reviewing suggestions on the moved page
+
+Right after a save that moves a document, the admin displays a notice above its fields for each suggestion targeting that document:
+
+> This page moved from /about-us to /company. Should visitors who ask for /about-us be sent here?
+
+- **Yes, redirect them** sets the redirect's status to **On**, so `/about-us` and its subpaths send visitors to the document.
+- **Edit** opens the suggestion in the Redirects collection so the editor can change it before setting status to **On**.
+- **No** deletes the suggestion, and `/about-us` answers 404 as before.
+
+### How the notice is built
+
+The plugin prepends a `redirectSuggestions` UI field to every collection listed in `collections`. This field stores no data.
+
+The notice names the document by its collection's singular label in lowercase (such as `news item`) when that label is a plain string. Otherwise it falls back to `page`.
+
+The notice reads the document as the signed-in editor (drafts included, in the editor's locale) and calls `buildDocumentPath`. When `buildDocumentPath` builds no path for it, the notice leaves out "to /company".
+
+### How answers are saved
+
+**Yes, redirect them** and **No** act through the Redirects collection's REST API as the signed-in editor. Your collection access control decides who can answer.
+
+Both actions only change a redirect whose status is still **Suggested**. Answering a notice someone else already answered changes nothing.
+
+## Unanswered suggestions and deletes
+
+Moves through the Local API, bulk edits, or deletes that lift child pages move documents nobody has open. Their suggestions wait in the **Redirects** list with status **Suggested**. They also appear as notices the next time someone opens the moved document.
+
+An editor can answer in either place: pick **On** in the list, or delete the redirect. Until then, the old path answers 404.
+
+### When a document is deleted
+
+- **Permanent delete:** An `afterDelete` hook deletes all **Suggested** redirects targeting the deleted document.
+- **Trash and failed deletes:** A document in the trash, or a document whose delete fails, keeps its suggestions until it is permanently deleted.
+- **Editor redirects:** Redirects with status **On** or **Off** targeting a deleted document stay in the collection and send nobody.
+- **Refused cleanup:** If a site hook refuses to delete a suggestion during a document delete, that suggestion stays without failing the document's delete.
+
+## When a redirect already holds the old path
+
+Because `from` is unique, a move never overwrites a redirect an editor created.
+
+- **Existing `On` or `Off` redirect:** The existing redirect stays as it is. No suggestion is written from that old path. Instead, each document right below that moved with it (and was passed in `changedPaths`) gets a suggestion of its own from its old path and subpaths.
+- **Earlier `Suggested` redirect:** An earlier suggestion at that old path gives way to the newer move's suggestion.
+
+## Moving back and swapping paths
+
+### What happens at the new path
+
+When a document moves to or is published at a path:
+
+- Any **Suggested** redirect at that new path is deleted, because a document holds that path now.
+- Any redirect at that new path targeting that same document is deleted regardless of status (**On**, **Off**, or **Suggested**), so the document never redirects to itself.
+- Editor redirects (**On** or **Off**) at that new path targeting anything else stay untouched.
+
+### Move-backs, swaps, and circles
+
+- **Moving back:** A page that moves back to its old path removes its own redirect there. It gets a suggestion from the path it just left.
+- **Swapping paths in one change:** When two pages swap paths in one change, neither gets a suggestion because both old paths are now held by documents. Pages right below each get their own suggestions.
+- **Circles from accepted redirects:** Redirects an editor turned **On** can form a circle, such as renaming a parent, creating a new page at its old path, and moving a child below it. When that happens, [`findRedirect`](/redirects/api/find-redirect/) with `hasDocument` answers `null`, and your site answers 404.
+
+## What a move writes
+
+- **Configured collections only:** Only collections listed in `collections` of [`redirectsPlugin()`](/redirects/configuration/) get suggestions. A document in another collection suggests nothing. When it arrives at a path, it still deletes any suggestion waiting at that path.
+- **In the save's transaction:** Suggestions are written through the save's `req` with `overrideAccess: true`. With transactions, a failed save rolls them back. Your hooks on the Redirects collection run. See [Transactions](/redirects/suggest-on-move/#transactions).
+- **Cleaned From:** Each suggestion's `from` is stored lowercased and normalized like any path **From**. An old path over 2,048 bytes in UTF-8 gets no suggestion and does not fail the move.
+- **Localization:** A move in a locale suggests a redirect from that locale's old path. A collection with one shared path across all locales gets one suggestion even when reported once per locale. See [Use with localization](/redirects/localization/).
