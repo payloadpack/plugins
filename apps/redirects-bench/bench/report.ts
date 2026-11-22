@@ -47,7 +47,7 @@ export type Run = {
 
 export const FULL_RUN_COUNTS = [1_000, 10_000, 100_000]
 
-const DATABASE_LABELS: Record<Database, string> = { mongodb: 'MongoDB', postgres: 'Postgres', sqlite: 'SQLite' }
+export const DATABASE_LABELS: Record<Database, string> = { mongodb: 'MongoDB', postgres: 'Postgres', sqlite: 'SQLite' }
 
 const DISTANCE_LABELS: Record<Distance, string> = {
   relayed: 'Database 5 ms away',
@@ -67,22 +67,56 @@ const REPORT_FILES = {
 // Over this many times the added time at the fewest redirects, the most redirects are flagged.
 const GROWTH_FLAGGED = 1.5
 
-const isFullRun = ({ counts, databases }: Run) =>
+export const isFullRun = ({ counts, databases }: Pick<Run, 'counts' | 'databases'>) =>
   counts.join() === FULL_RUN_COUNTS.join() && databases.join() === DATABASES.join()
+
+// BENCH_DATABASES=sqlite and BENCH_COUNTS=1000 narrow a run, to check the bench itself.
+function readList<T>(name: string, all: T[], parse: (value: string) => T, valid: (value: T) => boolean) {
+  const list = process.env[name] ?? ''
+  if (list === '') return all
+  const values = list.split(',').map(parse)
+  if (values.some((value) => !valid(value))) {
+    throw new Error(`${name} is ${list}, so give some of ${all.join(',')}, or leave it out for all of them.`)
+  }
+  return values
+}
+
+/** The redirect counts, fewest first, and the databases a run times, all of them unless narrowed. */
+export const readNarrowing = (): Pick<Run, 'counts' | 'databases'> => ({
+  counts: readList('BENCH_COUNTS', FULL_RUN_COUNTS, Number, (count) => Number.isInteger(count) && count >= 1_000).sort(
+    (first, second) => first - second
+  ),
+  databases: readList<Database>(
+    'BENCH_DATABASES',
+    [...DATABASES],
+    (value) => value as Database,
+    (value) => DATABASES.includes(value)
+  )
+})
+
+const getMedian = (sortedDurations: number[]) => sortedDurations[Math.floor(sortedDurations.length / 2)]!
+
+export function summarize(durations: number[]): Timing {
+  const sortedDurations = [...durations].sort((first, second) => first - second)
+  return { median: getMedian(sortedDurations), p95: sortedDurations[Math.floor(sortedDurations.length * 0.95)]! }
+}
 
 export const getMostRedirects = ({ counts }: Run) => Math.max(...counts)
 
 export const roundToHundredths = (value: number) => Math.round(value * 100) / 100
 
+// A second or more reads in seconds, as 1.3 s, the way the docs show it.
 const formatTime = (milliseconds: number) =>
-  `${milliseconds.toLocaleString('en', { maximumFractionDigits: Math.abs(milliseconds) < 10 ? 2 : 1 })} ms`
+  Math.abs(milliseconds) >= 1_000
+    ? `${(milliseconds / 1_000).toLocaleString('en', { maximumFractionDigits: 1 })} s`
+    : `${milliseconds.toLocaleString('en', { maximumFractionDigits: Math.abs(milliseconds) < 10 ? 2 : 1 })} ms`
 
-const formatTiming = ({ median, p95 }: Timing) => `${formatTime(median)} (${formatTime(p95)})`
+export const formatTiming = ({ median, p95 }: Timing) => `${formatTime(median)} (${formatTime(p95)})`
 
-const formatCount = (count: number) => count.toLocaleString('en')
+export const formatCount = (count: number) => count.toLocaleString('en')
 
 // A Markdown table with its columns padded to one width, as Prettier formats the README's.
-function buildMarkdownTable(header: string[], rows: string[][]) {
+export function buildMarkdownTable(header: string[], rows: string[][]) {
   const widths = header.map((title, column) => Math.max(3, title.length, ...rows.map((row) => row[column]!.length)))
   const line = (cells: string[]) => `| ${cells.map((cell, column) => cell.padEnd(widths[column]!)).join(' | ')} |`
   return [line(header), line(widths.map((width) => '-'.repeat(width))), ...rows.map(line)].join('\n')
@@ -249,7 +283,7 @@ async function readOperatingSystem() {
 }
 
 // The version installed for the app, read off the package's own package.json, which Payload doesn't export.
-async function readVersion(packageName: string) {
+export async function readVersion(packageName: string) {
   const file = fileURLToPath(new URL(`../node_modules/${packageName}/package.json`, import.meta.url))
   return (JSON.parse(await readFile(file, 'utf8')) as { version: string }).version
 }
@@ -266,7 +300,7 @@ export const readMachine = async () => ({
   processor: cpus()[0]?.model ?? 'an unknown processor'
 })
 
-function getTablePlace(readme: string, table: keyof typeof README_TABLES) {
+function getTablePlace(readme: string, table: string) {
   const [start, end] = [`<!-- ${table}:start -->`, `<!-- ${table}:end -->`]
   const [startAt, endAt] = [readme.indexOf(start), readme.indexOf(end)]
   if (startAt === -1 || endAt < startAt) {
@@ -281,6 +315,18 @@ export async function checkReadme(run: Run) {
   if (!isFullRun(run)) return
   const readme = await readFile(REPORT_FILES.readme, 'utf8')
   for (const table of README_TABLE_NAMES) getTablePlace(readme, table)
+}
+
+/** Throws when the README has no markers for the table, so a run that would write it fails at once. */
+export async function checkReadmeTable(table: string) {
+  getTablePlace(await readFile(REPORT_FILES.readme, 'utf8'), table)
+}
+
+/** Puts a table of another run, such as the comparison's, between its markers in the README. */
+export async function writeReadmeTable(table: string, content: string) {
+  const readme = await readFile(REPORT_FILES.readme, 'utf8')
+  const { after, before } = getTablePlace(readme, table)
+  await writeFile(REPORT_FILES.readme, `${before}\n\n${content}\n\n${after}`)
 }
 
 const roundTiming = ({ median, p95 }: Timing) => ({ median: roundToHundredths(median), p95: roundToHundredths(p95) })

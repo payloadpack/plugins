@@ -1,6 +1,10 @@
+import type { MongooseAdapter } from '@payloadcms/db-mongodb'
+import type { PostgresAdapter } from '@payloadcms/db-postgres'
+import type { SQLiteAdapter } from '@payloadcms/db-sqlite'
 import EmbeddedPostgres from 'embedded-postgres'
 import { MongoMemoryReplSet } from 'mongodb-memory-server'
 import path from 'node:path'
+import type { Payload } from 'payload'
 
 import type { Database } from '../src/build-config.ts'
 import { findFreePort } from './ports.ts'
@@ -51,4 +55,35 @@ export async function startDatabase(database: Database, directory: string): Prom
   if (database === 'mongodb') return startMongodb()
   if (database === 'postgres') return startPostgres(directory)
   return { stop: async () => undefined, url: `file:${path.join(directory, 'bench.db')}` }
+}
+
+export async function readDatabaseVersion(database: Database, payload: Payload) {
+  if (database === 'mongodb') {
+    return String((await (payload.db as unknown as MongooseAdapter).connection.db!.admin().buildInfo()).version)
+  }
+  if (database === 'postgres') {
+    const { rows } = await (payload.db as unknown as PostgresAdapter).pool.query<{ server_version: string }>(
+      'show server_version'
+    )
+    return rows[0]!.server_version
+  }
+  const { rows } = await (payload.db as unknown as SQLiteAdapter).client.execute('select sqlite_version() as version')
+  return String(rows[0]!.version)
+}
+
+/**
+ * Waits for the indexes MongoDB builds after Payload connects, and checks the ones a lookup reads
+ * are there, by collection.
+ */
+export async function waitForMongodbIndexes(payload: Payload, readIndexes: Record<string, string[]>) {
+  const adapter = payload.db as unknown as MongooseAdapter
+  await Promise.all([...Object.values(adapter.collections), ...Object.values(adapter.versions)].map((model) => model.init()))
+  for (const [collection, names] of Object.entries(readIndexes)) {
+    const indexes = (await adapter.collections[collection]!.collection.indexes()).map(({ name }) => name)
+    for (const index of names) {
+      if (!indexes.includes(index)) {
+        throw new Error(`MongoDB has no ${index} index on ${collection}, only ${indexes.join(', ')}`)
+      }
+    }
+  }
 }

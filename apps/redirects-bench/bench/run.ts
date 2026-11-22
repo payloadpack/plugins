@@ -7,24 +7,24 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { getPayload, type Payload } from 'payload'
 
-import { buildBenchConfig, DATABASES, type Database } from '../src/build-config.ts'
+import { buildBenchConfig, type Database } from '../src/build-config.ts'
 import { VIEWED_PATHS } from '../src/viewed-paths.ts'
-import { startDatabase } from './databases.ts'
+import { readDatabaseVersion, startDatabase, waitForMongodbIndexes } from './databases.ts'
 import { DELAY_EACH_WAY, startRelay, type Relay } from './relay.ts'
 import {
   buildGrowthWarnings,
   checkReadme,
-  FULL_RUN_COUNTS,
   getMostRedirects,
   printAll,
   readMachine,
+  readNarrowing,
   roundToHundredths,
+  summarize,
   writeReport,
   type CaseResult,
   type DatabaseResult,
   type Distance,
-  type Run,
-  type Timing
+  type Run
 } from './report.ts'
 import { addRegexesWithoutFixedStart, createSeeder, REGEXES_WITHOUT_FIXED_START } from './seed.ts'
 import { BUILDS, buildApp, startServer, type ProxyBuild, type Server } from './servers.ts'
@@ -37,37 +37,11 @@ const ROUND_TRIP_QUERIES = { timed: 200, warmUp: 20 }
 // A page view from a campaign link carries a query string, which the proxy for query strings checks.
 const QUERY = '?utm_source=newsletter&utm_medium=email'
 
-// BENCH_DATABASES=sqlite and BENCH_COUNTS=1000 narrow a run, to check the bench itself.
-function readList<T>(name: string, all: T[], parse: (value: string) => T, valid: (value: T) => boolean) {
-  const list = process.env[name] ?? ''
-  if (list === '') return all
-  const values = list.split(',').map(parse)
-  if (values.some((value) => !valid(value))) {
-    throw new Error(`${name} is ${list}, so give some of ${all.join(',')}, or leave it out for all of them.`)
-  }
-  return values
-}
-
 const RUN: Run = {
-  counts: readList('BENCH_COUNTS', FULL_RUN_COUNTS, Number, (count) => Number.isInteger(count) && count >= 1_000).sort(
-    (first, second) => first - second
-  ),
-  databases: readList<Database>(
-    'BENCH_DATABASES',
-    [...DATABASES],
-    (value) => value as Database,
-    (value) => DATABASES.includes(value)
-  ),
+  ...readNarrowing(),
   relayDelayEachWay: DELAY_EACH_WAY,
   timedPairs: TIMED_PAIRS,
   warmUpPairs: WARM_UP_PAIRS
-}
-
-const getMedian = (sortedDurations: number[]) => sortedDurations[Math.floor(sortedDurations.length / 2)]!
-
-function summarize(durations: number[]): Timing {
-  const sortedDurations = [...durations].sort((first, second) => first - second)
-  return { median: getMedian(sortedDurations), p95: sortedDurations[Math.floor(sortedDurations.length * 0.95)]! }
 }
 
 async function view(server: Server, url: string) {
@@ -173,20 +147,6 @@ async function ping(database: Database, payload: Payload) {
   return (payload.db as unknown as SQLiteAdapter).client.execute('select 1')
 }
 
-async function readDatabaseVersion(database: Database, payload: Payload) {
-  if (database === 'mongodb') {
-    return String((await (payload.db as unknown as MongooseAdapter).connection.db!.admin().buildInfo()).version)
-  }
-  if (database === 'postgres') {
-    const { rows } = await (payload.db as unknown as PostgresAdapter).pool.query<{ server_version: string }>(
-      'show server_version'
-    )
-    return rows[0]!.server_version
-  }
-  const { rows } = await (payload.db as unknown as SQLiteAdapter).client.execute('select sqlite_version() as version')
-  return String(rows[0]!.version)
-}
-
 async function measureRoundTrip(database: Database, payload: Payload) {
   for (let query = 0; query < ROUND_TRIP_QUERIES.warmUp; query++) await ping(database, payload)
   const durations: number[] = []
@@ -196,16 +156,6 @@ async function measureRoundTrip(database: Database, payload: Payload) {
     durations.push(performance.now() - startedAt)
   }
   return summarize(durations).median
-}
-
-// A lookup reads the lookupPath index, which MongoDB builds after Payload connects.
-async function waitForMongodbIndexes(payload: Payload) {
-  const adapter = payload.db as unknown as MongooseAdapter
-  await Promise.all([...Object.values(adapter.collections), ...Object.values(adapter.versions)].map((model) => model.init()))
-  const indexes = (await adapter.collections.redirects!.collection.indexes()).map(({ name }) => name)
-  for (const index of ['lookupPath_1']) {
-    if (!indexes.includes(index)) throw new Error(`MongoDB has no ${index} index on the redirects, only ${indexes.join(', ')}`)
-  }
 }
 
 let payloadInstances = 0
@@ -232,7 +182,7 @@ async function benchDatabase(database: Database, directory: string, cases: CaseR
     // The bench's own instance, outside production, creates the schema the servers then read.
     const payload = await startPayload(database, startedDatabase.url, true)
     stops.push(holdStop(() => payload.destroy()))
-    if (database === 'mongodb') await waitForMongodbIndexes(payload)
+    if (database === 'mongodb') await waitForMongodbIndexes(payload, { redirects: ['lookupPath_1'] })
     const result: DatabaseResult = { database, version: await readDatabaseVersion(database, payload) }
 
     const distances: { distance: Distance; relay?: Relay; url: string }[] = [

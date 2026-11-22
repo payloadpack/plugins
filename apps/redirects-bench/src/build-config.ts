@@ -2,7 +2,7 @@ import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { sqliteAdapter } from '@payloadcms/db-sqlite'
 import { redirectsPlugin, type WinOverDocuments } from '@payloadpack/redirects'
-import { buildConfig, type Access, type DatabaseAdapterObj } from 'payload'
+import { buildConfig, type Access, type DatabaseAdapterObj, type Plugin } from 'payload'
 
 export const DATABASES = ['mongodb', 'postgres', 'sqlite'] as const
 
@@ -13,6 +13,8 @@ type BuildConfigArgs = {
   // MongoDB indexes with ensureIndexes. The servers find them there.
   createSchema?: boolean
   database: Database
+  // Plugins after this package's, such as Payload's own redirects plugin, which only the comparison adds.
+  plugins?: Plugin[]
   url: string
   winOverDocuments?: WinOverDocuments
 }
@@ -49,7 +51,8 @@ export const buildBenchConfig = (args: BuildConfigArgs) =>
         collections: ['pages'],
         documentSelect: { path: true },
         winOverDocuments: args.winOverDocuments
-      })
+      }),
+      ...(args.plugins ?? [])
     ],
     secret: 'redirects-bench',
     telemetry: false

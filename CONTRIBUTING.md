@@ -4,18 +4,18 @@ This repository holds the open-source `@payloadpack` packages for Payload. Each 
 
 ## Repository
 
-| Path                   | What                                                                                                                |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `packages/theme`       | `@payloadpack/theme`, the admin theme                                                                               |
-| `apps/theme-demo`      | A Payload 4 app that runs the theme, with its e2e, visual and screenshot tests                                      |
-| `packages/path`        | `@payloadpack/path`, stored URL paths for pages and posts, with its tests and benchmark                             |
-| `apps/path-demo`       | A Payload 4 app that runs path, with its e2e tests                                                                  |
-| `packages/redirects`   | `@payloadpack/redirects`, redirects editors manage, with its tests                                                  |
-| `apps/redirects-demo`  | A Payload 4 app that runs redirects beside path, with its e2e tests                                                 |
-| `apps/redirects-bench` | A Next.js and Payload 4 app that measures what checking for a redirect in a proxy adds to a page view               |
-| `apps/docs`            | The docs site for every package at [docs.payloadpack.com](https://docs.payloadpack.com), built with Astro Starlight |
-| `.claude`              | Conventions, naming and design notes                                                                                |
-| `.github/workflows`    | CI, releases, the docs deploy, screenshots and visual baselines                                                     |
+| Path                   | What                                                                                                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/theme`       | `@payloadpack/theme`, the admin theme                                                                                                                            |
+| `apps/theme-demo`      | A Payload 4 app that runs the theme, with its e2e, visual and screenshot tests                                                                                   |
+| `packages/path`        | `@payloadpack/path`, stored URL paths for pages and posts, with its tests and benchmark                                                                          |
+| `apps/path-demo`       | A Payload 4 app that runs path, with its e2e tests                                                                                                               |
+| `packages/redirects`   | `@payloadpack/redirects`, redirects editors manage, with its tests                                                                                               |
+| `apps/redirects-demo`  | A Payload 4 app that runs redirects beside path, with its e2e tests                                                                                              |
+| `apps/redirects-bench` | A Next.js and Payload 4 app that measures what checking for a redirect in a proxy adds to a page view, and compares a lookup with Payload's own redirects plugin |
+| `apps/docs`            | The docs site for every package at [docs.payloadpack.com](https://docs.payloadpack.com), built with Astro Starlight                                              |
+| `.claude`              | Conventions, naming and design notes                                                                                                                             |
+| `.github/workflows`    | CI, releases, the docs deploy, screenshots and visual baselines                                                                                                  |
 
 Every package and app reads the same config from the root:
 
@@ -127,6 +127,12 @@ cd apps/redirects-bench && bun run bench
 It builds the app three times, with each proxy the installation docs give, for query strings and for redirects that win over pages, and without one, and starts MongoDB, Postgres and SQLite itself, with MongoDB and Postgres also behind a relay that adds 5 ms to each round trip. At 1,000, 10,000 and 100,000 redirects and as many regexes, and with 20 regexes without a fixed start as well, it sends 2,000 page views with a query string to the build with the proxy for query strings and to the one without, in turn, after 500 untimed ones. At 100,000 it also sends as many without a query string, to that build and, with the database at both distances, to the build for redirects that win over pages. It prints what each proxy adds and the round trips one check makes, takes about 10 minutes, and writes its numbers to `apps/docs/src/data/redirects-speed.json`, which the speed page reads, and to the tables in redirects' README.
 
 Only that full run writes. `BENCH_DATABASES=sqlite` and `BENCH_COUNTS=1000` narrow a run to check the bench itself, which prints its tables and writes nothing.
+
+```sh
+cd apps/redirects-bench && bun run bench:compare
+```
+
+It times finding one redirect with `findRedirect` against the way Payload's example website finds one with Payload's own `@payloadcms/plugin-redirects`, on MongoDB, Postgres and SQLite at 1,000, 10,000 and 100,000 redirects: every redirect read and compared to the path, with the list read from the database and from a cache, which Next.js's own data cache holds only while its entry is under its 2 MB limit, each database on the same machine. It takes about 40 minutes and writes its numbers to `apps/docs/src/data/redirects-comparison.json`, which the introduction and the speed page read, and to the comparison table in redirects' README. The same narrowing applies, and a narrowed run writes nothing.
 
 ## Theme images
 

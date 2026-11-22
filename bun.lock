@@ -56,6 +56,7 @@
         "react-dom": "19.3.1",
       },
       "devDependencies": {
+        "@payloadcms/plugin-redirects": "4.0.0-beta.11",
         "@types/node": "^24.0.0",
         "@types/react": "19.3.0",
         "@types/react-dom": "19.3.0",
@@ -861,6 +862,8 @@
     "@payloadcms/next": ["@payloadcms/next@4.0.0-beta.11", "", { "dependencies": { "@dnd-kit/core": "6.3.1", "@dnd-kit/modifiers": "9.0.0", "@dnd-kit/sortable": "10.0.0", "@payloadcms/graphql": "4.0.0-beta.11", "@payloadcms/translations": "4.0.0-beta.11", "@payloadcms/ui": "4.0.0-beta.11", "busboy": "^1.6.0", "dequal": "2.0.3", "file-type": "22.0.1", "graphql-http": "1.22.4", "graphql-playground-html": "1.6.30", "path-to-regexp": "6.3.0", "qs-esm": "8.0.1", "sass": "1.77.4", "uuid": "14.0.0" }, "peerDependencies": { "graphql": "^16.8.1", "next": ">=16.4.5 <17.0.0", "payload": "4.0.0-beta.11" } }, "sha512-DQXIdv6lEcbYsEqkeJFpZTXeK+rGpcEDADNBYIjCh/iLHJesc6l6bkS6qlYpsRpO9nwQ00MtZpJNoO0/7QFF+Q=="],
 
     "@payloadcms/plugin-nested-docs": ["@payloadcms/plugin-nested-docs@4.0.0-beta.11", "", { "peerDependencies": { "payload": "4.0.0-beta.11" } }, "sha512-8oPPmDtsz4e2pJ2LkrqjHZfA3P+H0oXb9oPbi2nET4qGSOmZMBvxHNLfJ7J3KlAFZ+utwQAzlaa03RHvnMMgEA=="],
+
+    "@payloadcms/plugin-redirects": ["@payloadcms/plugin-redirects@4.0.0-beta.11", "", { "dependencies": { "@payloadcms/translations": "4.0.0-beta.11", "payload": "4.0.0-beta.11" } }, "sha512-iyEowVSuU8KR5MuS75ZA1C2AAqPw4mgIh/9foclgYDVrVpmhIR4wAZMvlq+obVzFLanFMNq9UxK57ZUBQCtjtg=="],
 
     "@payloadcms/richtext-lexical": ["@payloadcms/richtext-lexical@4.0.0-beta.11", "", { "dependencies": { "@lexical/clipboard": "0.53.0", "@lexical/headless": "0.53.0", "@lexical/html": "0.53.0", "@lexical/link": "0.53.0", "@lexical/list": "0.53.0", "@lexical/mark": "0.53.0", "@lexical/markdown": "0.53.0", "@lexical/react": "0.53.0", "@lexical/rich-text": "0.53.0", "@lexical/selection": "0.53.0", "@lexical/table": "0.53.0", "@lexical/utils": "0.53.0", "@payloadcms/translations": "4.0.0-beta.11", "@payloadcms/ui": "4.0.0-beta.11", "acorn": "8.16.0", "bson-objectid": "2.0.4", "csstype": "3.2.3", "dequal": "2.0.3", "escape-html": "1.0.3", "jsox": "1.2.125", "lexical": "0.53.0", "mdast-util-from-markdown": "2.0.3", "mdast-util-mdx-jsx": "3.2.0", "micromark-extension-mdx-jsx": "3.0.2", "qs-esm": "8.0.1", "react-error-boundary": "6.1.1", "ts-essentials": "10.0.3", "uuid": "14.0.0" }, "peerDependencies": { "@faceless-ui/modal": "3.0.2", "@faceless-ui/scroll-info": "2.0.0", "payload": "4.0.0-beta.11", "react": "^19.3.1", "react-dom": "^19.3.1" } }, "sha512-YsVNSU876Oa2tmoz7gKTojuBsvqYpuUlS3R9NhMXxlWLyH53h6carsENt0qLzaYHc8pS3Nysjx8dOPfHYvhMeg=="],
 

@@ -3,6 +3,7 @@ import type { Payload, TypeWithID } from 'payload'
 import { generateNKeysBetween } from 'payload/shared'
 
 import { AREAS } from '../src/viewed-paths.ts'
+import { OFFICIAL_REDIRECTS_SLUG } from './official-redirects.ts'
 
 // The pages the seeded redirects send visitors to, each at /page-<number>.
 const PAGES = 1_000
@@ -23,14 +24,18 @@ type StoredRedirect = TypeWithID & { _order: string; lookupPath: null | string; 
 
 const buildPagePath = (page: number) => `/page-${page}`
 
+// The old path of redirect number <index>: from 2 to 4 segments, in one of the site's sections.
+function buildOldPath(index: number) {
+  const parts = Array.from({ length: index % 3 }, (_, part) => `/part-${part + 1}`).join('')
+  return `/area-${index % AREAS}/old-${index}${parts}`
+}
+
 // Redirect number <index>, as moves and editors write them: from 2 to 4 segments, one in ten below
 // the one before it, as a move of a page below a page that moved before writes, so from 2 to 5 in
 // all. Most are what a move writes: from a path and every path below it, to a page.
 function buildSeededRedirect(index: number, previous: SeededRedirect | undefined): SeededRedirect {
   const isNested = index % 10 === 9 && previous !== undefined
-  const depth = 2 + (index % 3)
-  const parts = Array.from({ length: depth - 2 }, (_, part) => `/part-${part + 1}`).join('')
-  const from = isNested ? `${previous.from}/moved-${index}` : `/area-${index % AREAS}/old-${index}${parts}`
+  const from = isNested ? `${previous.from}/moved-${index}` : buildOldPath(index)
   const match = index % 10 === 5 ? 'exact' : 'below'
   return index % 5 === 4 ? { from, match, url: `/new-section-${index}` } : { from, match, page: (index * 7_919) % PAGES }
 }
@@ -204,5 +209,102 @@ export async function createSeeder(payload: Payload) {
 export async function addRegexesWithoutFixedStart(payload: Payload) {
   for (const [index, from] of REGEXES_WITHOUT_FIXED_START.entries()) {
     await saveRegex(payload, { fixedStart: '/', from, url: `/moved-${index}` })
+  }
+}
+
+// The field names a stored document holds, and those of each object in it, such as a target's.
+const listStoredFields = (document: Record<string, unknown>): string[] =>
+  Object.entries(document)
+    .filter(([name]) => name !== 'id')
+    .flatMap(([name, value]) =>
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? [name, ...listStoredFields(value as Record<string, unknown>).map((field) => `${name}.${field}`)]
+        : [name]
+    )
+    .sort()
+
+// A row written straight to the database must store the fields a save through Payload stores.
+async function proveSameFields(payload: Payload, collection: string, savedFrom: string, writtenFrom: string) {
+  const [saved, written] = await Promise.all(
+    [savedFrom, writtenFrom].map((from) =>
+      payload.db.findOne<Record<string, unknown> & TypeWithID>({ collection, where: { from: { equals: from } } })
+    )
+  )
+  const [savedFields, writtenFields] = [saved, written].map((document) => listStoredFields(document ?? {}).join(', '))
+  if (savedFields !== writtenFields) {
+    throw new Error(`${collection} stores ${savedFields} through Payload, but the seed wrote ${writtenFields}`)
+  }
+}
+
+/**
+ * The same redirects in this package's collection and in the collection of Payload's own plugin, each
+ * from an exact path to a URL. A URL target leaves the website template's find at depth 1 nothing to
+ * populate, which is the case most favourable to Payload's plugin. The first of each is saved through
+ * Payload, and the rest go in by payload.db.create, as the speed bench seeds, in the shape Payload
+ * writes them.
+ */
+export function createComparisonSeeder(payload: Payload) {
+  let seeded = 0
+  let lastOrder: string | undefined
+  return {
+    growTo: async (count: number) => {
+      const redirects = Array.from({ length: count - seeded }, (_, offset) => ({
+        from: buildOldPath(seeded + offset),
+        url: `/new-section-${seeded + offset}`
+      }))
+      if (seeded === 0) {
+        const [{ from, url }] = redirects.splice(0, 1) as [{ from: string; url: string }]
+        await payload.create({
+          collection: OFFICIAL_REDIRECTS_SLUG,
+          data: { from, to: { type: 'custom', url } },
+          overrideAccess: true
+        })
+        await payload.create({
+          collection: REDIRECTS_SLUG,
+          data: { from, match: 'exact', to: { type: 'url', url } },
+          overrideAccess: true
+        })
+        const storedRedirect = await payload.db.findOne<StoredRedirect>({
+          collection: REDIRECTS_SLUG,
+          where: { from: { equals: from } }
+        })
+        if (storedRedirect?.lookupPath !== from || storedRedirect.targetDocumentKey !== null) {
+          throw new Error(
+            `Payload stored ${from} at the lookup path ${String(storedRedirect?.lookupPath)} with the document key ${String(storedRedirect?.targetDocumentKey)}`
+          )
+        }
+        lastOrder = storedRedirect._order
+      }
+      const orders: string[] = generateNKeysBetween(lastOrder, null, redirects.length)
+      lastOrder = orders.at(-1) ?? lastOrder
+      const date = new Date().toISOString()
+      await writeInBatches(
+        redirects.map((redirect, index) => ({ ...redirect, _order: orders[index]! })),
+        ({ _order, from, url }) =>
+          Promise.all([
+            payload.db.create({
+              collection: OFFICIAL_REDIRECTS_SLUG,
+              data: { createdAt: date, from, to: { type: 'custom', url }, updatedAt: date }
+            }),
+            payload.db.create({
+              collection: REDIRECTS_SLUG,
+              data: {
+                ...buildRedirectDefaults(date),
+                _order,
+                from,
+                lookupPath: from,
+                match: 'exact',
+                targetDocumentKey: null,
+                to: { type: 'url', url }
+              }
+            })
+          ])
+      )
+      if (seeded === 0) {
+        await proveSameFields(payload, OFFICIAL_REDIRECTS_SLUG, buildOldPath(0), buildOldPath(1))
+        await proveSameFields(payload, REDIRECTS_SLUG, buildOldPath(0), buildOldPath(1))
+      }
+      seeded = count
+    }
   }
 }
