@@ -52,11 +52,14 @@ export function SuggestionNotices({ redirectsSlug, suggestionsPath }: Suggestion
   async function answer({ id: redirectId }: SuggestionNotice, yes: boolean) {
     setIsAnswering(true)
     try {
-      const where = new URLSearchParams({
+      // At depth 0, so Payload answers with the id of the redirect's document target rather than read
+      // the whole document, which the notice never uses.
+      const queryString = new URLSearchParams({
+        depth: '0',
         'where[and][0][id][equals]': String(redirectId),
         [`where[and][1][${STATUS_FIELD_NAME}][equals]`]: 'suggested' satisfies Status
       })
-      const response = await fetch(formatAdminURL({ apiRoute: api, path: `/${redirectsSlug}?${where}`, serverURL }), {
+      const response = await fetch(formatAdminURL({ apiRoute: api, path: `/${redirectsSlug}?${queryString}`, serverURL }), {
         body: yes ? JSON.stringify({ [STATUS_FIELD_NAME]: 'on' satisfies Status }) : undefined,
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
