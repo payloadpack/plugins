@@ -108,9 +108,9 @@ type WinOverDocuments = 'always' | 'perRedirect'
 
 ```ts title="payload.config.ts"
 redirectsPlugin({
-  collections: ['pages', 'posts'],
-  buildDocumentPath: ({ document }) => document.path,
-  documentSelect: { path: true },
+  collections: ['pages'],
+  buildDocumentPath: ({ document }) => `/${document.slug}`,
+  documentSelect: { slug: true },
   winOverDocuments: 'perRedirect'
 })
 ```
@@ -125,8 +125,9 @@ redirectsPlugin({
 
 ```ts title="payload.config.ts"
 redirectsPlugin({
-  collections: ['pages', 'posts'],
-  buildDocumentPath: ({ document }) => document.path,
+  collections: ['pages'],
+  buildDocumentPath: ({ document }) => `/${document.slug}`,
+  documentSelect: { slug: true },
   overrides: (collection) => ({
     ...collection,
     hooks: {

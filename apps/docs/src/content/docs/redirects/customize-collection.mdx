@@ -13,8 +13,9 @@ Append your own hooks after the collection's existing hooks so they run on every
 
 ```ts title="payload.config.ts"
 redirectsPlugin({
-  collections: ['pages', 'posts'],
-  buildDocumentPath: ({ document }) => document.path,
+  collections: ['pages'],
+  buildDocumentPath: ({ document }) => `/${document.slug}`,
+  documentSelect: { slug: true },
   overrides: (collection) => ({
     ...collection,
     hooks: {

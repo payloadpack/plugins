@@ -15,9 +15,9 @@ By default, a page at a path wins over every redirect at that path except one th
 
    ```ts title="payload.config.ts"
    redirectsPlugin({
-     collections: ['pages', 'posts'],
-     buildDocumentPath: ({ document }) => document.path,
-     documentSelect: { path: true },
+     collections: ['pages'],
+     buildDocumentPath: ({ document }) => `/${document.slug}`,
+     documentSelect: { slug: true },
      winOverDocuments: 'perRedirect'
    })
    ```
