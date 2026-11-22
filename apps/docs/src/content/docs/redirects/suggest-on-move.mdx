@@ -9,7 +9,7 @@ No move suggests a redirect unless your site calls [`suggestRedirects`](/redirec
 
 ## With your own hook
 
-Add an `afterChange` hook to your collection and pass each moved document's old and new path to `suggestRedirects`. This example covers a collection without drafts, where every saved document has a public path before and after an update.
+Add an `afterChange` hook to your collection and pass each moved document's old and new path to `suggestRedirects`. This example covers a collection without drafts, where every saved document has a public path before and after an update. Its `Pages` sets no read access, and Payload 4 lets only users of the admin read a collection without one, so its redirects answer visitors only once you give it read access, such as `access: { read: () => true }` for pages without drafts.
 
 ```ts title="collections/pages.ts"
 import type { CollectionAfterChangeHook, CollectionConfig } from 'payload'

@@ -3,7 +3,7 @@ title: Let redirects win over pages
 description: Configure winOverDocuments and a Next.js proxy so selected or all redirects answer even where a page holds the path.
 ---
 
-import { Steps, TabItem, Tabs } from '@astrojs/starlight/components'
+import { Steps } from '@astrojs/starlight/components'
 
 **Prerequisites:** Complete [Installation](/redirects/installation/) on a Next.js 16 site using `proxy.ts`.
 
@@ -31,38 +31,15 @@ By default, a page at a path wins over every redirect at that path except one th
 
    Because a redirect can now cover a path where a page exists, the proxy checks every request, with or without a query string. The same proxy works for both `'perRedirect'` and `'always'`.
 
-   <Tabs>
+   Put `proxy.ts` next to the `src/find-page.ts` you wrote in step 5 of [Installation](/redirects/installation/), whose `findPage` it calls.
 
-   <TabItem label="Without @payloadpack/path">
-
-   Create a page lookup helper that checks whether a page exists at a path as a visitor reads it, returning the page or `null`. Adjust the `where` clause to match how your site stores a page's path.
-
-   ```ts title="find-page.ts"
-   import type { Payload } from 'payload'
-
-   export async function findPage({ path, payload }: { path: string; payload: Payload }) {
-     const { docs } = await payload.find({
-       collection: 'pages',
-       depth: 0,
-       limit: 1,
-       overrideAccess: false,
-       pagination: false,
-       select: {},
-       where: { path: { equals: path } }
-     })
-     return docs[0] ?? null
-   }
-   ```
-
-   Then add `proxy.ts` next to `find-page.ts`:
-
-   ```ts title="proxy.ts"
+   ```ts title="src/proxy.ts"
    import payloadConfig from '@payload-config'
    import { findRedirect } from '@payloadpack/redirects'
    import { NextResponse, type NextRequest } from 'next/server'
    import { getPayload } from 'payload'
 
-   import { findPage } from './find-page.ts'
+   import { findPage } from './find-page'
 
    // Answers every redirect, since one can win over the page at its path. findRedirect decides by
    // winOverDocuments whether a page wins, and asks hasDocument only when it needs to.
@@ -87,45 +64,6 @@ By default, a page at a path wins over every redirect at that path except one th
    // Skips the admin, the API and Next's own files, whole segments only, so a path such as /apiary passes.
    export const config = { matcher: ['/((?!(?:admin|api|_next)(?:/|$)).*)'] }
    ```
-
-   </TabItem>
-
-   <TabItem label="With @payloadpack/path">
-
-   ```ts title="proxy.ts"
-   import payloadConfig from '@payload-config'
-   import { findByPath } from '@payloadpack/path'
-   import { findRedirect } from '@payloadpack/redirects'
-   import { NextResponse, type NextRequest } from 'next/server'
-   import { getPayload } from 'payload'
-
-   // Answers every redirect, since one can win over the page at its path. findRedirect decides by
-   // winOverDocuments whether a page wins, and asks hasDocument only when it needs to.
-   export async function proxy(request: NextRequest) {
-     let path: string
-     try {
-       path = decodeURIComponent(request.nextUrl.pathname)
-     } catch {
-       return NextResponse.next()
-     }
-     const payload = await getPayload({ config: payloadConfig })
-     const hasDocument = async (pathAsked: string) => (await findByPath({ path: pathAsked, payload })) !== null
-
-     const { foundRedirect } = await findRedirect({ hasDocument, path, payload, searchParams: request.nextUrl.searchParams })
-     if (!foundRedirect) return NextResponse.next()
-     // A path on this site goes below its basePath, which Next adds to a page route's redirect() itself.
-     const { destination, permanent } = foundRedirect
-     const url = destination.startsWith('/') ? `${request.nextUrl.basePath}${destination}` : destination
-     return NextResponse.redirect(new URL(url, request.url), permanent ? 308 : 307)
-   }
-
-   // Skips the admin, the API and Next's own files, whole segments only, so a path such as /apiary passes.
-   export const config = { matcher: ['/((?!(?:admin|api|_next)(?:/|$)).*)'] }
-   ```
-
-   </TabItem>
-
-   </Tabs>
 
 3. **Remove the redirect check from your page route.**
 

@@ -18,8 +18,6 @@ import { REDIRECTS_SLUG, type Match, type RedirectType, type Status, type Target
 | `versions`             | `false` — no version history is stored                                                                       |
 | `admin.useAsTitle`     | `'from'`                                                                                                     |
 | `admin.defaultColumns` | `['from', 'match', 'type', 'status']`                                                                        |
-| Notice endpoint        | `GET /api/<slug>/suggestions/:documentCollection/:documentId` — returns notices for a document's suggestions |
-| MongoDB `_order` index | `{ _order: 1, createdAt: 1 }` added via `db.init` so saving a new redirect reads one key to place it last    |
 
 ## Fields and exported types
 
@@ -41,16 +39,9 @@ type RedirectType = 'permanent' | 'temporary'
 type Status = 'off' | 'on' | 'suggested'
 ```
 
-## System and notice fields
+## Fields the plugin sets itself
 
-| Field                 | Collection                       | Type                     | Purpose                                                                                                                                          |
-| --------------------- | -------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `lookupPath`          | Redirects                        | `text` (hidden, indexed) | Set on every save: `from` for **Exact path** and **Path and subpaths**, or the regex's fixed start (or `/` if none). Searched by `findRedirect`. |
-| `targetDocumentKey`   | Redirects                        | `text` (hidden, indexed) | Document key (`["<collection>","<id>"]`) for a document target, or `null` for a URL target. Used by notices and delete cleanup.                  |
-| `_order`              | Redirects                        | Payload orderable        | Stores list order; determines regex evaluation order.                                                                                            |
-| `createdBy`           | Redirects                        | Payload authorship       | Admin user who created the redirect. Readable by admin users only.                                                                               |
-| `updatedBy`           | Redirects                        | Payload authorship       | Admin user who last saved the redirect. Readable by admin users only.                                                                            |
-| `redirectSuggestions` | Each collection in `collections` | `ui` (first field)       | Renders `@payloadpack/redirects/client#SuggestionNotices` above the document's fields. Stores nothing; excluded from bulk edit and list columns. |
+Each redirect also holds `lookupPath` and `targetDocumentKey`, hidden fields the plugin sets on every save. Keep them if you change the collection with [`overrides`](/redirects/customize-collection/), or lookups and suggestions break. Each collection in `collections` gets `redirectSuggestions` as its first field, which stores nothing and shows the [move notices](/redirects/moves/).
 
 ## How From is cleaned
 

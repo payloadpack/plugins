@@ -78,32 +78,15 @@ See [Refusals and errors](/redirects/refusals/).
 
 ## Example
 
-This example uses a site's own `findPage` helper in a Next.js [query-string proxy](/redirects/query-strings/). See [Let redirects win over pages](/redirects/win-over-pages/) for the `winOverDocuments` proxy.
+The [query-string proxy](/redirects/query-strings/), which calls the `findPage` from step 5 of [Installation](/redirects/installation/). See [Let redirects win over pages](/redirects/win-over-pages/) for the `winOverDocuments` proxy.
 
-```ts title="find-page.ts"
-import type { Payload } from 'payload'
-
-export async function findPage({ path, payload }: { path: string; payload: Payload }) {
-  const { docs } = await payload.find({
-    collection: 'pages',
-    depth: 0,
-    limit: 1,
-    overrideAccess: false,
-    pagination: false,
-    select: {},
-    where: { path: { equals: path } }
-  })
-  return docs[0] ?? null
-}
-```
-
-```ts title="proxy.ts"
+```ts title="src/proxy.ts"
 import payloadConfig from '@payload-config'
 import { findRedirect } from '@payloadpack/redirects'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getPayload } from 'payload'
 
-import { findPage } from './find-page.ts'
+import { findPage } from './find-page'
 
 // Answers the redirects that match a query string, which the page route never sees when its page is
 // cached per path. A URL without one goes on to the page route, which checks for a redirect itself.

@@ -81,15 +81,19 @@ import { Steps, TabItem, Tabs } from '@astrojs/starlight/components'
 
 5. **Answer redirects in your page route.** Ask `findRedirect` only when no page holds the path, so normal page views run zero redirect queries.
 
+   First write `findPage`, which gives the page at a path as a visitor reads it, or `null`. The page route below calls it, and so do the proxies in [Match query strings in a proxy](/redirects/query-strings/) and [Let redirects win over pages](/redirects/win-over-pages/), so it is the one part that differs from site to site.
+
    <Tabs>
 
    <TabItem label="Without @payloadpack/path">
 
-   Write a page lookup for your site that reads as a visitor and returns the page or `null`. Adjust the `where` clause to match how your site stores a page's path.
+   This one finds a page by its slug, as the `buildDocumentPath` of step 2 builds its path. Change the `where` to match how your site builds a page's path.
 
-   ```ts title="find-page.ts"
+   ```ts title="src/find-page.ts"
    import type { Payload } from 'payload'
 
+   // Your site's own way of finding the page at a path, as a visitor reads it: by its slug, the way
+   // buildDocumentPath builds its path.
    export async function findPage({ path, payload }: { path: string; payload: Payload }) {
      const { docs } = await payload.find({
        collection: 'pages',
@@ -97,39 +101,55 @@ import { Steps, TabItem, Tabs } from '@astrojs/starlight/components'
        limit: 1,
        overrideAccess: false,
        pagination: false,
-       select: {},
-       where: { path: { equals: path } }
+       where: { slug: { equals: path.slice(1) } }
      })
      return docs[0] ?? null
    }
    ```
 
-   Then use the page route in the **With @payloadpack/path** tab with your own lookup in both places it calls `findByPath`: to find the page at the path, and in `hasDocument`. Render the page your lookup returns, and have it select the fields you render.
-
    </TabItem>
 
    <TabItem label="With @payloadpack/path">
 
-   ```tsx title="app/(frontend)/[[...segments]]/page.tsx"
-   import config from '@payload-config'
+   ```ts title="src/find-page.ts"
    import { findByPath } from '@payloadpack/path'
+   import type { Payload } from 'payload'
+
+   // The page at a path, or null: the document @payloadpack/path finds published there.
+   export async function findPage({ path, payload }: { path: string; payload: Payload }) {
+     return (await findByPath({ path, payload }))?.document ?? null
+   }
+   ```
+
+   </TabItem>
+
+   </Tabs>
+
+   Then call it in your page route:
+
+   ```tsx title="src/app/(frontend)/[[...segments]]/page.tsx"
+   import config from '@payload-config'
    import { findRedirect } from '@payloadpack/redirects'
    import { notFound, permanentRedirect, redirect } from 'next/navigation'
    import { getPayload } from 'payload'
 
-   export default async function SitePage({ params }: { params: Promise<{ segments?: string[] }> }) {
+   import { findPage } from '../../../find-page'
+
+   type Props = { params: Promise<{ segments?: string[] }> }
+
+   export default async function SitePage({ params }: Props) {
      const { segments = [] } = await params
      const payload = await getPayload({ config })
      // Next gives each segment encoded, so /öppettider comes as %C3%B6ppettider.
      const path = `/${segments.map(decodeURIComponent).join('/')}`
 
-     const found = await findByPath({ path, payload })
-     if (found) return <h1>{found.document.title}</h1>
+     const page = await findPage({ path, payload })
+     if (page) return <h1>{page.title}</h1>
 
      // With hasDocument, a redirect that lands on a path no document holds is looked up again, so a
      // visitor takes one hop through a chain.
      const { foundRedirect } = await findRedirect({
-       hasDocument: async (nextPath) => (await findByPath({ path: nextPath, payload })) !== null,
+       hasDocument: async (nextPath) => (await findPage({ path: nextPath, payload })) !== null,
        path,
        payload
      })
@@ -139,11 +159,7 @@ import { Steps, TabItem, Tabs } from '@astrojs/starlight/components'
    }
    ```
 
-   </TabItem>
-
-   </Tabs>
-
-   The two page lookups ask about different paths: the first asks whether a page holds the path the visitor asked for, and renders it with no redirect lookup at all. `findRedirect` never asks `hasDocument` about that path: it asks only about the path a found redirect sends visitors to, to stop there or follow the next redirect, and not at all when that is the path of the page the redirect targets. `hasDocument` is optional: without it, the first redirect is the answer.
+   The route asks `findPage` about two different paths: first whether a page holds the path the visitor asked for, which it renders with no redirect lookup at all. `findRedirect` never asks `hasDocument` about that path: it asks only about the path a found redirect sends visitors to, to stop there or follow the next redirect, and not at all when that is the path of the page the redirect targets. `hasDocument` is optional: without it, the first redirect is the answer.
 
    `permanentRedirect` answers 308 and `redirect` answers 307. See [`findRedirect`](/redirects/api/find-redirect/).
 
