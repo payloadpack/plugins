@@ -97,9 +97,9 @@ Your page route asks for a redirect only when no page holds the path, so a page 
 
 |          | Without a query string | With one, database on the same machine | With one, database 5 ms away |
 | -------- | ---------------------- | -------------------------------------- | ---------------------------- |
-| MongoDB  | 0.08 ms (0.12 ms)      | 0.46 ms (0.71 ms)                      | 5.84 ms (6.39 ms)            |
-| Postgres | 0.08 ms (0.12 ms)      | 0.58 ms (0.84 ms)                      | 5.9 ms (6.53 ms)             |
-| SQLite   | 0.12 ms (0.19 ms)      | 0.38 ms (0.56 ms)                      | Same machine only            |
+| MongoDB  | 0.06 ms (0.09 ms)      | 0.62 ms (0.86 ms)                      | 5.81 ms (6.25 ms)            |
+| Postgres | 0.08 ms (0.13 ms)      | 0.55 ms (0.77 ms)                      | 5.78 ms (6.02 ms)            |
+| SQLite   | 0.08 ms (0.1 ms)       | 0.34 ms (0.53 ms)                      | Same machine only            |
 
 <!-- speed-table:end -->
 
@@ -109,9 +109,9 @@ With `winOverDocuments`, the proxy checks every page view instead, and adds this
 
 |          | Database on the same machine | Database 5 ms away |
 | -------- | ---------------------------- | ------------------ |
-| MongoDB  | 0.49 ms (0.77 ms)            | 5.79 ms (6.34 ms)  |
-| Postgres | 0.57 ms (0.83 ms)            | 5.87 ms (6.33 ms)  |
-| SQLite   | 0.36 ms (0.55 ms)            | Same machine only  |
+| MongoDB  | 0.47 ms (0.81 ms)            | 5.77 ms (6.25 ms)  |
+| Postgres | 0.55 ms (0.76 ms)            | 5.88 ms (6.81 ms)  |
+| SQLite   | 0.36 ms (0.59 ms)            | Same machine only  |
 
 <!-- speed-table-win-over-documents:end -->
 
