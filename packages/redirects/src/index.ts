@@ -1,5 +1,5 @@
 export { findRedirect, type FindRedirectArgs, type FindRedirectResult, type FoundRedirect } from './api/find-redirect.js'
-export { suggestRedirects, type SuggestRedirectsArgs } from './api/suggest-redirects.js'
+export { suggestRedirects, type ChangedPath, type SuggestRedirectsArgs } from './api/suggest-redirects.js'
 export type { Match } from './fields/match.js'
 export type { Status } from './fields/status.js'
 export type { TargetType } from './fields/to.js'

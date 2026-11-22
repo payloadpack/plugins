@@ -109,6 +109,10 @@ _Avoid_: proposal, pending redirect, draft, auto-redirect
 What a move does with `suggestRedirects`: one suggestion per moved branch, and the suggestions and any redirect to the moved document deleted from the path it moved to, as the suggestions are from the path a document is published at.
 _Avoid_: redirect old paths, leave behind, generate, migrate
 
+**Changed path**:
+Where a site finds one document before a save and after it, which a site gives `suggestRedirects`: its collection and id, the path it was at, `from`, the path it is at now, `to`, either null where there was none, and a locale. A site's own hook builds the list, or `onPathsChanged` of `@payloadpack/path` reports it, in the same shape. Code says `ChangedPath`, and `changedPaths` for the list.
+_Avoid_: path change, move, for one that may be a publish or a delete
+
 **Notice**:
 What a document a redirect can send visitors to shows above its fields for each suggestion to it, such as This page moved from /about-us to /company, with the buttons Yes, redirect them, Edit, which opens the suggestion, and No. A field that stores nothing, `redirectSuggestions`, renders it, and reads it again after every save.
 _Avoid_: banner, alert, prompt, popup

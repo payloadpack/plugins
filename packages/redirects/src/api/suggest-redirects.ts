@@ -10,10 +10,16 @@ import { TYPE_FIELD_NAME, type RedirectType } from '../fields/type.js'
 import { getRedirectsConfig } from '../plugin/options.js'
 import { toComparedPath, listPathAndPathsAbove } from '../redirect/path.js'
 
-/** Where a site finds one document, before and now, as onPathsChanged of @payloadpack/path reports it. */
-type ChangedPath = { collection: string; from: null | string; id: number | string; locale?: string; to: null | string }
+/**
+ * Where a site finds one document, before a save and after it: from a site's own hook, or as
+ * onPathsChanged of @payloadpack/path reports it.
+ */
+export type ChangedPath = { collection: string; from: null | string; id: number | string; locale?: string; to: null | string }
 
-/** What onPathsChanged of @payloadpack/path is given, which a site passes on whole. */
+/**
+ * Where documents were and are now, with the save's request: what a site's own hook builds, or what
+ * onPathsChanged of @payloadpack/path is given, which a site passes on whole.
+ */
 export type SuggestRedirectsArgs = { changedPaths: ChangedPath[]; payload: Payload; req: PayloadRequest }
 
 // A document at a path it wasn't at before: published there, or moved there from another.
@@ -134,14 +140,14 @@ type SuggestingRequest = PayloadRequest & { [SUGGESTING]?: Suggesting }
 const runningCalls = new AsyncLocalStorage<Suggesting>()
 
 /**
- * For onPathsChanged of @payloadpack/path: each moved branch gets a suggestion, a redirect from the
- * old path of the document at its top, and every path below it, to that document, which answers nobody
- * until someone says yes. Where a redirect an editor keeps, or another document of the change, is at
- * that old path, none is suggested from it, and each document right below that moved with it gets one
- * of its own by the same rules. At the path a document moved to or was published at go the
- * suggestions, since a document holds that path now, and any redirect to that document, which would
- * send that path and every path below it to itself. Written through the save's req, so they roll back
- * with a failed save.
+ * For a site's own hook, or onPathsChanged of @payloadpack/path: each moved branch gets a suggestion, a
+ * redirect from the old path of the document at its top, and every path below it, to that document,
+ * which answers nobody until someone says yes. Where a redirect an editor keeps, or another document of
+ * the change, is at that old path, none is suggested from it, and each document right below that moved
+ * with it and is in changedPaths gets one of its own by the same rules. At the path a document moved to
+ * or was published at go the suggestions, since a document holds that path now, and any redirect to
+ * that document, which would send that path and every path below it to itself. Written through the
+ * save's req, so they roll back with a failed save.
  */
 export function suggestRedirects(args: SuggestRedirectsArgs): Promise<void> {
   // Payload runs the hooks of a bulk delete or a bulk update all at once on one request, and its

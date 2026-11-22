@@ -5,7 +5,9 @@ import {
   initTransaction,
   killTransaction,
   type CollectionAfterChangeHook,
-  type CollectionBeforeDeleteHook
+  type CollectionBeforeDeleteHook,
+  type CollectionConfig,
+  type PayloadRequest
 } from 'payload'
 import { expect, it } from 'vitest'
 
@@ -14,6 +16,7 @@ import { describeSite, type Site } from './support/boot-payload.js'
 import {
   acceptSuggestions,
   createDraft,
+  createEditorRequest,
   createRedirect,
   findFoundRedirect,
   foundDocument,
@@ -833,5 +836,109 @@ describeSite(
         { from: '/torch-kept', status: 'suggested' }
       ])
     })
+  }
+)
+
+// The installation docs' own hook and pages collection, word for word: a site without
+// @payloadpack/path that reports a page's move itself.
+const buildPath = (page: { slug: string }) => `/${page.slug}`
+
+const suggestRedirectOnMove: CollectionAfterChangeHook = async ({ doc, operation, previousDoc, req }) => {
+  if (operation !== 'update') return doc
+  await suggestRedirects({
+    changedPaths: [{ collection: 'pages', id: doc.id, from: buildPath(previousDoc), to: buildPath(doc) }],
+    payload: req.payload,
+    req
+  })
+  return doc
+}
+
+const Pages: CollectionConfig = {
+  slug: 'pages',
+  hooks: { afterChange: [suggestRedirectOnMove] },
+  fields: [{ name: 'slug', type: 'text', required: true }]
+}
+
+describeSite(
+  "the redirects a move suggests, from a site's own hook",
+  {
+    pagesWithoutPath: Pages,
+    redirects: {
+      buildDocumentPath: ({ document }) => `/${document.slug}`,
+      collections: ['pages'],
+      documentSelect: { slug: true }
+    }
+  },
+  (site, setup) => {
+    const createPage = (slug: string) => site.payload.create({ collection: 'pages', data: { slug }, overrideAccess: true })
+
+    const renamePage = (page: { id: number | string }, slug: string, req?: PayloadRequest) =>
+      site.payload.update({ collection: 'pages', data: { slug }, id: page.id, overrideAccess: true, req })
+
+    // The docs' pages have no read access of their own, so only a user of the admin reads them.
+    const findAsEditor = async (path: string) =>
+      findFoundRedirect({ path, payload: site.payload, req: await createEditorRequest(site.payload) })
+
+    it('suggests one redirect from the old path and every path below it when a rename changes the path', async () => {
+      const page = await createPage('old')
+
+      await renamePage(page, 'new')
+
+      expect(await findRedirectsFrom(site, ['/old', '/new'])).toEqual([
+        expect.objectContaining({
+          from: '/old',
+          match: 'below',
+          status: 'suggested',
+          to: expect.objectContaining({ document: { relationTo: 'pages', value: page.id }, type: 'document' })
+        })
+      ])
+      expect(await findAsEditor('/old/below')).toBeNull()
+      await acceptSuggestions(site.payload, ['/old'])
+      expect(await findAsEditor('/old/below')).toEqual(foundDocument('/new/below'))
+    })
+
+    it('suggests none for a save that keeps the path', async () => {
+      const page = await createPage('kept')
+
+      await renamePage(page, 'kept')
+
+      expect(await findRedirectsFrom(site, ['/kept'])).toEqual([])
+    })
+
+    it('suggests none for a document the site reports with no path before', async () => {
+      const page = await createPage('fresh')
+      const req = await createPayloadRequest({ payload: site.payload })
+
+      await suggestRedirects({
+        changedPaths: [{ collection: 'pages', from: null, id: page.id, to: '/fresh' }],
+        payload: site.payload,
+        req
+      })
+
+      expect((await findRedirects(site.payload)).filter(({ to }) => to.document?.value === page.id)).toEqual([])
+    })
+
+    // Without transactions a failed save keeps what it wrote, as the docs say.
+    it.runIf(setup.transactions)(
+      "writes its suggestion in the save's transaction, so a save that fails writes none",
+      async () => {
+        const page = await createPage('rolled-old')
+        const req = await createPayloadRequest({ payload: site.payload })
+        await initTransaction(req)
+
+        await renamePage(page, 'rolled-new', req)
+        const { docs: inTransaction } = await site.payload.find({
+          collection: 'redirects',
+          depth: 0,
+          overrideAccess: true,
+          req,
+          where: { from: { equals: '/rolled-old' } }
+        })
+        await killTransaction(req)
+
+        expect(inTransaction).toHaveLength(1)
+        expect(await findRedirectsFrom(site, ['/rolled-old'])).toEqual([])
+      }
+    )
   }
 )

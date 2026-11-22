@@ -35,6 +35,9 @@ export type Site = {
 type SiteOptions = {
   localized?: boolean
   pages?: PagesConfig
+  // The site's own pages collection, in a site without @payloadpack/path, which reports its moves from
+  // its own hook.
+  pagesWithoutPath?: CollectionConfig
   // Over the redirects to pages and news at the path @payloadpack/path keeps.
   redirects?: Partial<RedirectsPluginOptions>
 }
@@ -44,7 +47,7 @@ let startCount = 0
 
 async function startSite(
   { database, transactions }: Setup,
-  { localized = false, pages, redirects = {} }: SiteOptions
+  { localized = false, pages, pagesWithoutPath, redirects = {} }: SiteOptions
 ): Promise<Site> {
   const name = `redirects_${process.pid}_${databaseCount++}`
   const changes: ChangedPath[][] = []
@@ -54,24 +57,29 @@ async function startSite(
       { slug: 'users', auth: true, fields: [] },
       // Users who sign in to the site but not to the admin, such as a shop's customers.
       { slug: 'members', auth: true, fields: [] },
-      buildPublishableCollection('pages', localized, pages),
-      buildPublishableCollection('news', localized)
+      ...(pagesWithoutPath
+        ? [pagesWithoutPath]
+        : [buildPublishableCollection('pages', localized, pages), buildPublishableCollection('news', localized)])
     ],
     db: buildAdapter(database, name, record, transactions) as Config['db'],
     localization: localized ? { defaultLocale: 'en', fallback: true, locales: LOCALES } : undefined,
     // A test sees each refusal as the error it throws, so Payload's own logging of it is noise.
     logger: { options: { level: 'fatal' } },
     plugins: [
-      pathPlugin({
-        collections: [
-          { localized: localized || undefined, slug: 'pages' },
-          { basePath: '/news', parent: false, slug: 'news' }
-        ],
-        onPathsChanged: async (args) => {
-          changes.push(args.changedPaths)
-          await suggestRedirects(args)
-        }
-      }),
+      ...(pagesWithoutPath
+        ? []
+        : [
+            pathPlugin({
+              collections: [
+                { localized: localized || undefined, slug: 'pages' },
+                { basePath: '/news', parent: false, slug: 'news' }
+              ],
+              onPathsChanged: async (args) => {
+                changes.push(args.changedPaths)
+                await suggestRedirects(args)
+              }
+            })
+          ]),
       redirectsPlugin({
         buildDocumentPath: ({ document }) => document.path,
         collections: ['pages', 'news'],
