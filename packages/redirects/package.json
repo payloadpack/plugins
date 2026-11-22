@@ -1,7 +1,7 @@
 {
   "name": "@payloadpack/redirects",
   "version": "0.1.0",
-  "description": "Redirects editors manage in Payload 4, found through database indexes at the same cost for any number of them. Together with @payloadpack/path, every page move suggests a redirect from its old path, which an editor turns on with a yes.",
+  "description": "Redirects editors manage in Payload 4, found through database indexes at the same cost for any number of them. Every page move a site reports, from its own hook or through @payloadpack/path, suggests a redirect from its old path, which an editor turns on with a yes.",
   "keywords": [
     "payload",
     "payloadcms",

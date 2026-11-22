@@ -1,13 +1,9 @@
 ---
 title: Moves and deletes
-description: The redirect suggestRedirects suggests when @payloadpack/path moves a page, a branch or a news item, or a delete lifts the pages below, and how an editor says yes or no on the moved page.
+description: The redirect suggestRedirects suggests when your site reports that a page, a branch or a news item moved, or that a delete lifted the pages below, and how an editor says yes or no on the moved page.
 ---
 
-With `onPathsChanged: suggestRedirects` in [`pathPlugin()`](/path/api/on-paths-changed/), every published path that changes gets a suggestion: a redirect from where it was, which answers nobody until an editor says yes. The old path gets no redirect on its own, so no visitor is sent anywhere a person didn't pick. Without it a move suggests nothing, and your own `onPathsChanged` can pass on only the moves you want one for: see [Choosing which moves suggest a redirect](/redirects/installation/#choosing-which-moves-suggest-a-redirect).
-
-```ts title="payload.config.ts"
-pathPlugin({ collections: ['pages', 'posts'], onPathsChanged: suggestRedirects })
-```
+When your site reports its moves to `suggestRedirects`, from its own hook or from `onPathsChanged` in [`pathPlugin()`](/path/api/on-paths-changed/), every published path that changes gets a suggestion: a redirect from where it was, which answers nobody until an editor says yes. The old path gets no redirect on its own, so no visitor is sent anywhere a person didn't pick. Without it a move suggests nothing, and your site can report only the moves you want one for: see [Suggesting a redirect when a page moves](/redirects/installation/#suggesting-a-redirect-when-a-page-moves).
 
 ## What a move suggests
 
@@ -45,7 +41,7 @@ A move through the API, a bulk edit or a delete that lifts the pages below moves
 
 ## When a redirect already holds the old path
 
-A redirect an editor added from the old path, **On** or **Off**, stays as it is, and the move suggests nothing from that path, since a From can only be used once. Each page right below that moved with it gets a suggestion of its own instead, from its old path and its subpaths. A suggestion an earlier move left there gives way to the new one.
+A redirect an editor added from the old path, **On** or **Off**, stays as it is, and the move suggests nothing from that path, since a From can only be used once. Each page right below that moved with it and that your site reports gets a suggestion of its own instead, from its old path and its subpaths. A suggestion an earlier move left there gives way to the new one.
 
 ## Moving back
 
@@ -59,3 +55,25 @@ When redirects an editor turned on do make a circle, such as a parent renamed, a
 - **In the save's transaction,** so with transactions a save that fails writes no suggestion, and your hooks on the Redirects collection run. See [Transactions](/redirects/installation/#transactions).
 - **Lowercased,** as every **From** of a path is saved.
 - **With localization,** a move in a locale suggests a redirect from that locale's old path. A collection with one path in every locale gets one.
+
+## `suggestRedirects`
+
+```ts
+await suggestRedirects({ changedPaths, payload, req })
+```
+
+| Argument       | What it is                                                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `changedPaths` | Where each document was and is now, one entry per document and locale. The package exports the type of one, `ChangedPath` |
+| `payload`      | Your Payload instance                                                                                                     |
+| `req`          | The request of the save, so the suggestions are in its transaction                                                        |
+
+| One changed path | What it is                                                                                                                                            |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `collection`     | The collection the document is in. Only one of the `collections` of `redirectsPlugin()` gets a suggestion                                             |
+| `id`             | The document's id                                                                                                                                     |
+| `from`           | The path visitors could reach the document at before the save, or `null` where there was none                                                         |
+| `to`             | The path visitors reach it at now, or `null` where there is none. A suggestion sends visitors to the document, at the path `buildDocumentPath` builds |
+| `locale`         | Optional. With localization, the locale both paths are in                                                                                             |
+
+It skips each changed path whose `to` is `null` or the same as its `from`. Where a document is now, it deletes the suggestions from that path and any redirect from it to the document itself. From the old path of each document at the top of a moved branch, it writes one suggestion to the document, which covers every path below, through `req`, whatever its user may do.

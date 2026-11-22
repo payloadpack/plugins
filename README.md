@@ -51,7 +51,7 @@ bun add @payloadpack/path
 <a href="https://www.npmjs.com/package/@payloadpack/redirects"><img alt="npm version" src="https://img.shields.io/npm/v/@payloadpack/redirects"></a>
 <a href="https://payloadcms.com"><img alt="Payload version" src="https://img.shields.io/npm/dependency-version/@payloadpack/redirects/peer/payload"></a>
 
-Redirects editors manage, from an exact path or a regex, to a page or a URL. Your site finds them through database indexes at the same cost for 100,000 as for 1,000, and with `@payloadpack/path` every move of a page suggests a redirect from its old path, which an editor turns on with a yes.
+Redirects editors manage, from an exact path or a regex, to a page or a URL. Your site finds them through database indexes at the same cost for 100,000 as for 1,000, and every move of a page your site reports, from its own hook or through `@payloadpack/path`, suggests a redirect from its old path, which an editor turns on with a yes.
 
 ```sh
 bun add @payloadpack/redirects

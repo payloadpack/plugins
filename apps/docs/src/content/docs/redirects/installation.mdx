@@ -15,25 +15,23 @@ import { Steps } from '@astrojs/starlight/components'
 
    Or use `npm install`, `pnpm add`, or `yarn add`. Peer dependencies: `payload`, `@payloadcms/ui` and `react`, which a Payload app with its admin already has.
 
-2. **Add the plugin** with the collections a redirect can send visitors to, and how your site builds the path of one of their documents. With `@payloadpack/path`, that is the path it keeps on the document, and `documentSelect` has a lookup read only that field. If you want a move to suggest a redirect from the old path, which an editor turns on with a yes on the moved page, pass `suggestRedirects` to `onPathsChanged`. Leave it out and moves suggest nothing:
+2. **Add the plugin** with the collections a redirect can send visitors to, and how your site builds the path of one of their documents, such as from its slug, and `documentSelect` has a lookup read only that field:
 
    ```ts title="payload.config.ts"
-   import { pathPlugin } from '@payloadpack/path'
-   import { redirectsPlugin, suggestRedirects } from '@payloadpack/redirects'
+   import { redirectsPlugin } from '@payloadpack/redirects'
 
    export default buildConfig({
      plugins: [
-       pathPlugin({ collections: ['pages', 'posts'], onPathsChanged: suggestRedirects }),
        redirectsPlugin({
-         collections: ['pages', 'posts'],
-         buildDocumentPath: ({ document }) => document.path,
-         documentSelect: { path: true }
+         collections: ['pages'],
+         buildDocumentPath: ({ document }) => `/${document.slug}`,
+         documentSelect: { slug: true }
        })
      ]
    })
    ```
 
-   Without `@payloadpack/path`, build the path from the document your site's own way. See [Building a document's path](/redirects/configuration/#building-a-documents-path).
+   With `@payloadpack/path`, that is the path it keeps on the document: `buildDocumentPath: ({ document }) => document.path`, with `documentSelect: { path: true }`. See [Building a document's path](/redirects/configuration/#building-a-documents-path). If you want a move to suggest a redirect from the old path, which an editor turns on with a yes on the moved page, call `suggestRedirects` when a page moves, as [Suggesting a redirect when a page moves](#suggesting-a-redirect-when-a-page-moves) shows. Leave it out and moves suggest nothing.
 
 3. **Create a migration** on Postgres and SQLite for the redirects collection the plugin adds. In development with `push: true`, Payload adds the tables automatically.
 
@@ -196,19 +194,64 @@ export const config = { matcher: ['/((?!(?:admin|api|_next)(?:/|$)).*)'] }
 
 - **A CDN in front of the proxy** serves a page it cached before the proxy runs, so a redirect saved later reaches visitors only once that path is purged at the CDN. Next's own [CDN caching guide](https://nextjs.org/docs/app/guides/cdn-caching) says the proxy should run before the CDN cache, or the CDN should skip caching the routes that depend on it.
 
-## Choosing which moves suggest a redirect
+## Suggesting a redirect when a page moves
 
-`suggestRedirects` takes what `onPathsChanged` hears, so your own `onPathsChanged` decides which moves suggest a redirect, and can do more on a move. This one suggests redirects for pages only, and purges the cache on every move:
+`suggestRedirects` takes where each document was and where it is now, and suggests a redirect from each old path, which an editor turns on with a yes on the moved page. Your site calls it from its own hook, or from `onPathsChanged` of `@payloadpack/path`, and decides which moves it reports. See [`suggestRedirects`](/redirects/moves/#suggestredirects) for what it takes.
+
+### With your own hook
+
+```ts title="collections/pages.ts"
+import type { CollectionAfterChangeHook, CollectionConfig } from 'payload'
+import { suggestRedirects } from '@payloadpack/redirects'
+
+// Your site's own way of building a page's path.
+const buildPath = (page: { slug: string }) => `/${page.slug}`
+
+const suggestRedirectOnMove: CollectionAfterChangeHook = async ({ doc, operation, previousDoc, req }) => {
+  if (operation !== 'update') return doc
+  await suggestRedirects({
+    changedPaths: [{ collection: 'pages', id: doc.id, from: buildPath(previousDoc), to: buildPath(doc) }],
+    payload: req.payload,
+    req
+  })
+  return doc
+}
+
+export const Pages: CollectionConfig = {
+  slug: 'pages',
+  hooks: { afterChange: [suggestRedirectOnMove] },
+  fields: [{ name: 'slug', type: 'text', required: true }]
+}
+```
+
+- **`from` is the path visitors could reach before the save, and `to` the one after.** Either is `null` where there was none, such as for a draft.
+- **A save that keeps the path suggests nothing,** so the hook can report every update.
+- **Pages below a moved page need no report of their own:** the one suggestion covers the old path and every path below it. Where a redirect an editor added holds the old path, the move suggests none from it, and each page right below that you report gets one of its own.
+- **Pass `req`,** so the suggestion is in the save's transaction. See [Transactions](#transactions).
+
+### With `@payloadpack/path`
+
+[`onPathsChanged`](/path/api/on-paths-changed/) of `@payloadpack/path` reports exactly these changed paths, for whole branches, publishes, deletes and locales. So call `suggestRedirects(args)` in the `onPathsChanged` your site already has, next to its cache purge:
 
 ```ts title="payload.config.ts"
 pathPlugin({
   collections: ['pages', 'posts'],
   onPathsChanged: async (args) => {
-    // Only a page's move suggests a redirect.
-    await suggestRedirects({ ...args, changedPaths: args.changedPaths.filter(({ collection }) => collection === 'pages') })
-    await purgeCache(args.changedPaths) // purgeCache is yours
+    // Suggests a redirect from each old path, in the save's transaction.
+    await suggestRedirects(args)
+    // What your site already does on a move, such as purging its cache.
+    for (const { from, to } of args.changedPaths) {
+      if (from) revalidatePath(from)
+      if (to) revalidatePath(to)
+    }
   }
 })
+```
+
+A site that does nothing else on a move can pass it straight in: `onPathsChanged: suggestRedirects`. To suggest redirects for some moves only, pass on only their changed paths, such as a page's:
+
+```ts
+await suggestRedirects({ ...args, changedPaths: args.changedPaths.filter(({ collection }) => collection === 'pages') })
 ```
 
 ## Transactions

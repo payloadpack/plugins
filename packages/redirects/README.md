@@ -26,7 +26,7 @@
 
 - ↪️ **Redirects editors manage**: from an exact path or a regex, to a page or a URL
 - 📄 **A page target that follows the page** wherever it moves later
-- 🧭 **A suggested redirect from every old path**, with [`@payloadpack/path`](https://docs.payloadpack.com/path/): one per moved branch, however large, which the editor says yes or no to right on the moved page
+- 🧭 **A suggested redirect from every old path** your site reports, from its own hook or through [`@payloadpack/path`](https://docs.payloadpack.com/path/): one per moved branch, however large, which the editor says yes or no to right on the moved page
 - 🔎 **Old URLs with a query string**, such as `/news.aspx?id=123`, matched in any order and case, without tracking parameters such as `utm_source`, which every destination keeps
 - ⚡ **One indexed query per lookup** that reads only the redirects and regexes able to cover the path, so 100,000 cost what 1,000 do, plus one when the redirect it finds sends visitors to a page
 - 🛡️ **Regexes on RE2**, so no regex can hang a lookup, and a target that never leaves your site
@@ -37,33 +37,51 @@
 bun add @payloadpack/redirects
 ```
 
-Name the collections a redirect can send visitors to, and how your site builds the path of one of their documents. With `@payloadpack/path`, that is the path it keeps, and `documentSelect` has a lookup read only that field. If you want a move to suggest a redirect from the old path, pass `suggestRedirects` to `onPathsChanged`. Leave it out and moves suggest nothing:
+Name the collections a redirect can send visitors to, and how your site builds the path of one of their documents, such as from its slug, and `documentSelect` has a lookup read only that field:
 
 ```ts
-import { pathPlugin } from '@payloadpack/path'
-import { redirectsPlugin, suggestRedirects } from '@payloadpack/redirects'
+import { redirectsPlugin } from '@payloadpack/redirects'
 
 export default buildConfig({
   plugins: [
-    pathPlugin({ collections: ['pages', 'posts'], onPathsChanged: suggestRedirects }),
     redirectsPlugin({
-      collections: ['pages', 'posts'],
-      buildDocumentPath: ({ document }) => document.path,
-      documentSelect: { path: true }
+      collections: ['pages'],
+      buildDocumentPath: ({ document }) => `/${document.slug}`,
+      documentSelect: { slug: true }
     })
   ]
 })
 ```
 
-Without it, build the path from the document your own way:
+With `@payloadpack/path`, that is the path it keeps: `buildDocumentPath: ({ document }) => document.path`, with `documentSelect: { path: true }`.
+
+If you want a move to suggest a redirect from the old path, call `suggestRedirects` with where the page was and where it is now, such as from the page's own hook. Leave it out and moves suggest nothing:
 
 ```ts
-redirectsPlugin({
-  collections: ['pages'],
-  buildDocumentPath: ({ document }) => `/${document.slug}`,
-  documentSelect: { slug: true }
-})
+import type { CollectionAfterChangeHook, CollectionConfig } from 'payload'
+import { suggestRedirects } from '@payloadpack/redirects'
+
+// Your site's own way of building a page's path.
+const buildPath = (page: { slug: string }) => `/${page.slug}`
+
+const suggestRedirectOnMove: CollectionAfterChangeHook = async ({ doc, operation, previousDoc, req }) => {
+  if (operation !== 'update') return doc
+  await suggestRedirects({
+    changedPaths: [{ collection: 'pages', id: doc.id, from: buildPath(previousDoc), to: buildPath(doc) }],
+    payload: req.payload,
+    req
+  })
+  return doc
+}
+
+export const Pages: CollectionConfig = {
+  slug: 'pages',
+  hooks: { afterChange: [suggestRedirectOnMove] },
+  fields: [{ name: 'slug', type: 'text', required: true }]
+}
 ```
+
+With `@payloadpack/path`, call `suggestRedirects(args)` in your `onPathsChanged`, which reports the same changed paths for whole branches, publishes, deletes and locales, or pass it straight in: `onPathsChanged: suggestRedirects`. The [docs](https://docs.payloadpack.com/redirects/installation/#suggesting-a-redirect-when-a-page-moves) show both.
 
 Then your site's page route, the catch-all route that renders its pages, asks for a redirect when no document holds the path:
 
