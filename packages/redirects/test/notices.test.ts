@@ -61,6 +61,11 @@ describeSite('the notices of the redirects a move suggests', {}, (site) => {
     expect(await findNotices(site, 'pages', orchard.id)).toHaveLength(1)
   })
 
+  // Anyone can ask the endpoint for any id, which Postgres and SQLite refuse to compare.
+  it('shows none to a visitor who asks with an id that is no id, without an error', async () => {
+    expect(await findNotices(site, 'pages', 'null', { signedIn: false })).toEqual([])
+  })
+
   it('shows the path of the document as the editor reads it, drafts included', async () => {
     const pond = await publish(site.payload, 'pages', { slug: 'pond', title: 'Pond' })
     await publishChange(site.payload, 'pages', pond, { slug: 'lake' })

@@ -11,16 +11,16 @@ export type SuggestionNotice = { id: number | string; text: string }
 
 /**
  * The notices for the suggestions to one document, read as the signed-in user: the redirects visitors
- * read are only the ones on, so a visitor gets none. Every edit view asks, and most documents have
- * none, so the document is read only when it has one: as the user reads it, drafts included, with its
- * path built by the plugin's buildDocumentPath.
+ * read are only the ones on, so a visitor gets none, before any query, whatever id the URL holds. Every
+ * edit view asks, and most documents have none, so the document is read only when it has one: as the
+ * user reads it, drafts included, with its path built by the plugin's buildDocumentPath.
  */
 async function findSuggestionNotices(req: PayloadRequest): Promise<SuggestionNotice[]> {
-  const { payload } = req
+  const { payload, user } = req
   const config = getRedirectsConfig(payload)
   const collection = req.routeParams?.documentCollection as CollectionSlug
   const id = req.routeParams?.documentId
-  if (!config.collections.includes(collection) || (typeof id !== 'string' && typeof id !== 'number')) return []
+  if (!user || !config.collections.includes(collection) || (typeof id !== 'string' && typeof id !== 'number')) return []
   const { docs } = await payload.find({
     collection: config.slug,
     depth: 0,
