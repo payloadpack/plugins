@@ -57,6 +57,14 @@ async function storeInBatches(payload: Payload, collection: CollectionSlug, rows
   }
 }
 
+// Through the database adapter as well, one after another in a single transaction, which SQLite writes
+// to disk once rather than once for each redirect.
+async function storeInOneTransaction(payload: Payload, rows: Record<string, unknown>[]) {
+  const req = { transactionID: (await payload.db.beginTransaction()) ?? undefined }
+  for (const data of rows) await payload.db.create({ collection: 'redirects' as CollectionSlug, data, req })
+  await payload.db.commitTransaction(req.transactionID!)
+}
+
 const describeQuery = ({ collection, operation }: Query) => `${operation} ${collection}`
 
 const READ_OPERATIONS = { mongodb: 'find', postgres: 'select', sqlite: 'select' }
@@ -81,8 +89,6 @@ const LOOKUP_SEARCHES = ['SEARCH redirects USING INDEX redirects_lookup_path_idx
 // The index of a redirect's document target, which holds every redirect to a document, whatever its
 // status.
 const MONGODB_TARGET_INDEX = 'targetDocumentKey_1'
-
-const SEEDING_TIMEOUT_MS = 180_000
 
 describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
   const readOperation = READ_OPERATIONS[database]
@@ -295,17 +301,18 @@ describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
 // With statistics, SQLite estimates an equality on an indexed column from how many redirects share each
 // value, so a value most redirects share, such as the null of a column only regexes fill, would have it
 // read every redirect rather than search.
-describeSite('the cost of a lookup on SQLite, also with statistics', {}, (site, { database }) => {
-  it.runIf(database === 'sqlite')(
+// Once, on SQLite with transactions: a plan doesn't depend on them, and one transaction stores the
+// redirects in seconds.
+describeSite('the cost of a lookup on SQLite, also with statistics', {}, (site, { database, transactions }) => {
+  it.runIf(database === 'sqlite' && transactions)(
     'searches the indexes for mostly redirects from paths, for half regexes and for only regexes, never scanning',
     async () => {
       const shapes = { mostlyPaths: 3, halfRegexes: 1_500, onlyRegexes: 3_000 }
       for (const [shape, regexCount] of Object.entries(shapes)) {
         await site.payload.db.deleteMany({ collection: 'redirects', where: { id: { exists: true } } })
         const now = new Date().toISOString()
-        await storeInBatches(
+        await storeInOneTransaction(
           site.payload,
-          'redirects',
           generateNKeysBetween(null, null, 3_000).map((order, index) => {
             const regex = index < regexCount
             const from = regex ? `/${shape}-legacy-${index}/(.*)` : `/${shape}-area-${index % 50}/old-${index}`
@@ -337,9 +344,7 @@ describeSite('the cost of a lookup on SQLite, also with statistics', {}, (site, 
         await (site.payload.db as unknown as SQLiteAdapter).client.execute('ANALYZE')
         expect({ shape, plans: await findPlans() }).toEqual({ shape, plans: [LOOKUP_SEARCHES, LOOKUP_SEARCHES, LOOKUP_SEARCHES] })
       }
-    },
-    // It stores 3,000 redirects three times, which a slow shared runner can take longer than a minute to do.
-    SEEDING_TIMEOUT_MS
+    }
   )
 })
 
@@ -347,8 +352,9 @@ describeSite('the cost of a lookup on SQLite, also with statistics', {}, (site, 
 // without a document target, such as one to a URL, as one value of the index, so the more of those, the
 // more redirects SQLite expects a document's suggestions to read. Without STAT4, which libsql leaves
 // out, nothing tells it that a document's value holds a few.
-describeSite("the cost of a document's suggestions on SQLite, also with statistics", {}, (site, { database }) => {
-  it.runIf(database === 'sqlite')(
+// Once, on SQLite with transactions, as the cost of a lookup is.
+describeSite("the cost of a document's suggestions on SQLite, also with statistics", {}, (site, { database, transactions }) => {
+  it.runIf(database === 'sqlite' && transactions)(
     'searches the index of document targets for the notices and a delete, whatever share of redirects sends visitors to a document',
     async () => {
       // One at a time: SQLite with transactions refuses a save that starts while another is open.
@@ -364,9 +370,8 @@ describeSite("the cost of a document's suggestions on SQLite, also with statisti
       for (const share of [0, 0.01, 0.5]) {
         await site.payload.db.deleteMany({ collection: 'redirects', where: { id: { exists: true } } })
         const now = new Date().toISOString()
-        await storeInBatches(
+        await storeInOneTransaction(
           site.payload,
-          'redirects',
           generateNKeysBetween(null, null, 20_000).map((order, index) => {
             const page = share > 0 && index % Math.round(1 / share) === 0 ? pages[index % pages.length]! : undefined
             return {
@@ -413,7 +418,8 @@ describeSite("the cost of a document's suggestions on SQLite, also with statisti
         expect(await findPlans()).toEqual(searchesEverywhere)
       }
     },
-    600_000
+    // It stores 20,000 redirects three times, which a slow shared runner can take longer than a minute to do.
+    180_000
   )
 })
 
