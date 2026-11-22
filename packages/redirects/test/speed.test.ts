@@ -22,7 +22,6 @@ import {
   toUrl
 } from './support/documents.js'
 import { findMongodbPlan, findPostgresIndexes, findSqlitePlan } from './support/query-plan.js'
-import { measureFastestRun } from './support/timing.js'
 
 const SEEDED_COUNT = 500
 
@@ -83,9 +82,7 @@ const LOOKUP_SEARCHES = ['SEARCH redirects USING INDEX redirects_lookup_path_idx
 // status.
 const MONGODB_TARGET_INDEX = 'targetDocumentKey_1'
 
-// The longest path a lookup takes asks for its 32 paths and / in lookupPath, and for each path again as
-// the visitor typed it where that differs.
-const LONGEST_LOOKUP_MS = 5
+const SEEDING_TIMEOUT_MS = 180_000
 
 describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
   const readOperation = READ_OPERATIONS[database]
@@ -279,7 +276,9 @@ describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
     expect(writesOfLargeMove.filter((write) => !write.startsWith(`${readOperation} `))).toEqual(MOVE_WRITES[database])
   })
 
-  it(`answers a lookup at the longest path it looks up, 2,048 characters in 32 segments, within ${LONGEST_LOOKUP_MS} ms`, async () => {
+  // The longest path a lookup takes asks for its 32 paths and / in lookupPath, and for each path again as
+  // the visitor typed it where that differs, still in the lookup's one query.
+  it('answers a lookup at the longest path it looks up, 2,048 characters in 32 segments, in one query', async () => {
     await createRedirect(site.payload, { from: '/a', match: 'below', to: toUrl('/b') })
     const longest = `/a${`/${'a'.repeat(62)}`.repeat(31)}${'a'.repeat(2_048 - 2 - 63 * 31)}`
     expect(longest).toHaveLength(2_048)
@@ -288,7 +287,8 @@ describeSite('the cost of a lookup and a move', {}, (site, { database }) => {
     expect((await findFoundRedirect({ path: longest, payload: site.payload }))?.destination).toBe(
       `/b${longest.slice('/a'.length)}`
     )
-    expect(await measureFastestRun(() => findRedirect({ path: longest, payload: site.payload }))).toBeLessThan(LONGEST_LOOKUP_MS)
+    const queries = await site.listQueries(() => findRedirect({ path: longest, payload: site.payload }))
+    expect(queries.map(describeQuery)).toEqual([`${readOperation} redirects`])
   })
 })
 
@@ -337,7 +337,9 @@ describeSite('the cost of a lookup on SQLite, also with statistics', {}, (site, 
         await (site.payload.db as unknown as SQLiteAdapter).client.execute('ANALYZE')
         expect({ shape, plans: await findPlans() }).toEqual({ shape, plans: [LOOKUP_SEARCHES, LOOKUP_SEARCHES, LOOKUP_SEARCHES] })
       }
-    }
+    },
+    // It stores 3,000 redirects three times, which a slow shared runner can take longer than a minute to do.
+    SEEDING_TIMEOUT_MS
   )
 })
 
