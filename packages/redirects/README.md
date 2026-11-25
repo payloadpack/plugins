@@ -24,7 +24,7 @@
 
 ## Compared with Payload's redirects plugin
 
-Payload's own [`@payloadcms/plugin-redirects`](https://github.com/payloadcms/payload/tree/v4.0.0-beta.11/packages/plugin-redirects) only stores the list of redirects. On its own it sends no visitor anywhere: your site needs code that finds the redirect and sends the visitor on. Payload's [example website](https://github.com/payloadcms/payload/tree/v4.0.0-beta.11/templates/website), its Website Template, ships that code, so it's Payload's side below.
+Payload's own [`@payloadcms/plugin-redirects`](https://github.com/payloadcms/payload/tree/v4.0.0-beta.12/packages/plugin-redirects) only stores the list of redirects. On its own it sends no visitor anywhere: your site needs code that finds the redirect and sends the visitor on. Payload's [example website](https://github.com/payloadcms/payload/tree/v4.0.0-beta.12/templates/website), its Website Template, ships that code, so it's Payload's side below.
 
 Finding one redirect, median (p95), with each database on the same machine as the app, so neither side waits on a network. The example website's lookup reads every redirect, and a list this long is too big for Next.js's data cache, so every lookup reads all of them from the database. Next.js still caches each rendered page, so the lookup runs whenever a page or post renders, pages that exist included: at build, on a path's first visit, each time Next.js renders it again, such as after any redirect is saved, and on every request in draft mode.
 
@@ -174,7 +174,7 @@ With [`winOverDocuments`](https://docs.payloadpack.com/redirects/win-over-pages/
 
 ## Requirements
 
-Payload 4.0.0-beta.11 or later, with MongoDB, Postgres, or SQLite. `@payloadpack/path` 0.3.1 or later, if you use it.
+Payload 4.0.0-beta.12 or later, with MongoDB, Postgres, or SQLite. `@payloadpack/path` 0.3.1 or later, if you use it.
 
 ## License
 
