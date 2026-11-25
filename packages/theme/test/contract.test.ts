@@ -429,7 +429,9 @@ const existsInPayload = (name: string) => {
   return new RegExp(`(?<![\\w-])${name.replace(/[-]/g, '\\-')}(?![\\w-])`).test(payloadSource)
 }
 
-describe('theme contract with Payload', () => {
+// Some of these tests read every Payload stylesheet, which can take longer than vitest's 5 seconds on a
+// CI runner busy with the path and redirects packages' tests at the same time.
+describe('theme contract with Payload', { timeout: 20_000 }, () => {
   it('loads every stylesheet through styles/index.css', () => {
     const stylesheets = listFiles(sourceDir, '.css').map((file) => path.relative(sourceDir, file))
     const imported = uniqueFirstCaptureGroups(readUtf8(path.join(stylesDir, 'index.css')), /@import '(.+?)'/g).map((file) =>
@@ -709,8 +711,6 @@ describe('theme contract with Payload', () => {
     )
   })
 
-  // It reads every Payload stylesheet, which takes longer than the default 5 seconds on a CI runner
-  // busy with the path package's tests.
   it('lets nested themes inherit every token Payload pins on them, and maps the palette on the root only', () => {
     const payloadRules = payloadCssFiles.flatMap((file) => flattenRules(stripComments(readUtf8(file))))
     const readers = [...payloadRules, ...flattenRules(allThemeCss)]
@@ -736,7 +736,7 @@ describe('theme contract with Payload', () => {
     expect(nested).toHaveLength(1)
     expect(nested[0].selector).toContain('[data-theme]:not([data-palette])')
     expect(nested[0].properties).toEqual(pinned)
-  }, 20_000)
+  })
 
   it("falls back to Payload's own blue steps for a palette without an accent", () => {
     const tokens = readUtf8(path.join(uiDist, 'css/color-ramps.css'))

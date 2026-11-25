@@ -58,12 +58,18 @@ async function storeInBatches(payload: Payload, collection: CollectionSlug, rows
 }
 
 // Through the database adapter as well, one after another in a single transaction, which SQLite writes
-// to disk once rather than once for each redirect.
+// to disk once rather than once for each redirect, and without reading each redirect back, which more
+// than halves the time it takes.
 async function storeInOneTransaction(payload: Payload, rows: Record<string, unknown>[]) {
   const req = { transactionID: (await payload.db.beginTransaction()) ?? undefined }
-  for (const data of rows) await payload.db.create({ collection: 'redirects' as CollectionSlug, data, req })
+  for (const data of rows) await payload.db.create({ collection: 'redirects' as CollectionSlug, data, req, returning: false })
   await payload.db.commitTransaction(req.transactionID!)
 }
+
+// The tests of SQLite's plans with statistics store 9,000 and 60,000 redirects, which a shared CI runner
+// busy with the other packages' tests does several times slower than a laptop, and unevenly from run to
+// run. The limit only stops a test that hangs, so it leaves room to spare.
+const SQLITE_STATISTICS_TIMEOUT = 600_000
 
 const describeQuery = ({ collection, operation }: Query) => `${operation} ${collection}`
 
@@ -344,7 +350,8 @@ describeSite('the cost of a lookup on SQLite, also with statistics', {}, (site, 
         await (site.payload.db as unknown as SQLiteAdapter).client.execute('ANALYZE')
         expect({ shape, plans: await findPlans() }).toEqual({ shape, plans: [LOOKUP_SEARCHES, LOOKUP_SEARCHES, LOOKUP_SEARCHES] })
       }
-    }
+    },
+    SQLITE_STATISTICS_TIMEOUT
   )
 })
 
@@ -418,8 +425,7 @@ describeSite("the cost of a document's suggestions on SQLite, also with statisti
         expect(await findPlans()).toEqual(searchesEverywhere)
       }
     },
-    // It stores 20,000 redirects three times, which a slow shared runner can take longer than a minute to do.
-    180_000
+    SQLITE_STATISTICS_TIMEOUT
   )
 })
 
