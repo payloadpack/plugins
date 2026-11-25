@@ -24,12 +24,12 @@
     "apps/path-demo": {
       "name": "@apps/path-demo",
       "dependencies": {
-        "@payloadcms/db-mongodb": "4.0.0-beta.11",
-        "@payloadcms/next": "4.0.0-beta.11",
-        "@payloadcms/ui": "4.0.0-beta.11",
+        "@payloadcms/db-mongodb": "4.0.0-beta.12",
+        "@payloadcms/next": "4.0.0-beta.12",
+        "@payloadcms/ui": "4.0.0-beta.12",
         "@payloadpack/path": "workspace:*",
         "next": "16.4.6",
-        "payload": "4.0.0-beta.11",
+        "payload": "4.0.0-beta.12",
         "react": "19.3.1",
         "react-dom": "19.3.1",
       },
@@ -45,18 +45,18 @@
     "apps/redirects-bench": {
       "name": "@apps/redirects-bench",
       "dependencies": {
-        "@payloadcms/db-mongodb": "4.0.0-beta.11",
-        "@payloadcms/db-postgres": "4.0.0-beta.11",
-        "@payloadcms/db-sqlite": "4.0.0-beta.11",
-        "@payloadcms/next": "4.0.0-beta.11",
+        "@payloadcms/db-mongodb": "4.0.0-beta.12",
+        "@payloadcms/db-postgres": "4.0.0-beta.12",
+        "@payloadcms/db-sqlite": "4.0.0-beta.12",
+        "@payloadcms/next": "4.0.0-beta.12",
         "@payloadpack/redirects": "workspace:*",
         "next": "16.4.6",
-        "payload": "4.0.0-beta.11",
+        "payload": "4.0.0-beta.12",
         "react": "19.3.1",
         "react-dom": "19.3.1",
       },
       "devDependencies": {
-        "@payloadcms/plugin-redirects": "4.0.0-beta.11",
+        "@payloadcms/plugin-redirects": "4.0.0-beta.12",
         "@types/node": "^24.0.0",
         "@types/react": "19.3.0",
         "@types/react-dom": "19.3.0",
@@ -68,13 +68,13 @@
     "apps/redirects-demo": {
       "name": "@apps/redirects-demo",
       "dependencies": {
-        "@payloadcms/db-mongodb": "4.0.0-beta.11",
-        "@payloadcms/next": "4.0.0-beta.11",
-        "@payloadcms/ui": "4.0.0-beta.11",
+        "@payloadcms/db-mongodb": "4.0.0-beta.12",
+        "@payloadcms/next": "4.0.0-beta.12",
+        "@payloadcms/ui": "4.0.0-beta.12",
         "@payloadpack/path": "workspace:*",
         "@payloadpack/redirects": "workspace:*",
         "next": "16.4.6",
-        "payload": "4.0.0-beta.11",
+        "payload": "4.0.0-beta.12",
         "react": "19.3.1",
         "react-dom": "19.3.1",
       },
@@ -90,13 +90,13 @@
     "apps/theme-demo": {
       "name": "@apps/theme-demo",
       "dependencies": {
-        "@payloadcms/db-sqlite": "4.0.0-beta.11",
-        "@payloadcms/next": "4.0.0-beta.11",
-        "@payloadcms/richtext-lexical": "4.0.0-beta.11",
-        "@payloadcms/ui": "4.0.0-beta.11",
+        "@payloadcms/db-sqlite": "4.0.0-beta.12",
+        "@payloadcms/next": "4.0.0-beta.12",
+        "@payloadcms/richtext-lexical": "4.0.0-beta.12",
+        "@payloadcms/ui": "4.0.0-beta.12",
         "@payloadpack/theme": "workspace:*",
         "next": "16.4.6",
-        "payload": "4.0.0-beta.11",
+        "payload": "4.0.0-beta.12",
         "react": "19.3.1",
         "react-dom": "19.3.1",
       },
@@ -110,19 +110,19 @@
     },
     "packages/path": {
       "name": "@payloadpack/path",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "devDependencies": {
-        "@payloadcms/db-mongodb": "4.0.0-beta.11",
-        "@payloadcms/db-postgres": "4.0.0-beta.11",
-        "@payloadcms/db-sqlite": "4.0.0-beta.11",
-        "@payloadcms/plugin-nested-docs": "4.0.0-beta.11",
-        "@payloadcms/richtext-lexical": "4.0.0-beta.11",
-        "@payloadcms/ui": "4.0.0-beta.11",
+        "@payloadcms/db-mongodb": "4.0.0-beta.12",
+        "@payloadcms/db-postgres": "4.0.0-beta.12",
+        "@payloadcms/db-sqlite": "4.0.0-beta.12",
+        "@payloadcms/plugin-nested-docs": "4.0.0-beta.12",
+        "@payloadcms/richtext-lexical": "4.0.0-beta.12",
+        "@payloadcms/ui": "4.0.0-beta.12",
         "@types/node": "^24.0.0",
         "@types/react": "19.3.0",
         "embedded-postgres": "18.6.0-beta.19",
         "mongodb-memory-server": "11.3.0",
-        "payload": "4.0.0-beta.11",
+        "payload": "4.0.0-beta.12",
         "react": "19.3.1",
         "react-dom": "19.3.1",
         "rimraf": "6.1.2",
@@ -130,22 +130,22 @@
         "vitest": "5.0.1",
       },
       "peerDependencies": {
-        "@payloadcms/ui": "^4.0.0-beta.11",
-        "payload": "^4.0.0-beta.11",
+        "@payloadcms/ui": "^4.0.0-beta.12",
+        "payload": "^4.0.0-beta.12",
         "react": "^19",
       },
     },
     "packages/redirects": {
       "name": "@payloadpack/redirects",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "re2js": "2.10.0",
       },
       "devDependencies": {
-        "@payloadcms/db-mongodb": "4.0.0-beta.11",
-        "@payloadcms/db-postgres": "4.0.0-beta.11",
-        "@payloadcms/db-sqlite": "4.0.0-beta.11",
-        "@payloadcms/ui": "4.0.0-beta.11",
+        "@payloadcms/db-mongodb": "4.0.0-beta.12",
+        "@payloadcms/db-postgres": "4.0.0-beta.12",
+        "@payloadcms/db-sqlite": "4.0.0-beta.12",
+        "@payloadcms/ui": "4.0.0-beta.12",
         "@payloadpack/path": "workspace:*",
         "@swc/cli": "0.7.9",
         "@swc/core": "^1.10.0",
@@ -153,7 +153,7 @@
         "@types/react": "19.3.0",
         "embedded-postgres": "18.6.0-beta.19",
         "mongodb-memory-server": "11.3.0",
-        "payload": "4.0.0-beta.11",
+        "payload": "4.0.0-beta.12",
         "react": "19.3.1",
         "react-dom": "19.3.1",
         "rimraf": "6.1.2",
@@ -161,8 +161,8 @@
         "vitest": "5.0.1",
       },
       "peerDependencies": {
-        "@payloadcms/ui": "^4.0.0-beta.11",
-        "payload": "^4.0.0-beta.11",
+        "@payloadcms/ui": "^4.0.0-beta.12",
+        "payload": "^4.0.0-beta.12",
         "react": "^19",
       },
     },
@@ -170,15 +170,15 @@
       "name": "@payloadpack/theme",
       "version": "0.3.8",
       "devDependencies": {
-        "@payloadcms/richtext-lexical": "4.0.0-beta.11",
-        "@payloadcms/ui": "4.0.0-beta.11",
+        "@payloadcms/richtext-lexical": "4.0.0-beta.12",
+        "@payloadcms/ui": "4.0.0-beta.12",
         "@swc/cli": "0.7.9",
         "@swc/core": "^1.10.0",
         "@types/node": "^24.0.0",
         "@types/react": "19.3.0",
         "copyfiles": "2.4.1",
         "lucide-static": "1.61.0",
-        "payload": "4.0.0-beta.11",
+        "payload": "4.0.0-beta.12",
         "react": "19.3.1",
         "react-dom": "19.3.1",
         "rimraf": "6.1.2",
@@ -187,8 +187,8 @@
         "vitest": "5.0.1",
       },
       "peerDependencies": {
-        "@payloadcms/ui": "^4.0.0-beta.11",
-        "payload": "^4.0.0-beta.11",
+        "@payloadcms/ui": "^4.0.0-beta.12",
+        "payload": "^4.0.0-beta.12",
         "react": "^19",
         "react-dom": "^19",
       },
@@ -849,27 +849,27 @@
 
     "@pagefind/windows-x64": ["@pagefind/windows-x64@1.6.0", "", { "os": "win32", "cpu": "x64" }, "sha512-cUA2+yXfbymdJllyMjY5YTBwuOgh0/H53Pn5fYKjDnDjk154Ft4U5RVj3TenWySPL/jG6zJfARUWSlyUyXHlZw=="],
 
-    "@payloadcms/db-mongodb": ["@payloadcms/db-mongodb@4.0.0-beta.11", "", { "dependencies": { "mongoose": "9.11.4", "mongoose-paginate-v2": "1.9.5", "prompts": "2.4.2", "uuid": "14.0.0" }, "peerDependencies": { "payload": "4.0.0-beta.11" } }, "sha512-WL4OYu1zEPR8MnzEmKc9FBjynm/79LjE89MPMHm9IkADFaK3I3Rjxb95U3ZaZd8T+KO4fKCKxNLU4XoXrZi61g=="],
+    "@payloadcms/db-mongodb": ["@payloadcms/db-mongodb@4.0.0-beta.12", "", { "dependencies": { "mongoose": "9.11.4", "mongoose-paginate-v2": "1.9.5", "prompts": "2.4.2", "uuid": "14.0.0" }, "peerDependencies": { "payload": "4.0.0-beta.12" } }, "sha512-QVaDeeyPDIogkJtg6zX2AXOJN6Bd6wQgTvffnZdt6uqmn+LGCOaK6qqhmqZPdalmMYyoPepekNLcE/IhmDNOiQ=="],
 
-    "@payloadcms/db-postgres": ["@payloadcms/db-postgres@4.0.0-beta.11", "", { "dependencies": { "@payloadcms/drizzle": "4.0.0-beta.11", "@types/pg": "8.20.0", "console-table-printer": "2.15.0", "drizzle-kit": "0.31.7", "drizzle-orm": "0.45.2", "pg": "8.20.0", "prompts": "2.4.2", "to-snake-case": "1.0.0", "uuid": "14.0.0" }, "peerDependencies": { "payload": "4.0.0-beta.11" } }, "sha512-4oaSo/EUHHBIFWOSX1sHVaMKKa9RK2iRe6TJQCZ9acYWS5uXEsIpWQLoqfGkwGOqQ2JC8x9Kt8S6rv9NK4vciQ=="],
+    "@payloadcms/db-postgres": ["@payloadcms/db-postgres@4.0.0-beta.12", "", { "dependencies": { "@payloadcms/drizzle": "4.0.0-beta.12", "@types/pg": "8.20.0", "console-table-printer": "2.15.0", "drizzle-kit": "0.31.7", "drizzle-orm": "0.45.2", "pg": "8.20.0", "prompts": "2.4.2", "to-snake-case": "1.0.0", "uuid": "14.0.0" }, "peerDependencies": { "payload": "4.0.0-beta.12" } }, "sha512-LMC5ord79optRTekQTwA7d3wpVguBhLswnt1AGNFiYOavR0M9Xxnq7xm13cjacf33wB3eA0mAVkUtHs+tCUdXQ=="],
 
-    "@payloadcms/db-sqlite": ["@payloadcms/db-sqlite@4.0.0-beta.11", "", { "dependencies": { "@libsql/client": "0.14.0", "@payloadcms/drizzle": "4.0.0-beta.11", "console-table-printer": "2.15.0", "drizzle-kit": "0.31.7", "drizzle-orm": "0.45.2", "prompts": "2.4.2", "to-snake-case": "1.0.0", "uuid": "14.0.0" }, "peerDependencies": { "payload": "4.0.0-beta.11" } }, "sha512-FlWjOhneu6fTxc2/9Pys0qhEm6EnhgNyQV1MnzmUSr83Lohjejn6oGpj4bhBb0nw1dN91LTb1rwFVQBiB2EaNg=="],
+    "@payloadcms/db-sqlite": ["@payloadcms/db-sqlite@4.0.0-beta.12", "", { "dependencies": { "@libsql/client": "0.14.0", "@payloadcms/drizzle": "4.0.0-beta.12", "console-table-printer": "2.15.0", "drizzle-kit": "0.31.7", "drizzle-orm": "0.45.2", "prompts": "2.4.2", "to-snake-case": "1.0.0", "uuid": "14.0.0" }, "peerDependencies": { "payload": "4.0.0-beta.12" } }, "sha512-Nt2xRlJB0qaTmaSyp3lfum2wHDIEyyimSa5t3IT+ZSup5Ni8PUpK8qG/OuyT12JUs/5zPEa522fFfPnweh2msQ=="],
 
-    "@payloadcms/drizzle": ["@payloadcms/drizzle@4.0.0-beta.11", "", { "dependencies": { "console-table-printer": "2.15.0", "dequal": "2.0.3", "drizzle-orm": "0.45.2", "prompts": "2.4.2", "to-snake-case": "1.0.0", "uuid": "14.0.0" }, "peerDependencies": { "payload": "4.0.0-beta.11" } }, "sha512-FUeUruqSsGhGhqxoXEGRPQTB8/q4a0/XG9zil6As4BfQM/rFXbjDZ6p7+AaJHP7A0VELaeP0Ar7xJ9B7FWmAkQ=="],
+    "@payloadcms/drizzle": ["@payloadcms/drizzle@4.0.0-beta.12", "", { "dependencies": { "console-table-printer": "2.15.0", "dequal": "2.0.3", "drizzle-orm": "0.45.2", "prompts": "2.4.2", "to-snake-case": "1.0.0", "uuid": "14.0.0" }, "peerDependencies": { "payload": "4.0.0-beta.12" } }, "sha512-43ks8lHB185jDphHEMFeOl/QPPzQFANHwhqhYVuU5uJbN7MgQa9plypgddIvPKEN6D5mtTy9XrpVSP7Ao2FVww=="],
 
-    "@payloadcms/graphql": ["@payloadcms/graphql@4.0.0-beta.11", "", { "dependencies": { "graphql-scalars": "1.22.2", "pluralize": "8.0.0", "ts-essentials": "10.0.3", "tsx": "4.23.15" }, "peerDependencies": { "graphql": "^16.8.1", "payload": "4.0.0-beta.11" }, "bin": { "payload-graphql": "bin.js" } }, "sha512-mZCA+lleKa7hhPR8/Sm8YrXfBWl/NH4s06H25uUTD2xsMPxgU0wOokI9iGiOTLswEYjGR6tI1RL8vxmkIhKz4w=="],
+    "@payloadcms/graphql": ["@payloadcms/graphql@4.0.0-beta.12", "", { "dependencies": { "graphql-scalars": "1.22.2", "pluralize": "8.0.0", "ts-essentials": "10.0.3", "tsx": "4.23.15" }, "peerDependencies": { "graphql": "^16.8.1", "payload": "4.0.0-beta.12" }, "bin": { "payload-graphql": "bin.js" } }, "sha512-Mm4L+yddVMPuWLeZwiy32Rv/d9FPLMzy21Mf5vOEvcTNU7K566cd6qU9vw53goC1yhEzLW1PpIzwYLN+wYSO3Q=="],
 
-    "@payloadcms/next": ["@payloadcms/next@4.0.0-beta.11", "", { "dependencies": { "@dnd-kit/core": "6.3.1", "@dnd-kit/modifiers": "9.0.0", "@dnd-kit/sortable": "10.0.0", "@payloadcms/graphql": "4.0.0-beta.11", "@payloadcms/translations": "4.0.0-beta.11", "@payloadcms/ui": "4.0.0-beta.11", "busboy": "^1.6.0", "dequal": "2.0.3", "file-type": "22.0.1", "graphql-http": "1.22.4", "graphql-playground-html": "1.6.30", "path-to-regexp": "6.3.0", "qs-esm": "8.0.1", "sass": "1.77.4", "uuid": "14.0.0" }, "peerDependencies": { "graphql": "^16.8.1", "next": ">=16.4.5 <17.0.0", "payload": "4.0.0-beta.11" } }, "sha512-DQXIdv6lEcbYsEqkeJFpZTXeK+rGpcEDADNBYIjCh/iLHJesc6l6bkS6qlYpsRpO9nwQ00MtZpJNoO0/7QFF+Q=="],
+    "@payloadcms/next": ["@payloadcms/next@4.0.0-beta.12", "", { "dependencies": { "@dnd-kit/core": "6.3.1", "@dnd-kit/modifiers": "9.0.0", "@dnd-kit/sortable": "10.0.0", "@payloadcms/graphql": "4.0.0-beta.12", "@payloadcms/translations": "4.0.0-beta.12", "@payloadcms/ui": "4.0.0-beta.12", "busboy": "^1.6.0", "dequal": "2.0.3", "file-type": "22.0.1", "graphql-http": "1.22.4", "graphql-playground-html": "1.6.30", "path-to-regexp": "6.3.0", "qs-esm": "8.0.1", "sass": "1.77.4", "uuid": "14.0.0" }, "peerDependencies": { "graphql": "^16.8.1", "next": ">=16.4.5 <17.0.0", "payload": "4.0.0-beta.12" } }, "sha512-KMCQzQN8pPl/87HSeUnxYhRWTC1JOgtiDtwgaVcT5nyC2l+hVRtqw4/Pv+Poo+AeHqBal8me2gYcT1VWXlCHjQ=="],
 
-    "@payloadcms/plugin-nested-docs": ["@payloadcms/plugin-nested-docs@4.0.0-beta.11", "", { "peerDependencies": { "payload": "4.0.0-beta.11" } }, "sha512-8oPPmDtsz4e2pJ2LkrqjHZfA3P+H0oXb9oPbi2nET4qGSOmZMBvxHNLfJ7J3KlAFZ+utwQAzlaa03RHvnMMgEA=="],
+    "@payloadcms/plugin-nested-docs": ["@payloadcms/plugin-nested-docs@4.0.0-beta.12", "", { "peerDependencies": { "payload": "4.0.0-beta.12" } }, "sha512-1jqLSz6Z6GU5QLJvHeAUJlQ7bNYhJMuHAyjV7taA/hJ9SdauoSu0mt2lnRdxka//M1jIpSJiXpLqL9tWdVvIcA=="],
 
-    "@payloadcms/plugin-redirects": ["@payloadcms/plugin-redirects@4.0.0-beta.11", "", { "dependencies": { "@payloadcms/translations": "4.0.0-beta.11", "payload": "4.0.0-beta.11" } }, "sha512-iyEowVSuU8KR5MuS75ZA1C2AAqPw4mgIh/9foclgYDVrVpmhIR4wAZMvlq+obVzFLanFMNq9UxK57ZUBQCtjtg=="],
+    "@payloadcms/plugin-redirects": ["@payloadcms/plugin-redirects@4.0.0-beta.12", "", { "dependencies": { "@payloadcms/translations": "4.0.0-beta.12", "payload": "4.0.0-beta.12" } }, "sha512-7zX6ct0jsPFIBCNAC7Es2ETuQb98MBpfKTq2ra70McUQwDg4ndnb+1QVcy+tMcadG9LqAgGuI5c7Z+d3393N0A=="],
 
-    "@payloadcms/richtext-lexical": ["@payloadcms/richtext-lexical@4.0.0-beta.11", "", { "dependencies": { "@lexical/clipboard": "0.53.0", "@lexical/headless": "0.53.0", "@lexical/html": "0.53.0", "@lexical/link": "0.53.0", "@lexical/list": "0.53.0", "@lexical/mark": "0.53.0", "@lexical/markdown": "0.53.0", "@lexical/react": "0.53.0", "@lexical/rich-text": "0.53.0", "@lexical/selection": "0.53.0", "@lexical/table": "0.53.0", "@lexical/utils": "0.53.0", "@payloadcms/translations": "4.0.0-beta.11", "@payloadcms/ui": "4.0.0-beta.11", "acorn": "8.16.0", "bson-objectid": "2.0.4", "csstype": "3.2.3", "dequal": "2.0.3", "escape-html": "1.0.3", "jsox": "1.2.125", "lexical": "0.53.0", "mdast-util-from-markdown": "2.0.3", "mdast-util-mdx-jsx": "3.2.0", "micromark-extension-mdx-jsx": "3.0.2", "qs-esm": "8.0.1", "react-error-boundary": "6.1.1", "ts-essentials": "10.0.3", "uuid": "14.0.0" }, "peerDependencies": { "@faceless-ui/modal": "3.0.2", "@faceless-ui/scroll-info": "2.0.0", "payload": "4.0.0-beta.11", "react": "^19.3.1", "react-dom": "^19.3.1" } }, "sha512-YsVNSU876Oa2tmoz7gKTojuBsvqYpuUlS3R9NhMXxlWLyH53h6carsENt0qLzaYHc8pS3Nysjx8dOPfHYvhMeg=="],
+    "@payloadcms/richtext-lexical": ["@payloadcms/richtext-lexical@4.0.0-beta.12", "", { "dependencies": { "@lexical/clipboard": "0.53.0", "@lexical/headless": "0.53.0", "@lexical/html": "0.53.0", "@lexical/link": "0.53.0", "@lexical/list": "0.53.0", "@lexical/mark": "0.53.0", "@lexical/markdown": "0.53.0", "@lexical/react": "0.53.0", "@lexical/rich-text": "0.53.0", "@lexical/selection": "0.53.0", "@lexical/table": "0.53.0", "@lexical/utils": "0.53.0", "@payloadcms/translations": "4.0.0-beta.12", "@payloadcms/ui": "4.0.0-beta.12", "acorn": "8.16.0", "bson-objectid": "2.0.4", "csstype": "3.2.3", "dequal": "2.0.3", "escape-html": "1.0.3", "jsox": "1.2.125", "lexical": "0.53.0", "mdast-util-from-markdown": "2.0.3", "mdast-util-mdx-jsx": "3.2.0", "micromark-extension-mdx-jsx": "3.0.2", "qs-esm": "8.0.1", "react-error-boundary": "6.1.1", "ts-essentials": "10.0.3", "uuid": "14.0.0" }, "peerDependencies": { "@faceless-ui/modal": "3.0.2", "@faceless-ui/scroll-info": "2.0.0", "payload": "4.0.0-beta.12", "react": "^19.3.1", "react-dom": "^19.3.1" } }, "sha512-jumV8vZxvuaXLKVcu3gknRywTxxe4F6YE7m+G/rNaxFhnJuZHoOnJ4mwz4uPWLiWKSOtaByG5N5YqYuYVJ+gpA=="],
 
-    "@payloadcms/translations": ["@payloadcms/translations@4.0.0-beta.11", "", { "dependencies": { "date-fns": "4.4.0" } }, "sha512-5mgQzFdpkBYzFII/ZkLNKQ3gOcoHki93wz1gm/5kyszNrl0D6ECqE9GgJ+toHrX0cn3cYAGNlScOJHTGXjvI2w=="],
+    "@payloadcms/translations": ["@payloadcms/translations@4.0.0-beta.12", "", { "dependencies": { "date-fns": "4.4.0" } }, "sha512-vllWIHcUoNZzd1i6ctMFbKktc2+9MDUMNLoNB1HkRKHEcW/zzRP4trD+ZFjfKwhX3MHrRIHeAskvvZRPcRfYgA=="],
 
-    "@payloadcms/ui": ["@payloadcms/ui@4.0.0-beta.11", "", { "dependencies": { "@date-fns/tz": "1.2.0", "@dnd-kit/core": "6.3.1", "@dnd-kit/modifiers": "9.0.0", "@dnd-kit/sortable": "10.0.0", "@dnd-kit/utilities": "3.2.2", "@faceless-ui/modal": "3.0.2", "@faceless-ui/scroll-info": "2.0.0", "@faceless-ui/window-info": "3.0.1", "@floating-ui/dom": "1.7.6", "@monaco-editor/react": "4.7.0", "@payloadcms/translations": "4.0.0-beta.11", "@swc/helpers": ">=0.5.17", "bson-objectid": "2.0.4", "date-fns": "4.4.0", "dequal": "2.0.3", "dom-accessibility-api": "0.5.16", "md5": "2.3.0", "object-to-formdata": "4.5.1", "path-to-regexp": "6.3.0", "qs-esm": "8.0.1", "react-datepicker": "9.1.0", "react-image-crop": "10.1.8", "react-select": "5.9.0", "scheduler": "0.25.0", "sonner": "^1.7.2", "ts-essentials": "10.0.3", "use-context-selector": "2.0.0", "uuid": "14.0.0" }, "peerDependencies": { "payload": "4.0.0-beta.11", "react": "^19.3.1", "react-dom": "^19.3.1" } }, "sha512-jGheysedke2u4/pi9OOqpYBFNHb00m8wgoQBzZ/kfvlW5PEjG7y7OBMNNUmsQxYIkrlX4JrWk9aYe+ZaqSniIA=="],
+    "@payloadcms/ui": ["@payloadcms/ui@4.0.0-beta.12", "", { "dependencies": { "@date-fns/tz": "1.2.0", "@dnd-kit/core": "6.3.1", "@dnd-kit/modifiers": "9.0.0", "@dnd-kit/sortable": "10.0.0", "@dnd-kit/utilities": "3.2.2", "@faceless-ui/modal": "3.0.2", "@faceless-ui/scroll-info": "2.0.0", "@faceless-ui/window-info": "3.0.1", "@floating-ui/dom": "1.7.6", "@monaco-editor/react": "4.7.0", "@payloadcms/translations": "4.0.0-beta.12", "@swc/helpers": ">=0.5.17", "bson-objectid": "2.0.4", "date-fns": "4.4.0", "dequal": "2.0.3", "dom-accessibility-api": "0.5.16", "md5": "2.3.0", "object-to-formdata": "4.5.1", "path-to-regexp": "6.3.0", "qs-esm": "8.0.1", "react-datepicker": "9.1.0", "react-image-crop": "10.1.8", "react-select": "5.9.0", "scheduler": "0.25.0", "sonner": "^1.7.2", "ts-essentials": "10.0.3", "use-context-selector": "2.0.0", "uuid": "14.0.0" }, "peerDependencies": { "payload": "4.0.0-beta.12", "react": "^19.3.1", "react-dom": "^19.3.1" } }, "sha512-KMI0AOZQmCxJJOeGz8ytUizySV1/JML1EdhpUr0eq6+KsMJ5rv4a9HkusBMIKmgSvPpTVMpMJZji44tHiEOs4g=="],
 
     "@payloadpack/path": ["@payloadpack/path@workspace:packages/path"],
 
@@ -1995,7 +1995,7 @@
 
     "path-type": ["path-type@4.0.0", "", {}, "sha512-gDKb8aZMDeD/tZWs9P6+q0J9Mwkdl6xMV8TjnGP3qJVJ06bdMgkbBlLU8IdfOsIsFz2BW1rNVT3XuNEl8zPAvw=="],
 
-    "payload": ["payload@4.0.0-beta.11", "", { "dependencies": { "@next/env": "16.4.6", "@payloadcms/translations": "4.0.0-beta.11", "@standard-schema/spec": "1.1.0", "@types/busboy": "1.5.4", "bson-objectid": "2.0.4", "busboy": "^1.6.0", "ci-info": "4.4.0", "commander": "15.0.0", "console-table-printer": "2.15.0", "croner": "10.0.1", "dataloader": "2.2.3", "dotenv": "16.4.5", "dotenv-expand": "11.0.6", "file-type": "22.0.1", "get-tsconfig": "4.14.0", "image-dimensions": "2.5.1", "ipaddr.js": "2.3.0", "jose": "6.2.12", "json-schema-to-typescript": "15.0.3", "path-to-regexp": "6.3.0", "pino": "10.3.1", "pino-pretty": "13.1.3", "pluralize": "8.0.0", "qs-esm": "8.0.1", "range-parser": "1.2.1", "sanitize-filename": "1.6.4", "sax": "1.6.1", "ts-essentials": "10.0.3", "tsx": "4.23.15", "undici": "7.30.1", "uuid": "14.0.0", "ws": "^8.16.0", "zod": "^4.6.0" }, "peerDependencies": { "graphql": "^16.8.1" }, "bin": { "payload": "bin.js" } }, "sha512-QHhUM7TGKc3Nrf7RhagqATq32QepPiF1Xav/dneCnVkVwyZstEatP/2TM5Tu3jp22ws1gElQ0EKC1qn39GBqxg=="],
+    "payload": ["payload@4.0.0-beta.12", "", { "dependencies": { "@next/env": "16.4.6", "@payloadcms/translations": "4.0.0-beta.12", "@standard-schema/spec": "1.1.0", "@types/busboy": "1.5.4", "bson-objectid": "2.0.4", "busboy": "^1.6.0", "ci-info": "4.4.0", "commander": "15.0.0", "console-table-printer": "2.15.0", "croner": "10.0.1", "dataloader": "2.2.3", "dotenv": "16.4.5", "dotenv-expand": "11.0.6", "file-type": "22.0.1", "get-tsconfig": "4.14.0", "image-dimensions": "2.5.1", "ipaddr.js": "2.3.0", "jose": "6.2.12", "json-schema-to-typescript": "15.0.3", "path-to-regexp": "6.3.0", "pino": "10.3.1", "pino-pretty": "13.1.3", "pluralize": "8.0.0", "qs-esm": "8.0.1", "range-parser": "1.2.1", "sanitize-filename": "1.6.4", "sax": "1.6.1", "ts-essentials": "10.0.3", "tsx": "4.23.15", "undici": "7.30.1", "uuid": "14.0.0", "ws": "^8.16.0", "zod": "^4.6.0" }, "peerDependencies": { "graphql": "^16.8.1" }, "bin": { "payload": "bin.js" } }, "sha512-JbfL1SC8tmU8y5No5cqV7j8m/p5w5l86FPIZgyiVpblYCZGHjKwSGn6oQBK0vBQLb5hP7bD+YoO/f06zwqs/ig=="],
 
     "pend": ["pend@1.2.0", "", {}, "sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg=="],
 
