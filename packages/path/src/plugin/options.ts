@@ -134,9 +134,11 @@ type PathConfig = {
 
 export type ReasonBySegment = Record<string, string | undefined>
 
-// Each entry in a custom is named for what writes it: withPath in a collection's, pathPlugin() in the config's.
+// Each entry in a custom is named for what writes it: withPath in a collection's, pathRelationshipField
+// in a field's, pathPlugin() in the config's.
 /** The key withPath keeps a collection's options under, in the collection's custom. */
 export const WITH_PATH_KEY = 'withPath'
+export const PATH_RELATIONSHIP_FIELD_KEY = 'pathRelationshipField'
 const PATH_PLUGIN_KEY = 'pathPlugin'
 
 export const NO_BASE_PATH = ''

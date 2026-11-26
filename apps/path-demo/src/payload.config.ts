@@ -1,5 +1,5 @@
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
-import { pathPlugin, withPath } from '@payloadpack/path'
+import { pathPlugin, pathRelationshipField, withPath } from '@payloadpack/path'
 import path from 'path'
 import { buildConfig, type CollectionConfig } from 'payload'
 import { fileURLToPath } from 'url'
@@ -16,7 +16,9 @@ const page = (slug: string, singular: string, plural: string): CollectionConfig 
   admin: { defaultColumns: ['title', 'path', '_status', 'updatedAt'], useAsTitle: 'title' },
   fields: [
     { name: 'title', type: 'text', localized, required: true },
-    { name: 'summary', type: 'textarea', localized }
+    { name: 'summary', type: 'textarea', localized },
+    // Picks pages, posts and topics, which pathPlugin() fills in when it runs, after this field is built.
+    pathRelationshipField({ name: 'related', hasMany: true })
   ],
   labels: { plural, singular },
   versions: { drafts: { autosave: true } }
