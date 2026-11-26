@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/payloadpack/plugins/compare/path-v0.3.3...path-v0.4.0) (2026-11-26)
+
+
+### Features
+
+* **path:** add pathRelationshipField ([#113](https://github.com/payloadpack/plugins/issues/113)) ([8a0c3ad](https://github.com/payloadpack/plugins/commit/8a0c3ad592f050377fd219ca1e40ec2765c589b9))
+
 ## [0.3.3](https://github.com/payloadpack/plugins/compare/path-v0.3.2...path-v0.3.3) (2026-11-25)
 
 
