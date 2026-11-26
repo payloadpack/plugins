@@ -9,9 +9,12 @@ import type { Page } from '../../../payload-types'
 export const dynamic = 'force-dynamic'
 
 // The documents a document links to in its related field, each at its path in the locale asked for.
-function RelatedLinks({ locale, related }: { locale?: string; related: Page['related'] }) {
+// A document that isn't published shows only in a preview.
+function RelatedLinks({ locale, preview, related }: { locale?: string; preview: boolean; related: Page['related'] }) {
   const links = (related ?? []).flatMap(({ relationTo, value }) =>
-    typeof value === 'object' && value.path ? [{ key: `${relationTo}-${value.id}`, path: value.path, title: value.title }] : []
+    typeof value === 'object' && value.path && (preview || value._status === 'published')
+      ? [{ key: `${relationTo}-${value.id}`, path: value.path, title: value.title }]
+      : []
   )
   if (links.length === 0) return null
   return (
@@ -39,17 +42,22 @@ export default async function SitePage({ params, searchParams }: Props) {
   const path = `/${segments.join('/')}`
   // Only a logged-in user of the admin sees a draft, for a preview.
   const { user } = await payload.auth({ headers: await headers() })
+  const preview = draft === 'true' && user !== null
 
   // Without `collections`, `found.collection` is one of the plugin's collections, in pathPlugin() or
   // with withPath: pages, posts or topics. Pass `collections: ['pages', 'posts']` to narrow it further.
   const found = await findByPath({
     depth: 1,
-    draft: draft === 'true' && user !== null,
+    draft: preview,
     locale,
     path,
     paths: true,
     payload,
-    populate: { pages: { path: true, title: true }, posts: { path: true, title: true }, topics: { path: true, title: true } }
+    populate: {
+      pages: { _status: true, path: true, title: true },
+      posts: { _status: true, path: true, title: true },
+      topics: { _status: true, path: true, title: true }
+    }
   })
 
   if (!found) notFound()
@@ -63,7 +71,7 @@ export default async function SitePage({ params, searchParams }: Props) {
           <h1>{found.document.title}</h1>
           {found.document.summary && <p>{found.document.summary}</p>}
           {parent && <p>Parent: {parent.title}</p>}
-          <RelatedLinks locale={locale} related={found.document.related} />
+          <RelatedLinks locale={locale} preview={preview} related={found.document.related} />
           <pre>{JSON.stringify({ path: found.document.path, paths: found.paths }, null, 2)}</pre>
         </main>
       )
@@ -74,7 +82,7 @@ export default async function SitePage({ params, searchParams }: Props) {
           <p>Collection: posts</p>
           <h1>{found.document.title}</h1>
           {found.document.summary && <p>{found.document.summary}</p>}
-          <RelatedLinks locale={locale} related={found.document.related} />
+          <RelatedLinks locale={locale} preview={preview} related={found.document.related} />
           <pre>{JSON.stringify({ path: found.document.path, paths: found.paths }, null, 2)}</pre>
         </main>
       )
@@ -86,7 +94,7 @@ export default async function SitePage({ params, searchParams }: Props) {
           <h1>{found.document.title}</h1>
           {found.document.summary && <p>{found.document.summary}</p>}
           {parent && <p>Parent topic: {parent.title}</p>}
-          <RelatedLinks locale={locale} related={found.document.related} />
+          <RelatedLinks locale={locale} preview={preview} related={found.document.related} />
           <pre>{JSON.stringify({ path: found.document.path, paths: found.paths }, null, 2)}</pre>
         </main>
       )
