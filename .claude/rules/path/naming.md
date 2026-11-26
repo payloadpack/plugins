@@ -85,7 +85,7 @@ The collections whose documents get a path: each one listed in the plugin's `col
 _Avoid_: marked, tagged or registered collection
 
 **Path relationship field**:
-A site's relationship field made with `pathRelationshipField`, which picks a document of the plugin's collections: all of them, or the ones it is given in `relationTo`. It is built before the config exists, and `pathPlugin()` sets its `relationTo` when it runs, wherever the field sits. Code says `pathRelationshipFields` for all of them.
+A site's relationship field made with `pathRelationshipField`, which picks a document of the plugin's collections: all of them, or the ones it is given in `relationTo`. It is built before the config exists, so `pathPlugin()` sets the `relationTo` of one given none when it runs, wherever the field sits, and checks the list of every other one it finds. Code says `pathRelationshipFields` for all of them.
 _Avoid_: marked field, link field, which is a site's own field that may hold one
 
 **Field options**:
