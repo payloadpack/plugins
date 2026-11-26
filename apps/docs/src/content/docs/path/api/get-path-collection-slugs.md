@@ -46,6 +46,8 @@ The slugs of every collection that gets a path, as `PathCollectionSlug[]`: the o
 
 - At runtime, from `payload.config`, for example to query each collection for a sitemap.
 
+A field in a collection, a global or a block is built before the config exists, so make it with [`pathRelationshipField`](/path/configuration/#a-field-that-picks-a-document-with-a-path) instead, which `pathPlugin` fills in.
+
 <details>
 <summary>More details</summary>
 

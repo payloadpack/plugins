@@ -1,7 +1,10 @@
 import { sqliteAdapter } from '@payloadcms/db-sqlite'
+import { BlocksFeature, lexicalEditor } from '@payloadcms/richtext-lexical'
 import {
   buildConfig,
+  type Block,
   type CollectionConfig,
+  type Field,
   type FieldHook,
   type FilterOptions,
   type FilterOptionsProps,
@@ -12,7 +15,15 @@ import {
 import { generateTypes } from 'payload/node'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { getPathCollectionSlugs, pathPlugin, withPath, type PathCollection, type PathCollectionOptions } from '../src/index.js'
+import {
+  getPathCollectionSlugs,
+  pathPlugin,
+  pathRelationshipField,
+  withPath,
+  type PathCollection,
+  type PathCollectionOptions,
+  type PathCollectionSlug
+} from '../src/index.js'
 
 const collection = (slug: string, fields: CollectionConfig['fields'] = []): CollectionConfig => ({ slug, fields })
 
@@ -319,5 +330,208 @@ describe('pathPlugin', () => {
     await expect(
       configWith([collection('pages'), collection('posts')], { collections: ['pages', { basePath, slug: 'posts' }] })
     ).rejects.toThrow(`@payloadpack/path was given the base path ${basePath} for posts, which ${refusal}.`)
+  })
+})
+
+describe('pathRelationshipField', () => {
+  // pathPlugin() fills a field in place, so each test builds its own.
+  const linksBlock = (): Block => ({
+    slug: 'links',
+    fields: [{ name: 'links', type: 'array', fields: [pathRelationshipField({ name: 'doc', required: true })] }]
+  })
+
+  const fieldNamed = (fields: Field[] | undefined, name: string) =>
+    fields?.find((field) => 'name' in field && field.name === name) as (Field & { fields?: Field[] }) | undefined
+
+  const blocksOf = (field: Field | undefined) => (field && 'blocks' in field ? field.blocks : []) as Block[]
+
+  it('points a field anywhere in the config at the collections with a path, in the order getPathCollectionSlugs gives', async () => {
+    // One block in two collections is one field object, which the plugin reaches twice.
+    const callToAction: Block = { slug: 'callToAction', fields: [pathRelationshipField({ name: 'target' })] }
+    const layout: Field = { name: 'layout', type: 'blocks', blocks: ['links', callToAction] }
+    // Lexical builds its blocks while Payload sanitizes the config, and takes one named by slug from the config's blocks.
+    const body: Field = {
+      name: 'body',
+      type: 'richText',
+      editor: lexicalEditor({ features: [BlocksFeature({ blocks: ['links'] })] })
+    }
+    const jobs: Config['jobs'] = {
+      tasks: [{ slug: 'purge', handler: () => ({ output: {} }), inputSchema: [pathRelationshipField({ name: 'purged' })] }]
+    }
+    const queryPresets: Config['queryPresets'] = {
+      access: {},
+      constraints: {
+        read: [{ access: () => true, fields: [pathRelationshipField({ name: 'shared' })], label: 'Page', value: 'page' }]
+      }
+    }
+    const config = await buildConfig({
+      admin: {
+        dashboard: {
+          widgets: [{ slug: 'featured', Component: './featured#Featured', fields: [pathRelationshipField({ name: 'featured' })] }]
+        }
+      },
+      blocks: [linksBlock()],
+      collections: [
+        { ...collection('pages', [layout, body]), enableQueryPresets: true },
+        withPath(
+          collection('posts', [layout, { type: 'row', fields: [pathRelationshipField({ name: 'related', hasMany: true })] }])
+        )
+      ],
+      globals: [
+        {
+          slug: 'navigation',
+          fields: [
+            {
+              type: 'tabs',
+              tabs: [
+                { label: 'Main', fields: [{ name: 'menu', type: 'group', fields: [pathRelationshipField({ name: 'home' })] }] }
+              ]
+            }
+          ]
+        }
+      ],
+      jobs,
+      plugins: [pathPlugin({ collections: ['pages'] })],
+      queryPresets,
+      secret: 'path-tests'
+    } as Config)
+
+    const fieldsOfCollection = (slug: string) => config.collections.find((built) => built.slug === slug)?.fields
+    const callToActionIn = (slug: string) =>
+      blocksOf(fieldNamed(fieldsOfCollection(slug), 'layout')).find((block) => block.slug === 'callToAction')?.fields
+    const navigation = config.globals.find(({ slug }) => slug === 'navigation')?.fields[0]
+    const mainTab = navigation && 'tabs' in navigation ? navigation.tabs[0]?.fields : []
+    const fields = [
+      fieldNamed(fieldNamed(config.blocks?.find(({ slug }) => slug === 'links')?.fields, 'links')?.fields, 'doc'),
+      fieldNamed(callToActionIn('pages'), 'target'),
+      fieldNamed(callToActionIn('posts'), 'target'),
+      fieldNamed(fieldNamed(mainTab, 'menu')?.fields, 'home'),
+      fieldNamed(fieldsOfCollection('posts')?.find((field) => field.type === 'row')?.fields, 'related'),
+      fieldNamed(config.admin.dashboard?.widgets?.[0]?.fields, 'featured'),
+      fieldNamed(config.jobs.tasks?.[0]?.inputSchema, 'purged'),
+      fieldNamed(config.queryPresets?.constraints.read?.[0]?.fields, 'shared')
+    ]
+
+    expect(getPathCollectionSlugs(config)).toEqual(['pages', 'posts'])
+    for (const field of fields) {
+      expect(field).toMatchObject({ relationTo: getPathCollectionSlugs(config), type: 'relationship' })
+    }
+  })
+
+  it('leaves a relationship field not made with it as it is', async () => {
+    const config = await configWith(
+      [
+        collection('pages', [
+          { name: 'author', type: 'relationship', relationTo: 'authors' },
+          { name: 'pick', type: 'relationship', relationTo: ['pages'] },
+          pathRelationshipField({ name: 'doc' })
+        ]),
+        collection('posts'),
+        collection('authors')
+      ],
+      { collections: ['pages', 'posts'] }
+    )
+
+    const pages = config.collections.find(({ slug }) => slug === 'pages')?.fields
+    expect(fieldNamed(pages, 'author')).toMatchObject({ relationTo: 'authors' })
+    expect(fieldNamed(pages, 'pick')).toMatchObject({ relationTo: ['pages'] })
+    expect(fieldNamed(pages, 'doc')).toMatchObject({ relationTo: ['pages', 'posts'] })
+  })
+
+  it('points a field at a list of one collection, so its value names the collection as with more', async () => {
+    const config = await buildConfig({
+      blocks: [linksBlock()],
+      collections: [collection('pages', [{ name: 'layout', type: 'blocks', blocks: ['links'] }])],
+      // An adapter only for the id type the types use: nothing connects to it.
+      db: sqliteAdapter({ client: { url: 'file::memory:' } }),
+      plugins: [pathPlugin({ collections: ['pages'] })],
+      secret: 'path-tests'
+    })
+    const { types } = await generateTypes(config, { log: false, returnString: true })
+
+    expect(fieldNamed(fieldNamed(config.blocks?.[0]?.fields, 'links')?.fields, 'doc')).toMatchObject({ relationTo: ['pages'] })
+    expect(types).toMatch(/doc: \{\s*relationTo: 'pages';\s*value: number \| Page;\s*\};/)
+  })
+
+  it('refuses a field made with it in a config without a collection with a path, and names the field', () => {
+    const layout: Field = { name: 'layout', type: 'blocks', blocks: ['links'] }
+    const withFields = (pages: Field[]) =>
+      ({
+        blocks: [linksBlock()],
+        collections: [collection('pages', [layout, ...pages]), collection('posts', [layout])],
+        secret: 'path-tests'
+      }) as Config
+
+    expect(() => pathPlugin()(withFields([]))).toThrow(
+      '@payloadpack/path was given no collection for the field doc to point at, so give pathPlugin() a collection in collections or wrapped in withPath.'
+    )
+    expect(() => pathPlugin()(withFields([pathRelationshipField({ name: 'related' })]))).toThrow(
+      '@payloadpack/path was given no collection for the fields related and doc to point at, so give pathPlugin() a collection in collections or wrapped in withPath.'
+    )
+  })
+
+  it('keeps the collections a field is given, in their order, once each has a path', async () => {
+    const config = await configWith(
+      [
+        collection('pages', [pathRelationshipField({ name: 'doc', relationTo: ['topics', 'pages'] })]),
+        collection('posts'),
+        collection('topics')
+      ],
+      { collections: ['pages', 'posts', 'topics'] }
+    )
+
+    const pages = config.collections.find(({ slug }) => slug === 'pages')?.fields
+    expect(fieldNamed(pages, 'doc')).toMatchObject({ relationTo: ['topics', 'pages'] })
+  })
+
+  it.each<[string, string[], string]>([
+    [
+      'a collection without a path',
+      ['pages', 'media'],
+      '@payloadpack/path was given collections without a path in the relationTo of the field doc: media, so give each one a path or take it out of relationTo.'
+    ],
+    [
+      'no collection',
+      [],
+      '@payloadpack/path was given an empty relationTo for the field doc, so name a collection with a path in it or leave relationTo out.'
+    ]
+  ])('refuses a field given %s', async (_label, relationTo, refusal) => {
+    const pages = collection('pages', [pathRelationshipField({ name: 'doc', relationTo })])
+
+    await expect(configWith([pages, collection('media')], { collections: ['pages'] })).rejects.toThrow(refusal)
+  })
+
+  it("takes a relationship field's config without type, and keeps every other property", () => {
+    const filterOptions: FilterOptions = { title: { exists: true } }
+    const field = pathRelationshipField({
+      admin: { allowCreate: false },
+      custom: { site: 'own' },
+      filterOptions,
+      hasMany: true,
+      label: 'Related',
+      maxRows: 3,
+      name: 'related'
+    })
+
+    expect(field).toEqual({
+      admin: { allowCreate: false },
+      custom: { pathRelationshipField: {}, site: 'own' },
+      filterOptions,
+      hasMany: true,
+      label: 'Related',
+      maxRows: 3,
+      name: 'related',
+      relationTo: [],
+      type: 'relationship'
+    })
+    expect(pathRelationshipField({ name: 'doc', relationTo: ['pages'] }).custom).toEqual({
+      pathRelationshipField: { relationTo: ['pages'] }
+    })
+    // Named by the types payload generate:types writes, so a site's own types refuse a collection without a path.
+    expectTypeOf<Parameters<typeof pathRelationshipField>[0]['relationTo']>().toEqualTypeOf<PathCollectionSlug[] | undefined>()
+    // @ts-expect-error the type is always relationship
+    pathRelationshipField({ name: 'doc', type: 'relationship' })
+    // @ts-expect-error minRows only goes with hasMany, as on Payload's own relationship field
+    pathRelationshipField({ minRows: 1, name: 'doc' })
   })
 })

@@ -20,3 +20,14 @@ test('shows a logged-in user the draft at a path only when asked for one', async
   await page.goto('/blog/coming-soon?draft=true')
   await expect(heading(page)).toHaveText('Coming soon')
 })
+
+test('links a page to the documents of other collections it relates to, each at its path', async ({ page }) => {
+  await page.goto('/about')
+  const related = page.getByRole('navigation', { name: 'Related' })
+  await expect(related.getByRole('link')).toHaveText(['Hello world', 'Editing'])
+  await expect(related.getByRole('link', { name: 'Editing' })).toHaveAttribute('href', '/topics/editing')
+
+  await related.getByRole('link', { name: 'Hello world' }).click()
+  await expect(heading(page)).toHaveText('Hello world')
+  expect(new URL(page.url()).pathname).toBe('/blog/hello-world')
+})

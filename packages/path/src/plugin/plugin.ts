@@ -4,6 +4,7 @@ import type { Slugify } from 'payload/shared'
 import { ancestorsField } from '../fields/ancestors.js'
 import { parentField } from '../fields/parent.js'
 import { pathField } from '../fields/path.js'
+import { fillPathRelationshipFields, listPathRelationshipFields } from '../fields/path-relationship.js'
 import { slugField } from '../fields/slug.js'
 import { setPathAfterChange } from '../hooks/after-change.js'
 import { reportPathsAfterDelete } from '../hooks/after-delete.js'
@@ -14,6 +15,7 @@ import { startBulkOperationBeforeOperation } from '../hooks/before-operation.js'
 import {
   missingCollectionsError,
   parentFieldWithoutParentError,
+  pathRelationshipFieldsWithoutCollectionsError,
   repeatedCollectionsError,
   takenFieldNamesError
 } from './messages.js'
@@ -74,18 +76,27 @@ function buildCollectionWithPath(
  * Gives the documents of the collections it is given, in collections or with withPath, a stored path:
  * the parent's path, a slash and the slug, below the collection's base path. Each collection's
  * documents sit below its own, by the plugin's parent field or by the one of Payload's own hierarchy,
- * or below none.
+ * or below none. Every field made with pathRelationshipField, wherever it sits in the config,
+ * picks from these collections, or from the ones among them that it names.
  */
 export function pathPlugin(options: PathPluginOptions = {}): Plugin {
   return (config) => {
     const pathCollections = getPathCollections(options, config)
-    if (pathCollections.length === 0) return config
+    const pathRelationshipFields = listPathRelationshipFields(config)
+    if (pathCollections.length === 0) {
+      if (pathRelationshipFields.length === 0) return config
+      const fieldNames = [...new Set(pathRelationshipFields.map(({ name }) => name))]
+      throw new Error(pathRelationshipFieldsWithoutCollectionsError(fieldNames))
+    }
     const pathConfig = resolvePathConfig(options, pathCollections, config)
     const slugs = pathConfig.collections.map(({ slug }) => slug)
     const repeatedSlugs = [...new Set(slugs.filter((slug, index) => slugs.indexOf(slug) !== index))]
     if (repeatedSlugs.length > 0) throw new Error(repeatedCollectionsError(repeatedSlugs))
     const missingSlugs = slugs.filter((slug) => !config.collections?.some((collection) => collection.slug === slug))
     if (missingSlugs.length > 0) throw new Error(missingCollectionsError(missingSlugs))
+    // In place, because such a field sits at any depth of a collection, a global or a block, where a
+    // copy of everything around it would gain nothing: Payload builds on the same field objects.
+    fillPathRelationshipFields(pathRelationshipFields, slugs)
     return {
       ...config,
       collections: config.collections?.map((collection) => {

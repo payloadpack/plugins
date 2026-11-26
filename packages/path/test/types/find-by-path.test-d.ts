@@ -1,7 +1,14 @@
 import type { Payload } from 'payload'
 import { expectTypeOf } from 'vitest'
 
-import { backfillPaths, findByPath, findPaths, type FoundByPath, type FoundPath } from '../../dist/index.js'
+import {
+  backfillPaths,
+  findByPath,
+  findPaths,
+  pathRelationshipField,
+  type FoundByPath,
+  type FoundPath
+} from '../../dist/index.js'
 
 interface User {
   email: string
@@ -242,4 +249,14 @@ export async function verifyFindByPathTypes() {
     // @ts-expect-error invalid field in select for pages
     await findByPath({ collections: ['pages'], path: '/about', payload, select: { doesNotExist: true } })
   }
+}
+
+export function verifyPathRelationshipFieldTypes() {
+  // A field offers the collections given to the plugin, all of them or the ones it names.
+  pathRelationshipField({ name: 'doc' })
+  pathRelationshipField({ name: 'doc', relationTo: ['topics', 'pages'] })
+  // @ts-expect-error users isn't given to the plugin
+  pathRelationshipField({ name: 'doc', relationTo: ['users'] })
+  // @ts-expect-error redirects isn't given to the plugin, though it has a path and a slug field
+  pathRelationshipField({ name: 'doc', relationTo: ['pages', 'redirects'] })
 }

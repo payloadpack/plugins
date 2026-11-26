@@ -118,6 +118,15 @@ export const takenFieldNamesError = (fieldNames: string[], collectionSlug: strin
 export const parentFieldWithoutParentError = (collectionSlug: string) =>
   `@payloadpack/path adds no parent field to ${collectionSlug}, so leave out its parentField.`
 
+export const pathRelationshipFieldsWithoutCollectionsError = (fieldNames: string[]) =>
+  `@payloadpack/path was given no collection for ${fieldNames.length === 1 ? 'the field' : 'the fields'} ${fieldNames.join(' and ')} to point at, so give pathPlugin() a collection in collections or wrapped in withPath.`
+
+export const relationToWithoutPathError = (collectionSlugs: string[], fieldName: string) =>
+  `@payloadpack/path was given collections without a path in the relationTo of the field ${fieldName}: ${collectionSlugs.join(', ')}, so give each one a path or take it out of relationTo.`
+
+export const emptyRelationToError = (fieldName: string) =>
+  `@payloadpack/path was given an empty relationTo for the field ${fieldName}, so name a collection with a path in it or leave relationTo out.`
+
 export const notGivenCollectionsError = (collectionSlugs: string[]) =>
   `@payloadpack/path was asked for collections that pathPlugin() wasn't given: ${collectionSlugs.join(', ')}.`
 

@@ -176,6 +176,49 @@ In this example, only `en` can update the slug. Other locales see `slug` as read
 
 `parentField` only applies to collections using the plugin's own `parent` field (not `parent: false` or Payload's hierarchy).
 
+## A field that picks a document with a path
+
+A link in a block, a global or a collection often needs to pick a page, a post or any other document with a path. That field is built when its file is imported, before the config exists, so it can't ask which collections have a path. Make it with `pathRelationshipField`, and `pathPlugin` fills in the collections when it runs:
+
+{/* prettier-ignore */}
+```ts title="blocks/link.ts"
+import { pathRelationshipField } from '@payloadpack/path'
+import type { Block } from 'payload'
+
+export const link: Block = {
+  slug: 'link',
+  fields: [pathRelationshipField({ name: 'doc', label: 'Document', required: true })]
+}
+```
+
+To offer only some of them, give it `relationTo`:
+
+```ts
+// Only these, each of which must have a path
+pathRelationshipField({ name: 'doc', relationTo: ['pages'] })
+```
+
+- It takes everything a relationship field takes except `type`, such as `hasMany`, `admin`, `filterOptions`, `hooks` and a `custom` of your own, and passes it through.
+- Without `relationTo`, the field gets every collection with a path, in the order [`getPathCollectionSlugs`](/path/api/get-path-collection-slugs/) returns them. With it, the field keeps your list in its order, and Payload stops with [a message](#when-the-config-is-wrong) when the list is empty or names a collection without a path. With generated types, TypeScript refuses such a slug as well.
+- `relationTo` is always a list, even with one collection, so a value is stored as `{ relationTo, value }`. When you offer a second collection later, there's no data to migrate.
+- The plugin finds the field anywhere in the config it gets: collections, globals, the config's `blocks`, dashboard widgets, query preset constraints and the input and output of jobs, at any depth inside arrays, groups, tabs, rows, collapsibles and blocks. A relationship field you make yourself is left alone.
+- If no collection has a path yet, Payload stops with [a message](#when-the-config-is-wrong) that names the field.
+
+### Where it can't reach
+
+The plugin can only fill a field that is in the config when it runs. A field that is built later keeps its empty `relationTo`, and Payload stops with its own message: `Field "doc" of type "relationship" has an empty relationTo array. At least one collection must be specified.`
+
+- **The `fields` of Lexical's `LinkFeature`**, as a list or as a function, which Lexical builds while Payload sanitizes the config. The function gets the config, so make a plain relationship field there with [`getPathCollectionSlugs`](/path/api/get-path-collection-slugs/):
+
+  ```ts
+  LinkFeature({
+    fields: ({ config }) => [{ name: 'doc', type: 'relationship', relationTo: getPathCollectionSlugs(config), required: true }]
+  })
+  ```
+
+- **A block you give `BlocksFeature` as an object**, and the `fields` of `UploadFeature`, which Lexical builds the same way. Put the block in the config's `blocks` and give `BlocksFeature` its slug instead, and the plugin fills it.
+- **A field a plugin adds after `pathPlugin` has run.** Move `pathPlugin` after that plugin in `plugins`. A field added in `jobs.jobsCollectionOverrides` comes later still, since Payload runs it while it sanitizes the config, so give that one its `relationTo` yourself.
+
 ## Home page
 
 ```ts title="payload.config.ts"
@@ -300,13 +343,16 @@ The plugin uses `defaultSlugify` when `slugify` isn't set. Wrap it to run your o
 
 Invalid options stop Payload while building the config with one of these messages:
 
-| Message                                                                                                                 | Fix                                                                                                   |
-| ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| @payloadpack/path was given collections the config doesn't have: posts.                                                 | Fix the collection slug, or place `pathPlugin` after the plugin adding it                             |
-| @payloadpack/path was given pages more than once, so give each collection once, in collections or with withPath.        | List the collection once in `collections`, or wrap it in `withPath` and leave it out of `collections` |
-| @payloadpack/path adds slug to pages, so remove its own.                                                                | Remove or rename the collection's own field                                                           |
-| @payloadpack/path adds no parent field to posts, so leave out its parentField.                                          | Remove `parentField` — only the plugin's own `parent` field uses it                                   |
-| @payloadpack/path was given the base path blog for posts, which doesn't start with a slash, so start it with one.       | Change to `/blog`                                                                                     |
-| @payloadpack/path was given the base path /blog/ for posts, which ends with a slash, so remove that slash.              | Change to `/blog`                                                                                     |
-| @payloadpack/path was given the base path /blog//news for posts, which has an empty segment, so remove the extra slash. | Change to `/blog/news`                                                                                |
-| @payloadpack/path was given the base path / for posts, which is the root already, so leave basePath out.                | Remove `basePath`, or set a segment like `/blog`                                                      |
+| Message                                                                                                                                                 | Fix                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| @payloadpack/path was given collections the config doesn't have: posts.                                                                                 | Fix the collection slug, or place `pathPlugin` after the plugin adding it                             |
+| @payloadpack/path was given pages more than once, so give each collection once, in collections or with withPath.                                        | List the collection once in `collections`, or wrap it in `withPath` and leave it out of `collections` |
+| @payloadpack/path adds slug to pages, so remove its own.                                                                                                | Remove or rename the collection's own field                                                           |
+| @payloadpack/path adds no parent field to posts, so leave out its parentField.                                                                          | Remove `parentField` — only the plugin's own `parent` field uses it                                   |
+| @payloadpack/path was given no collection for the field doc to point at, so give pathPlugin() a collection in collections or wrapped in withPath.       | Give a collection a path, or remove the field made with `pathRelationshipField`                       |
+| @payloadpack/path was given collections without a path in the relationTo of the field doc: media, so give each one a path or take it out of relationTo. | Give `media` a path, or take it out of the field's `relationTo`                                       |
+| @payloadpack/path was given an empty relationTo for the field doc, so name a collection with a path in it or leave relationTo out.                      | Name a collection with a path, or leave `relationTo` out to offer them all                            |
+| @payloadpack/path was given the base path blog for posts, which doesn't start with a slash, so start it with one.                                       | Change to `/blog`                                                                                     |
+| @payloadpack/path was given the base path /blog/ for posts, which ends with a slash, so remove that slash.                                              | Change to `/blog`                                                                                     |
+| @payloadpack/path was given the base path /blog//news for posts, which has an empty segment, so remove the extra slash.                                 | Change to `/blog/news`                                                                                |
+| @payloadpack/path was given the base path / for posts, which is the root already, so leave basePath out.                                                | Remove `basePath`, or set a segment like `/blog`                                                      |

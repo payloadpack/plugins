@@ -182,6 +182,22 @@ export interface Page {
   id: string;
   title: string;
   summary?: string | null;
+  related?:
+    | (
+        | {
+            relationTo: 'pages';
+            value: string | Page;
+          }
+        | {
+            relationTo: 'posts';
+            value: string | Post;
+          }
+        | {
+            relationTo: 'topics';
+            value: string | Topic;
+          }
+      )[]
+    | null;
   parent?: (string | null) | Page;
   slug?: string | null;
   path?: string | null;
@@ -206,6 +222,22 @@ export interface Post {
   id: string;
   title: string;
   summary?: string | null;
+  related?:
+    | (
+        | {
+            relationTo: 'pages';
+            value: string | Page;
+          }
+        | {
+            relationTo: 'posts';
+            value: string | Post;
+          }
+        | {
+            relationTo: 'topics';
+            value: string | Topic;
+          }
+      )[]
+    | null;
   slug?: string | null;
   path?: string | null;
   createdBy?: {
@@ -229,6 +261,22 @@ export interface Topic {
   _h_topics?: (string | null) | Topic;
   title: string;
   summary?: string | null;
+  related?:
+    | (
+        | {
+            relationTo: 'pages';
+            value: string | Page;
+          }
+        | {
+            relationTo: 'posts';
+            value: string | Post;
+          }
+        | {
+            relationTo: 'topics';
+            value: string | Topic;
+          }
+      )[]
+    | null;
   slug?: string | null;
   path?: string | null;
   ancestors?: (string | Topic)[] | null;
@@ -387,6 +435,7 @@ export interface UsersSelect<T extends boolean = true> {
 export interface PagesSelect<T extends boolean = true> {
   title?: T;
   summary?: T;
+  related?: T;
   parent?: T;
   slug?: T;
   path?: T;
@@ -404,6 +453,7 @@ export interface PagesSelect<T extends boolean = true> {
 export interface PostsSelect<T extends boolean = true> {
   title?: T;
   summary?: T;
+  related?: T;
   slug?: T;
   path?: T;
   createdBy?: T;
@@ -420,6 +470,7 @@ export interface TopicsSelect<T extends boolean = true> {
   _h_topics?: T;
   title?: T;
   summary?: T;
+  related?: T;
   slug?: T;
   path?: T;
   ancestors?: T;

@@ -84,6 +84,10 @@ _Avoid_: synced, shared path, per market
 The collections whose documents get a path: each one listed in the plugin's `collections` or wrapped in `withPath` in its own config, never both. Code says `pathCollections` for all of them.
 _Avoid_: marked, tagged or registered collection
 
+**Path relationship field**:
+A site's relationship field made with `pathRelationshipField`, which picks a document of the plugin's collections: all of them, or the ones it is given in `relationTo`. It is built before the config exists, and `pathPlugin()` sets its `relationTo` when it runs, wherever the field sits. Code says `pathRelationshipFields` for all of them.
+_Avoid_: marked field, link field, which is a site's own field that may hold one
+
 **Field options**:
 What a site sets on the slug field or the plugin's own parent field with `slugField` and `parentField`, as Payload's own field config. The plugin keeps each field's name, type and whether it is localized.
 _Avoid_: field overrides, field config

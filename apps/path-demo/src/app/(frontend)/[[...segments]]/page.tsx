@@ -4,7 +4,28 @@ import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 
+import type { Page } from '../../../payload-types'
+
 export const dynamic = 'force-dynamic'
+
+// The documents a document links to in its related field, each at its path in the locale asked for.
+function RelatedLinks({ locale, related }: { locale?: string; related: Page['related'] }) {
+  const links = (related ?? []).flatMap(({ relationTo, value }) =>
+    typeof value === 'object' && value.path ? [{ key: `${relationTo}-${value.id}`, path: value.path, title: value.title }] : []
+  )
+  if (links.length === 0) return null
+  return (
+    <nav aria-label="Related">
+      <ul>
+        {links.map(({ key, path, title }) => (
+          <li key={key}>
+            <a href={locale ? `${path}?locale=${locale}` : path}>{title}</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}
 
 type Props = {
   params: Promise<{ segments?: string[] }>
@@ -28,7 +49,7 @@ export default async function SitePage({ params, searchParams }: Props) {
     path,
     paths: true,
     payload,
-    populate: { pages: { path: true, title: true }, topics: { path: true, title: true } }
+    populate: { pages: { path: true, title: true }, posts: { path: true, title: true }, topics: { path: true, title: true } }
   })
 
   if (!found) notFound()
@@ -42,6 +63,7 @@ export default async function SitePage({ params, searchParams }: Props) {
           <h1>{found.document.title}</h1>
           {found.document.summary && <p>{found.document.summary}</p>}
           {parent && <p>Parent: {parent.title}</p>}
+          <RelatedLinks locale={locale} related={found.document.related} />
           <pre>{JSON.stringify({ path: found.document.path, paths: found.paths }, null, 2)}</pre>
         </main>
       )
@@ -52,6 +74,7 @@ export default async function SitePage({ params, searchParams }: Props) {
           <p>Collection: posts</p>
           <h1>{found.document.title}</h1>
           {found.document.summary && <p>{found.document.summary}</p>}
+          <RelatedLinks locale={locale} related={found.document.related} />
           <pre>{JSON.stringify({ path: found.document.path, paths: found.paths }, null, 2)}</pre>
         </main>
       )
@@ -63,6 +86,7 @@ export default async function SitePage({ params, searchParams }: Props) {
           <h1>{found.document.title}</h1>
           {found.document.summary && <p>{found.document.summary}</p>}
           {parent && <p>Parent topic: {parent.title}</p>}
+          <RelatedLinks locale={locale} related={found.document.related} />
           <pre>{JSON.stringify({ path: found.document.path, paths: found.paths }, null, 2)}</pre>
         </main>
       )

@@ -1,3 +1,4 @@
+import { findByPath } from '@payloadpack/path'
 import type { Payload } from 'payload'
 
 import type { Page, Topic } from './payload-types'
@@ -128,4 +129,18 @@ export async function seed(payload: Payload) {
   for (const document of PAGES) await seedDocument(payload, 'pages', document)
   for (const document of POSTS) await seedDocument(payload, 'posts', document)
   for (const document of TOPICS) await seedDocument(payload, 'topics', document)
+  // The About page links to a post and a topic in its related field, once they exist.
+  const [about, post, topic] = await Promise.all(
+    ['/about', '/blog/hello-world', '/topics/editing'].map((path) => findByPath({ path, payload }))
+  )
+  if (!about || !post || !topic) throw new Error('The seed wrote no /about, /blog/hello-world or /topics/editing.')
+  await payload.update({
+    collection: 'pages',
+    data: {
+      _status: 'published',
+      related: [post, topic].map(({ collection, document }) => ({ relationTo: collection, value: document.id }))
+    },
+    id: about.document.id,
+    overrideAccess: true
+  })
 }
