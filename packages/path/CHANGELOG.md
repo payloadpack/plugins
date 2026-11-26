@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.1](https://github.com/payloadpack/plugins/compare/path-v0.4.0...path-v0.4.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **path:** keep a given relationTo on the field ([#115](https://github.com/payloadpack/plugins/issues/115)) ([e296c34](https://github.com/payloadpack/plugins/commit/e296c3472470478f9f5374588b9638ee4334715e))
+
+
+### Refactor
+
+* **path:** name the flag setPathCollections ([#117](https://github.com/payloadpack/plugins/issues/117)) ([83f338f](https://github.com/payloadpack/plugins/commit/83f338f89b5418770f75e243b827e8385d3f7d04))
+
 ## [0.4.0](https://github.com/payloadpack/plugins/compare/path-v0.3.3...path-v0.4.0) (2026-11-26)
 
 
