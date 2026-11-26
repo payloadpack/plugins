@@ -558,7 +558,7 @@ describe('pathRelationshipField', () => {
 
     expect(field).toEqual({
       admin: { allowCreate: false },
-      custom: { pathRelationshipField: { allPathCollections: true }, site: 'own' },
+      custom: { pathRelationshipField: { setPathCollections: true }, site: 'own' },
       filterOptions,
       hasMany: true,
       label: 'Related',
@@ -569,7 +569,7 @@ describe('pathRelationshipField', () => {
     })
     // A list it is given is the field's relationTo from the start, so it holds where the plugin can't reach.
     expect(pathRelationshipField({ name: 'doc', relationTo: ['pages'] })).toMatchObject({
-      custom: { pathRelationshipField: { allPathCollections: false } },
+      custom: { pathRelationshipField: { setPathCollections: false } },
       relationTo: ['pages']
     })
     // Named by the types payload generate:types writes, so a site's own types refuse a collection without a path.
