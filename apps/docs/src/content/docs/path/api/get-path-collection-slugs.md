@@ -36,14 +36,7 @@ The slugs of every collection that gets a path, as `PathCollectionSlug[]`: the o
 ## Where it works
 
 - In a plugin placed after `pathPlugin()`, from the config the plugin gets.
-- In a field's config function, such as the `fields` of Lexical's `LinkFeature`, so a link picks only documents with a path:
-
-  ```ts
-  LinkFeature({
-    fields: ({ config }) => [{ name: 'doc', type: 'relationship', relationTo: getPathCollectionSlugs(config), required: true }]
-  })
-  ```
-
+- In a field's config function, such as the `fields` of Lexical's `LinkFeature`, so a link picks only documents with a path, as [Where it can't reach](/path/configuration/#where-it-cant-reach) shows.
 - At runtime, from `payload.config`, for example to query each collection for a sitemap.
 
 A field in a collection, a global or a block is built before the config exists, so make it with [`pathRelationshipField`](/path/configuration/#a-field-that-picks-a-document-with-a-path) instead, which `pathPlugin` fills in.

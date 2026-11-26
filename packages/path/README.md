@@ -96,7 +96,7 @@ export default buildConfig({
 })
 ```
 
-A link field in a block, a global or a collection is built when its file is imported, before the config exists, so it can't ask which collections have a path. Make it with `pathRelationshipField`, and `pathPlugin()` fills in the collections with a path when it runs:
+A relationship field in a block, a global or a collection is built when its file is imported, before the config exists, so it can't ask which collections have a path. Make it with `pathRelationshipField`, and `pathPlugin()` fills in the collections with a path when it runs:
 
 ```ts
 import { pathRelationshipField } from '@payloadpack/path'
@@ -108,7 +108,7 @@ pathRelationshipField({ name: 'doc', label: 'Document', required: true })
 pathRelationshipField({ name: 'doc', relationTo: ['pages'] })
 ```
 
-It takes everything a relationship field takes except `type`. A `relationTo` you give is kept in its order, and the plugin stops Payload when that list is empty or names a collection without a path. `relationTo` is always a list, so a value is stored as `{ relationTo, value }` even with one collection, and offering a second one later needs no migration. The plugin finds the field anywhere in the config it gets. A field Lexical builds later, such as one in the `fields` of `LinkFeature`, isn't there yet, and Payload stops with its own "empty relationTo array" error. The [docs](https://docs.payloadpack.com/path/configuration/#where-it-cant-reach) say what to do there.
+It takes everything a relationship field takes except `type`. A `relationTo` you give is the field's from the start, in its order, and wherever the plugin finds the field it stops Payload when that list is empty or names a collection without a path. `relationTo` is always a list, so a value is stored as `{ relationTo, value }` even with one collection, and offering a second one later needs no migration. The plugin finds the field anywhere in the config it gets. A field Lexical builds later, such as one in the `fields` of `LinkFeature`, isn't there yet, so give it `relationTo: getPathCollectionSlugs(config)` from the config that function gets, as the [docs](https://docs.payloadpack.com/path/configuration/#where-it-cant-reach) show.
 
 `getPathCollectionSlugs(config)` lists the collections that get a path, in either way, for a plugin after `pathPlugin()`, a field's config function or `payload.config`, such as the `fields` of Lexical's `LinkFeature`.
 

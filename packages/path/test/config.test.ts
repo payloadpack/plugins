@@ -1,5 +1,5 @@
 import { sqliteAdapter } from '@payloadcms/db-sqlite'
-import { BlocksFeature, lexicalEditor } from '@payloadcms/richtext-lexical'
+import { BlocksFeature, LinkFeature, lexicalEditor, type LexicalRichTextAdapter } from '@payloadcms/richtext-lexical'
 import {
   buildConfig,
   type Block,
@@ -484,6 +484,49 @@ describe('pathRelationshipField', () => {
     expect(fieldNamed(pages, 'doc')).toMatchObject({ relationTo: ['topics', 'pages'] })
   })
 
+  it('gives a field the collections it is given at once, so a field Lexical builds after the plugin picks them too', async () => {
+    // Lexical builds a link's fields while Payload sanitizes the config, after the plugin has run, and
+    // gives the function the config. Its own doc field picks from every collection. The docs show this.
+    const body: Field = {
+      name: 'body',
+      type: 'richText',
+      editor: lexicalEditor({
+        features: [
+          LinkFeature({
+            fields: ({ config, defaultFields }) =>
+              defaultFields.map((field) =>
+                field.type === 'relationship' && field.name === 'doc'
+                  ? pathRelationshipField({
+                      ...field,
+                      admin: { condition: field.admin?.condition },
+                      relationTo: getPathCollectionSlugs(config)
+                    })
+                  : field
+              )
+          })
+        ]
+      })
+    }
+    const config = await configWith([collection('pages', [body]), collection('posts'), collection('media')], {
+      collections: ['pages', 'posts']
+    })
+
+    const { editor } = fieldNamed(config.collections.find(({ slug }) => slug === 'pages')?.fields, 'body') as {
+      editor: LexicalRichTextAdapter
+    }
+    const linkFields = (editor.editorConfig.resolvedFeatureMap.get('link')?.sanitizedServerFeatureProps as { fields: Field[] })
+      .fields
+    expect(linkFields.map((field) => 'name' in field && field.name)).toEqual(['text', 'linkType', 'url', 'doc', 'newTab'])
+    // Lexical's own label, filter and condition stay, so an editor sees its picker.
+    expect(fieldNamed(linkFields, 'doc')).toMatchObject({
+      admin: { condition: expect.any(Function) },
+      filterOptions: expect.any(Function),
+      label: expect.any(Function),
+      relationTo: ['pages', 'posts'],
+      required: true
+    })
+  })
+
   it.each<[string, string[], string]>([
     [
       'a collection without a path',
@@ -515,7 +558,7 @@ describe('pathRelationshipField', () => {
 
     expect(field).toEqual({
       admin: { allowCreate: false },
-      custom: { pathRelationshipField: {}, site: 'own' },
+      custom: { pathRelationshipField: { allPathCollections: true }, site: 'own' },
       filterOptions,
       hasMany: true,
       label: 'Related',
@@ -524,8 +567,10 @@ describe('pathRelationshipField', () => {
       relationTo: [],
       type: 'relationship'
     })
-    expect(pathRelationshipField({ name: 'doc', relationTo: ['pages'] }).custom).toEqual({
-      pathRelationshipField: { relationTo: ['pages'] }
+    // A list it is given is the field's relationTo from the start, so it holds where the plugin can't reach.
+    expect(pathRelationshipField({ name: 'doc', relationTo: ['pages'] })).toMatchObject({
+      custom: { pathRelationshipField: { allPathCollections: false } },
+      relationTo: ['pages']
     })
     // Named by the types payload generate:types writes, so a site's own types refuse a collection without a path.
     expectTypeOf<Parameters<typeof pathRelationshipField>[0]['relationTo']>().toEqualTypeOf<PathCollectionSlug[] | undefined>()

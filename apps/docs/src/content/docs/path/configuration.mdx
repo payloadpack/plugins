@@ -199,20 +199,29 @@ pathRelationshipField({ name: 'doc', relationTo: ['pages'] })
 ```
 
 - It takes everything a relationship field takes except `type`, such as `hasMany`, `admin`, `filterOptions`, `hooks` and a `custom` of your own, and passes it through.
-- Without `relationTo`, the field gets every collection with a path, in the order [`getPathCollectionSlugs`](/path/api/get-path-collection-slugs/) returns them. With it, the field keeps your list in its order, and Payload stops with [a message](#when-the-config-is-wrong) when the list is empty or names a collection without a path. With generated types, TypeScript refuses such a slug as well.
+- Without `relationTo`, the field gets every collection with a path, in the order [`getPathCollectionSlugs`](/path/api/get-path-collection-slugs/) returns them. With it, the field has your list from the start, in its order, and wherever the plugin finds the field, Payload stops with [a message](#when-the-config-is-wrong) when the list is empty or names a collection without a path. With generated types, TypeScript refuses such a slug as well.
 - `relationTo` is always a list, even with one collection, so a value is stored as `{ relationTo, value }`. When you offer a second collection later, there's no data to migrate.
 - The plugin finds the field anywhere in the config it gets: collections, globals, the config's `blocks`, dashboard widgets, query preset constraints and the input and output of jobs, at any depth inside arrays, groups, tabs, rows, collapsibles and blocks. A relationship field you make yourself is left alone.
 - If no collection has a path yet, Payload stops with [a message](#when-the-config-is-wrong) that names the field.
 
 ### Where it can't reach
 
-The plugin can only fill a field that is in the config when it runs. A field that is built later keeps its empty `relationTo`, and Payload stops with its own message: `Field "doc" of type "relationship" has an empty relationTo array. At least one collection must be specified.`
+The plugin can only fill and check a field that is in the config when it runs. A field built later without `relationTo` keeps an empty one, and Payload stops with its own message: `Field "doc" of type "relationship" has an empty relationTo array. At least one collection must be specified.` A field given `relationTo` keeps that list, which the plugin can't check there, so take it from [`getPathCollectionSlugs`](/path/api/get-path-collection-slugs/) where the config is at hand.
 
-- **The `fields` of Lexical's `LinkFeature`**, as a list or as a function, which Lexical builds while Payload sanitizes the config. The function gets the config, so make a plain relationship field there with [`getPathCollectionSlugs`](/path/api/get-path-collection-slugs/):
+- **The `fields` of Lexical's `LinkFeature`**, as a list or as a function, which Lexical builds while Payload sanitizes the config. The function gets the config, so give the field `relationTo: getPathCollectionSlugs(config)` there. What it returns replaces Lexical's own link fields, so this one keeps them and makes Lexical's document picker pick a document with a path, with its own label and filter:
 
   ```ts
   LinkFeature({
-    fields: ({ config }) => [{ name: 'doc', type: 'relationship', relationTo: getPathCollectionSlugs(config), required: true }]
+    fields: ({ config, defaultFields }) =>
+      defaultFields.map((field) =>
+        field.type === 'relationship' && field.name === 'doc'
+          ? pathRelationshipField({
+              ...field,
+              admin: { condition: field.admin?.condition },
+              relationTo: getPathCollectionSlugs(config)
+            })
+          : field
+      )
   })
   ```
 

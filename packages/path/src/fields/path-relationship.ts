@@ -8,39 +8,47 @@ import { PATH_RELATIONSHIP_FIELD_KEY, type PathCollectionSlug } from '../plugin/
 // relationship field keep their own properties.
 type OmitFromEach<Type, Key extends PropertyKey> = Type extends unknown ? Omit<Type, Key> : never
 
-// What pathRelationshipField keeps in the field's custom: the collections it was given, if any.
-type PathRelationshipFieldOptions = { relationTo?: PathCollectionSlug[] }
+// What pathRelationshipField keeps in the field's custom: whether the field picks from every
+// collection with a path, because it was given no relationTo. The plugin decides by it, and never
+// by the field's relationTo, which the first build of a config fills.
+type PathRelationshipFieldOptions = { allPathCollections: boolean }
 
 /**
  * A relationship field that picks a document of a collection with a path, for a link in a block, a
  * global or a collection, which is built before the config exists. It takes a relationship field's
- * config without type, and keeps the relationTo it is given, if any, in the field's custom, which
- * Payload keeps on the server. pathPlugin() sets relationTo when it runs: to that list, once it has
- * checked that each of them has a path, or else to the slugs getPathCollectionSlugs gives.
- * relationTo is always a list, so a value is { relationTo, value } even with one collection.
+ * config without type. A relationTo it is given is the field's from the start, in its order, so a
+ * field pathPlugin() can't reach, such as one in the fields of Lexical's LinkFeature, can pass
+ * getPathCollectionSlugs(config). Without one, its relationTo starts empty. pathPlugin() then sets it
+ * to the slugs getPathCollectionSlugs gives, and checks that each collection of a given list has a
+ * path. relationTo is always a list, so a value is { relationTo, value } even with one collection.
  */
 export function pathRelationshipField(
   field: OmitFromEach<PolymorphicRelationshipField, 'relationTo' | 'type'> & { relationTo?: PathCollectionSlug[] }
 ): PolymorphicRelationshipField {
-  const options: PathRelationshipFieldOptions = field.relationTo ? { relationTo: [...field.relationTo] } : {}
-  return { ...field, custom: { ...field.custom, [PATH_RELATIONSHIP_FIELD_KEY]: options }, relationTo: [], type: 'relationship' }
+  const options: PathRelationshipFieldOptions = { allPathCollections: !field.relationTo }
+  return {
+    ...field,
+    custom: { ...field.custom, [PATH_RELATIONSHIP_FIELD_KEY]: options },
+    relationTo: [...(field.relationTo ?? [])],
+    type: 'relationship'
+  }
 }
 
 /**
- * Sets the relationTo of each field made with pathRelationshipField, in place: to the collections
- * it was given, which must have a path, or else to every collection with a path, in their order.
+ * Sets the relationTo of each field made with pathRelationshipField without one, in place, to every
+ * collection with a path, in their order, and checks that the one each other field was given is not
+ * empty and names only collections with a path.
  */
 export function fillPathRelationshipFields(fields: PolymorphicRelationshipField[], slugs: CollectionSlug[]) {
   for (const field of fields) {
-    const { relationTo } = field.custom?.[PATH_RELATIONSHIP_FIELD_KEY] as PathRelationshipFieldOptions
-    if (!relationTo) {
+    const { allPathCollections } = field.custom?.[PATH_RELATIONSHIP_FIELD_KEY] as PathRelationshipFieldOptions
+    if (allPathCollections) {
       field.relationTo = [...slugs]
       continue
     }
-    if (relationTo.length === 0) throw new Error(emptyRelationToError(field.name))
-    const slugsWithoutPath = relationTo.filter((slug) => !slugs.includes(slug))
+    if (field.relationTo.length === 0) throw new Error(emptyRelationToError(field.name))
+    const slugsWithoutPath = field.relationTo.filter((slug) => !slugs.includes(slug))
     if (slugsWithoutPath.length > 0) throw new Error(relationToWithoutPathError(slugsWithoutPath, field.name))
-    field.relationTo = [...relationTo]
   }
 }
 
