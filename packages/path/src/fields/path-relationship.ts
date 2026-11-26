@@ -8,10 +8,11 @@ import { PATH_RELATIONSHIP_FIELD_KEY, type PathCollectionSlug } from '../plugin/
 // relationship field keep their own properties.
 type OmitFromEach<Type, Key extends PropertyKey> = Type extends unknown ? Omit<Type, Key> : never
 
-// What pathRelationshipField keeps in the field's custom: whether the field picks from every
-// collection with a path, because it was given no relationTo. The plugin decides by it, and never
-// by the field's relationTo, which the first build of a config fills.
-type PathRelationshipFieldOptions = { allPathCollections: boolean }
+// What pathRelationshipField keeps in the field's custom: whether pathPlugin() sets the
+// field's relationTo to every collection with a path, because it was given none. It is set once, so
+// it still holds after the plugin has set them: the plugin decides by it, and never by the field's
+// relationTo, which the first build of a config fills.
+type PathRelationshipFieldOptions = { setPathCollections: boolean }
 
 /**
  * A relationship field that picks a document of a collection with a path, for a link in a block, a
@@ -25,7 +26,7 @@ type PathRelationshipFieldOptions = { allPathCollections: boolean }
 export function pathRelationshipField(
   field: OmitFromEach<PolymorphicRelationshipField, 'relationTo' | 'type'> & { relationTo?: PathCollectionSlug[] }
 ): PolymorphicRelationshipField {
-  const options: PathRelationshipFieldOptions = { allPathCollections: !field.relationTo }
+  const options: PathRelationshipFieldOptions = { setPathCollections: !field.relationTo }
   return {
     ...field,
     custom: { ...field.custom, [PATH_RELATIONSHIP_FIELD_KEY]: options },
@@ -41,8 +42,8 @@ export function pathRelationshipField(
  */
 export function fillPathRelationshipFields(fields: PolymorphicRelationshipField[], slugs: CollectionSlug[]) {
   for (const field of fields) {
-    const { allPathCollections } = field.custom?.[PATH_RELATIONSHIP_FIELD_KEY] as PathRelationshipFieldOptions
-    if (allPathCollections) {
+    const { setPathCollections } = field.custom?.[PATH_RELATIONSHIP_FIELD_KEY] as PathRelationshipFieldOptions
+    if (setPathCollections) {
       field.relationTo = [...slugs]
       continue
     }
